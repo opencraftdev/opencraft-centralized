@@ -21,7 +21,7 @@ It is intentionally a **viewer**, not a control plane. See [docs/ARCHITECTURE.md
 | Agent | Slug | What it does | Repository |
 |---|---|---|---|
 | Social Media Automation | `social-media-automation` | Generates & publishes short-form video / image posts | _(its own repo)_ |
-| Document Agent | `document-agent` | Ingests & processes documents | _(its own repo)_ |
+| Document Agent | `document-agent` | Generates documents for internal tools | [document-agent](https://github.com/opencraftdev/document-agent) |
 | Comment Bot | `comment-bot` | Auto-comments / replies on social media | _(its own repo)_ |
 | Blogpost Automation | `blogpost-automation` | Drafts & publishes blog posts | _(its own repo)_ |
 

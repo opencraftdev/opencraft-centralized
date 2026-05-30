@@ -33,12 +33,13 @@ Generates short-form video/image posts and publishes them to social platforms.
 
 ### 2. Document Agent — `document-agent`
 
-Ingests and processes documents.
+Generates documents for internal tools. Repo: <https://github.com/opencraftdev/document-agent>
 
-- **Reports runs for:** each document (or batch) processed.
-- **Specific metrics:** `documents_processed`, `pages_processed`, `parse_success_rate`,
-  `ocr_confidence_avg`, `queue_depth`, `bytes_ingested`.
-- **Key events:** parse failure, unsupported format, extraction timeout.
+- **Reports runs for:** each document generated (or generation batch).
+- **Specific metrics:** `documents_generated`, `documents_by_tool` (which internal tool requested
+  it), `documents_by_type` (format/template), `words_generated`, `generation_duration_ms`,
+  `generation_failures`.
+- **Key events:** generation failure, missing/invalid template, validation failure.
 
 ### 3. Comment Bot — `comment-bot`
 

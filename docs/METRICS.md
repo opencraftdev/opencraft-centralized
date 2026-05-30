@@ -48,14 +48,16 @@ need **no schema change** — only a chart mapping if you want a dedicated visua
 
 ### `document` (Document Agent)
 
+Generates documents for internal tools.
+
 | `metric_key` | Meaning | Suggested viz |
 |---|---|---|
-| `documents_processed` | docs handled | counter + line |
-| `pages_processed` | total pages | counter |
-| `parse_success_rate` | successful parses % | percentage + trend |
-| `ocr_confidence_avg` | avg OCR confidence | gauge |
-| `queue_depth` | docs waiting | gauge |
-| `bytes_ingested` | data volume | area chart |
+| `documents_generated` | docs created in period | counter + line |
+| `documents_by_tool` | created per requesting internal tool | stacked bar |
+| `documents_by_type` | created per format/template | stacked bar |
+| `words_generated` | total words produced | counter |
+| `generation_duration_ms` | time to generate a document | trend line |
+| `generation_failures` | failed generations | counter (alert if > 0) |
 
 ### `comment-bot` (Comment Bot)
 

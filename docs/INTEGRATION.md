@@ -66,7 +66,7 @@ Report **incremental** values per run (not running totals):
 ```
 POST /api/ingest/metric
 { "slug": "document-agent", "run_id": 4127,
-  "metric_key": "documents_processed", "value": 42 }
+  "metric_key": "documents_generated", "value": 42 }
 
 POST /api/ingest/metric
 { "slug": "social-media-automation", "run_id": 4127,
@@ -128,7 +128,7 @@ const { run_id } = await monitor.startRun("job-8821");
 const t0 = performance.now();
 try {
   const n = await doWork();
-  await monitor.metric(run_id, "documents_processed", n);
+  await monitor.metric(run_id, "documents_generated", n);
   await monitor.finishRun(run_id, true, n, performance.now() - t0);
 } catch (e) {
   await monitor.event("error", String(e), run_id);
