@@ -24,6 +24,9 @@ import FeedbackOutlined from "@mui/icons-material/FeedbackOutlined";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import ExpandLessOutlined from "@mui/icons-material/ExpandLessOutlined";
+import SmartToyOutlined from "@mui/icons-material/SmartToyOutlined";
+import RateReviewOutlined from "@mui/icons-material/RateReviewOutlined";
+import ManageAccountsOutlined from "@mui/icons-material/ManageAccountsOutlined";
 import { NavLinkLoading } from "./loading-context";
 
 const SIDEBAR_WIDTH = 280;
@@ -40,6 +43,13 @@ const blogItems: NavItem[] = [
   { href: "/monitor/blog", label: "History", icon: <HistoryOutlined /> },
   { href: "/monitor/blog/performance", label: "Performance", icon: <TrendingUpOutlined /> },
   { href: "/monitor/blog/audit", label: "SEO Audit", icon: <FactCheckOutlined /> },
+];
+
+const commentBotItems: NavItem[] = [
+  { href: "/comment-bot", label: "Overview", icon: <SmartToyOutlined /> },
+  { href: "/comment-bot/queue", label: "Review Queue", icon: <RateReviewOutlined /> },
+  { href: "/comment-bot/history", label: "History", icon: <HistoryOutlined /> },
+  { href: "/comment-bot/brand", label: "Brand Profile", icon: <ManageAccountsOutlined /> },
 ];
 
 const contentItems: NavItem[] = [
@@ -150,9 +160,10 @@ function SectionHeader({
 export function Sidebar({ userEmail: _userEmail }: { userEmail: string }) {
   const pathname = usePathname();
   const [blogsOpen, setBlogsOpen] = useState(true);
+  const [commentBotOpen, setCommentBotOpen] = useState(true);
   const [contentOpen, setContentOpen] = useState(true);
 
-  const navHrefs = [...primaryItems, ...blogItems, ...contentItems]
+  const navHrefs = [...primaryItems, ...blogItems, ...commentBotItems, ...contentItems]
     .map((i) => i.href)
     .filter((h) => !h.startsWith("#"));
 
@@ -204,6 +215,23 @@ export function Sidebar({ userEmail: _userEmail }: { userEmail: string }) {
         <Collapse in={blogsOpen}>
           <List disablePadding>
             {blogItems.map((item) => (
+              <NavRow key={item.href} item={item} active={isActive(item.href)} />
+            ))}
+          </List>
+        </Collapse>
+      </Box>
+
+      {/* Collapsible: Comment Bot */}
+      <Box sx={{ mt: 1 }}>
+        <Divider sx={{ borderColor: "#DADCE0", mx: 1 }} />
+        <SectionHeader
+          title="Comment Bot"
+          isOpen={commentBotOpen}
+          onToggle={() => setCommentBotOpen(!commentBotOpen)}
+        />
+        <Collapse in={commentBotOpen}>
+          <List disablePadding>
+            {commentBotItems.map((item) => (
               <NavRow key={item.href} item={item} active={isActive(item.href)} />
             ))}
           </List>
