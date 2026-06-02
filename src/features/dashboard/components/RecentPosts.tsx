@@ -40,7 +40,7 @@ export function RecentPosts({ posts }: { posts: RecentPost[] }) {
             {i > 0 && <Divider />}
             <ListItemButton
               component={Link}
-              href={`/posts/${post.id}`}
+              href={`/posts?post=${post.id}`}
               sx={{ px: 2.5, py: 1.5, gap: 2, borderRadius: 0 }}
             >
               <Box sx={{ width: 10, height: 10, borderRadius: "50%", flexShrink: 0, bgcolor: TYPE_DOT_COLORS[post.type] ?? "#9aa0a6" }} />

@@ -13,13 +13,18 @@ import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
 import HomeOutlined from "@mui/icons-material/HomeOutlined";
+import DescriptionOutlined from "@mui/icons-material/DescriptionOutlined";
 import CalendarTodayOutlined from "@mui/icons-material/CalendarTodayOutlined";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
-import ViewListOutlined from "@mui/icons-material/ViewListOutlined";
+import VideocamOutlined from "@mui/icons-material/VideocamOutlined";
+import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
+import TrendingUpOutlined from "@mui/icons-material/TrendingUpOutlined";
+import FactCheckOutlined from "@mui/icons-material/FactCheckOutlined";
 import FeedbackOutlined from "@mui/icons-material/FeedbackOutlined";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import ExpandLessOutlined from "@mui/icons-material/ExpandLessOutlined";
+import { NavLinkLoading } from "./loading-context";
 
 const SIDEBAR_WIDTH = 280;
 const TOPBAR_HEIGHT = 64;
@@ -28,12 +33,19 @@ type NavItem = { href: string; label: string; icon: React.ReactNode };
 
 const primaryItems: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: <HomeOutlined /> },
+  { href: "/monitor", label: "Document", icon: <DescriptionOutlined /> },
+];
+
+const blogItems: NavItem[] = [
+  { href: "/monitor/blog", label: "History", icon: <HistoryOutlined /> },
+  { href: "/monitor/blog/performance", label: "Performance", icon: <TrendingUpOutlined /> },
+  { href: "/monitor/blog/audit", label: "SEO Audit", icon: <FactCheckOutlined /> },
 ];
 
 const contentItems: NavItem[] = [
   { href: "/posts", label: "Posts", icon: <ArticleOutlined /> },
-  { href: "/template", label: "Template", icon: <ViewListOutlined /> },
   { href: "/calendar", label: "Calendar", icon: <CalendarTodayOutlined /> },
+  { href: "/tutorial-video", label: "Record Video", icon: <VideocamOutlined /> },
 ];
 
 const bottomItems: NavItem[] = [
@@ -82,6 +94,8 @@ function NavRow({
           },
         }}
       />
+      {/* Report route-transition pending to the global loading state */}
+      {!isAnchor && <NavLinkLoading />}
     </ListItemButton>
   );
 }
@@ -135,10 +149,21 @@ function SectionHeader({
 
 export function Sidebar({ userEmail: _userEmail }: { userEmail: string }) {
   const pathname = usePathname();
+  const [blogsOpen, setBlogsOpen] = useState(true);
   const [contentOpen, setContentOpen] = useState(true);
 
-  const isActive = (href: string) =>
-    !href.startsWith("#") && (pathname === href || pathname.startsWith(href + "/"));
+  const navHrefs = [...primaryItems, ...blogItems, ...contentItems]
+    .map((i) => i.href)
+    .filter((h) => !h.startsWith("#"));
+
+  const isActive = (href: string) => {
+    if (href.startsWith("#")) return false;
+    if (pathname === href) return true;
+    if (!pathname.startsWith(href + "/")) return false;
+    // Prefer the most specific match: don't light up a parent (e.g. /monitor)
+    // when a deeper sibling (e.g. /monitor/blog) also matches the path.
+    return !navHrefs.some((h) => h !== href && h.startsWith(href + "/") && (pathname === h || pathname.startsWith(h + "/")));
+  };
 
   return (
     <Drawer
@@ -168,11 +193,28 @@ export function Sidebar({ userEmail: _userEmail }: { userEmail: string }) {
         ))}
       </List>
 
+      {/* Collapsible: Blogs */}
+      <Box sx={{ mt: 1 }}>
+        <Divider sx={{ borderColor: "#DADCE0", mx: 1 }} />
+        <SectionHeader
+          title="Blogs"
+          isOpen={blogsOpen}
+          onToggle={() => setBlogsOpen(!blogsOpen)}
+        />
+        <Collapse in={blogsOpen}>
+          <List disablePadding>
+            {blogItems.map((item) => (
+              <NavRow key={item.href} item={item} active={isActive(item.href)} />
+            ))}
+          </List>
+        </Collapse>
+      </Box>
+
       {/* Collapsible: Content */}
       <Box sx={{ mt: 1 }}>
         <Divider sx={{ borderColor: "#DADCE0", mx: 1 }} />
         <SectionHeader
-          title="Social Media Automated"
+          title="Social Media"
           isOpen={contentOpen}
           onToggle={() => setContentOpen(!contentOpen)}
         />

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Table from "@mui/material/Table";
@@ -11,15 +11,16 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import IconButton from "@mui/material/IconButton";
-import CircularProgress from "@mui/material/CircularProgress";
-import MuiButton from "@mui/material/Button";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import FilterListOutlined from "@mui/icons-material/FilterListOutlined";
 import InboxOutlined from "@mui/icons-material/InboxOutlined";
 import DescriptionOutlined from "@mui/icons-material/DescriptionOutlined";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import TouchAppOutlined from "@mui/icons-material/TouchAppOutlined";
+import VideocamOutlined from "@mui/icons-material/VideocamOutlined";
+import ImageOutlined from "@mui/icons-material/ImageOutlined";
 import { StatusBadge, TypeBadge } from "@/components/ui/Badge";
+import { PostDetail } from "@/components/posts/PostDetail";
+import { useGlobalLoading } from "@/features/content/components/loading-context";
 import type { ContentPost } from "@/lib/types";
 
 function CardHeader({
@@ -133,178 +134,27 @@ const CARD_SX = {
   overflow: "hidden",
 } as const;
 
-function DetailPanel({ post }: { post: ContentPost }) {
-  const cleanText = post.textContent
-    ? post.textContent.replace(/```[\s\S]*?```/g, "").replace(/\n{3,}/g, "\n\n").trim()
-    : null;
-
-  return (
-    <>
-      <Box sx={{ px: 3, py: 2.5, borderBottom: "1px solid #F1F3F4" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, flexWrap: "wrap" }}>
-          <TypeBadge type={post.type} />
-          <StatusBadge status={post.status} />
-          <Typography variant="caption" color="text.secondary" sx={{ ml: "auto" }}>
-            #{post.id}
-          </Typography>
-        </Box>
-        <Typography
-          sx={{
-            fontSize: "1rem",
-            fontWeight: 600,
-            lineHeight: 1.4,
-            color: "#1F1F1F",
-            mb: 0.5,
-          }}
-        >
-          {post.headline ??
-            (post.type === "engage"
-              ? "Engage Post"
-              : post.type === "educate"
-              ? "Educate Post"
-              : "Video Post")}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {post.dateSlot}
-        </Typography>
-      </Box>
-
-      <Box sx={{ px: 3, py: 2.5, display: "flex", flexDirection: "column", gap: 2.5 }}>
-        {cleanText && (
-          <Box>
-            <Typography
-              variant="overline"
-              sx={{ display: "block", mb: 0.75, color: "#5F6368" }}
-            >
-              Content
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ whiteSpace: "pre-wrap", lineHeight: 1.7, color: "#1F1F1F" }}
-            >
-              {cleanText.length > 320 ? `${cleanText.slice(0, 320)}…` : cleanText}
-            </Typography>
-          </Box>
-        )}
-
-        {post.imagePath && (
-          <Box>
-            <Typography
-              variant="overline"
-              sx={{ display: "block", mb: 0.75, color: "#5F6368" }}
-            >
-              Image
-            </Typography>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/media/${post.imagePath
-                .replace(/^\//, "")
-                .split("/")
-                .map(encodeURIComponent)
-                .join("/")}`}
-              alt="Post"
-              style={{
-                maxWidth: "100%",
-                borderRadius: 8,
-                border: "1px solid #E8EAED",
-              }}
-            />
-          </Box>
-        )}
-
-        {post.videoPath && (
-          <Box>
-            <Typography
-              variant="overline"
-              sx={{ display: "block", mb: 0.75, color: "#5F6368" }}
-            >
-              Video
-            </Typography>
-            <video
-              controls
-              style={{
-                width: "100%",
-                borderRadius: 8,
-                border: "1px solid #E8EAED",
-                maxHeight: 360,
-              }}
-            >
-              <source
-                src={`/api/media/${post.videoPath
-                  .replace(/^\//, "")
-                  .split("/")
-                  .map(encodeURIComponent)
-                  .join("/")}`}
-                type="video/mp4"
-              />
-            </video>
-          </Box>
-        )}
-
-        {post.captions && (
-          <Box>
-            <Typography
-              variant="overline"
-              sx={{ display: "block", mb: 0.75, color: "#5F6368" }}
-            >
-              Captions
-            </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-              {(["threads", "x", "instagram"] as const).map((platform) => {
-                const caption = post.captions?.[platform];
-                if (!caption) return null;
-                return (
-                  <Box key={platform}>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        display: "block",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.5px",
-                        color: "#5F6368",
-                        mb: 0.25,
-                      }}
-                    >
-                      {platform}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ lineHeight: 1.6 }}
-                    >
-                      {caption.length > 200 ? `${caption.slice(0, 200)}…` : caption}
-                    </Typography>
-                  </Box>
-                );
-              })}
-            </Box>
-          </Box>
-        )}
-
-        <MuiButton
-          component={Link}
-          href={`/posts/${post.id}`}
-          variant="contained"
-          size="small"
-          endIcon={<OpenInNewOutlined sx={{ fontSize: "16px !important" }} />}
-          sx={{
-            alignSelf: "flex-start",
-            textTransform: "none",
-            fontWeight: 500,
-            boxShadow: "none",
-          }}
-        >
-          Open full editor
-        </MuiButton>
-      </Box>
-    </>
-  );
+function MediaIndicator({ post }: { post: ContentPost }) {
+  if (post.videoPath) {
+    return <VideocamOutlined sx={{ fontSize: 16, color: "#5F6368", flexShrink: 0 }} />;
+  }
+  if (post.imagePath) {
+    return <ImageOutlined sx={{ fontSize: 16, color: "#5F6368", flexShrink: 0 }} />;
+  }
+  return null;
 }
 
-export default function PostsPage() {
+function PostsPageInner() {
+  const searchParams = useSearchParams();
+  const initialParam = searchParams.get("post");
+
   const [posts, setPosts] = useState<ContentPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(
+    initialParam ? Number(initialParam) : null,
+  );
+
+  useGlobalLoading(loading);
 
   useEffect(() => {
     fetch("/api/posts?limit=50")
@@ -353,7 +203,7 @@ export default function PostsPage() {
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 380px" },
+            gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 400px" },
             gap: 2,
             alignItems: "start",
           }}
@@ -363,7 +213,7 @@ export default function PostsPage() {
             <CardHeader
               icon={<ArticleOutlined sx={{ fontSize: 22 }} />}
               title="All posts"
-              subtitle="Drafts and history of agentic content you've created"
+              subtitle="Content the automation agent has produced"
               action={
                 <IconButton size="small" sx={{ color: "#5F6368" }} aria-label="Filter">
                   <FilterListOutlined sx={{ fontSize: 22 }} />
@@ -373,14 +223,11 @@ export default function PostsPage() {
             <Box sx={{ height: "1px", bgcolor: "#F1F3F4" }} />
 
             {loading ? (
-              <CenteredState
-                icon={<CircularProgress size={28} sx={{ color: "#9AA0A6" }} />}
-                message="Loading posts…"
-              />
+              <Box sx={{ minHeight: 280 }} />
             ) : posts.length === 0 ? (
               <CenteredState
                 icon={<InboxOutlined sx={{ fontSize: 56, color: "#9AA0A6" }} />}
-                message="No posts yet — create one from the Calendar."
+                message="No posts yet — the agent hasn't published any content."
               />
             ) : (
               <TableContainer component={Box} sx={{ bgcolor: "transparent" }}>
@@ -390,9 +237,7 @@ export default function PostsPage() {
                       <TableCell sx={{ ...HEAD_CELL_SX, pl: 3 }}>Type</TableCell>
                       <TableCell sx={HEAD_CELL_SX}>Status</TableCell>
                       <TableCell sx={HEAD_CELL_SX}>Date</TableCell>
-                      <TableCell sx={{ ...HEAD_CELL_SX, pr: 3 }}>
-                        Headline / Content
-                      </TableCell>
+                      <TableCell sx={{ ...HEAD_CELL_SX, pr: 3 }}>Headline / Content</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -425,15 +270,21 @@ export default function PostsPage() {
                             </Typography>
                           </TableCell>
                           <TableCell sx={{ ...BODY_CELL_SX, pr: 3 }}>
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                color: "text.primary",
-                                fontWeight: isSelected ? 500 : 400,
-                              }}
-                            >
-                              {post.headline ?? post.textContent?.slice(0, 60) ?? "—"}
-                            </Typography>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+                              <MediaIndicator post={post} />
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: "text.primary",
+                                  fontWeight: isSelected ? 500 : 400,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {post.headline ?? post.textContent?.slice(0, 60) ?? "—"}
+                              </Typography>
+                            </Box>
                           </TableCell>
                         </TableRow>
                       );
@@ -445,9 +296,20 @@ export default function PostsPage() {
           </Box>
 
           {/* Right — detail panel */}
-          <Box sx={{ ...CARD_SX, position: { md: "sticky" }, top: { md: 92 } }}>
+          <Box
+            sx={{
+              ...CARD_SX,
+              position: { md: "sticky" },
+              top: { md: 92 },
+              maxHeight: { md: "calc(100vh - 116px)" },
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             {selectedPost ? (
-              <DetailPanel post={selectedPost} />
+              <Box sx={{ overflowY: "auto" }}>
+                <PostDetail post={selectedPost} />
+              </Box>
             ) : (
               <>
                 <CardHeader
@@ -467,5 +329,13 @@ export default function PostsPage() {
         </Box>
       </Box>
     </Box>
+  );
+}
+
+export default function PostsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PostsPageInner />
+    </Suspense>
   );
 }

@@ -88,6 +88,26 @@ POST /api/ingest/event
 `level` is `info` | `warning` | `error`. Errors surface in the agent's "Last error" and recent-events
 panel.
 
+### Document — record a generated document (Document Agent)
+
+The Document Agent additionally reports **one row per document it produces**, so the dashboard can
+show a browsable history with a link to the artifact. Upload the file to **S3** first, then push its
+metadata + location. `external_id` makes the call idempotent (safe to re-send).
+
+```
+POST /api/ingest/document
+{ "slug": "document-agent", "run_id": 4127, "external_id": "doc-9f2a",
+  "title": "Q2 Onboarding Checklist", "doc_type": "pdf", "tool": "hr-portal",
+  "status": "generated", "word_count": 1240, "size_bytes": 84213, "duration_ms": 5120,
+  "s3_bucket": "opencraft-documents", "s3_key": "hr-portal/2026/doc-9f2a.pdf",
+  "s3_region": "ap-southeast-1" }
+→ { "document_id": 581 }
+```
+
+The dashboard presigns a short-lived GET URL from `s3_bucket`/`s3_key` (no public bucket needed). If
+the artifact lives in Supabase Storage instead, send `storage_bucket` + `storage_path`; or send a
+plain `file_url`. On failure send `"status": "failed"` and an `"error_msg"`.
+
 ## 4. Minimal client (any language)
 
 A tiny wrapper keeps your agent code clean. Example in TypeScript:
@@ -118,6 +138,14 @@ export const monitor = {
     post("metric", { run_id, metric_key, value, labels }),
   event: (level: "info"|"warning"|"error", message: string, run_id?: number, context?: object) =>
     post("event", { run_id, level, message, context }),
+  // Document Agent only — record a generated document and where it was stored.
+  document: (doc: {
+    external_id?: string; title: string; doc_type?: string; tool?: string;
+    status?: "generated"|"failed"|"pending"; word_count?: number; size_bytes?: number;
+    duration_ms?: number; run_id?: number; s3_bucket?: string; s3_key?: string;
+    s3_region?: string; storage_bucket?: string; storage_path?: string;
+    file_url?: string; error_msg?: string; metadata?: object;
+  }) => post("document", doc),
 };
 ```
 

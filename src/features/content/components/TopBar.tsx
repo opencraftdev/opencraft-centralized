@@ -5,6 +5,7 @@ import Image from "next/image";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import Box from "@mui/material/Box";
+import LinearProgress from "@mui/material/LinearProgress";
 import InputBase from "@mui/material/InputBase";
 import Avatar from "@mui/material/Avatar";
 import Popover from "@mui/material/Popover";
@@ -16,7 +17,7 @@ import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import LogoutOutlined from "@mui/icons-material/LogoutOutlined";
 import { logout } from "@/features/auth/actions";
 
-export function TopBar({ userEmail }: { userEmail: string }) {
+export function TopBar({ userEmail, loading = false }: { userEmail: string; loading?: boolean }) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const initial = userEmail.charAt(0).toUpperCase() || "O";
@@ -268,6 +269,21 @@ export function TopBar({ userEmail }: { userEmail: string }) {
           </Box>
         </Popover>
       </Toolbar>
+
+      {/* Global loading bar — pinned to the bottom edge of the navbar */}
+      {loading && (
+        <LinearProgress
+          sx={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 3,
+            bgcolor: "transparent",
+            "& .MuiLinearProgress-bar": { bgcolor: "#0B57D0" },
+          }}
+        />
+      )}
     </AppBar>
   );
 }

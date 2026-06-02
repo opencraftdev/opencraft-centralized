@@ -5,7 +5,7 @@ import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import type { DateSelectArg, EventClickArg, EventInput } from "@fullcalendar/core";
+import type { EventClickArg, EventInput } from "@fullcalendar/core";
 import Box from "@mui/material/Box";
 import type { PostSummary } from "@/lib/types";
 
@@ -14,6 +14,33 @@ const TYPE_COLORS: Record<string, string> = {
   educate: "#188038",
   video: "#5F6368",
 };
+
+// Small status indicator dot shown on each event.
+const STATUS_DOT: Record<string, string> = {
+  published: "#34A853",
+  posted: "#34A853",
+  scheduled: "#FBBC04",
+  accepted: "#1A73E8",
+  failed: "#EA4335",
+  draft: "#DADCE0",
+};
+
+// Per-event colors: type drives the hue; status tweaks the treatment so the
+// read-only calendar reads at a glance (drafts muted, failures flagged red).
+function eventColors(type: string, status: string): {
+  backgroundColor: string;
+  borderColor: string;
+  textColor: string;
+} {
+  const base = TYPE_COLORS[type] ?? "#9AA0A6";
+  if (status === "failed") {
+    return { backgroundColor: "#FCE8E6", borderColor: "#D93025", textColor: "#C5221F" };
+  }
+  if (status === "draft") {
+    return { backgroundColor: "#F1F3F4", borderColor: base, textColor: "#3C4043" };
+  }
+  return { backgroundColor: base, borderColor: base, textColor: "#fff" };
+}
 
 export type CalendarView = "timeGridWeek" | "dayGridMonth" | "timeGridDay";
 
@@ -30,14 +57,15 @@ interface FullCalendarViewProps {
   initialDate?: Date;
   initialView?: CalendarView;
   postsByDate: Record<string, PostSummary[]>;
-  onCreatePost: (date: Date, anchor?: { top: number; left: number }) => void;
-  onOpenPost: (id: number) => void;
-  onDatesChange?: (start: Date, end: Date, title: string) => void;
+  onOpenPost: (id: number, anchorEl: HTMLElement) => void;
+  // Fires when the visible range changes; `anchorDate` is the current period's
+  // own start (month/week/day), not the leading grid cell.
+  onDatesChange?: (anchorDate: Date, title: string) => void;
 }
 
 export const FullCalendarView = forwardRef<FullCalendarViewHandle, FullCalendarViewProps>(
   function FullCalendarView(
-    { initialDate, initialView = "timeGridWeek", postsByDate, onCreatePost, onOpenPost, onDatesChange },
+    { initialDate, initialView = "timeGridWeek", postsByDate, onOpenPost, onDatesChange },
     ref,
   ) {
     const calendarRef = useRef<FullCalendar>(null);
@@ -55,7 +83,6 @@ export const FullCalendarView = forwardRef<FullCalendarViewHandle, FullCalendarV
       const out: EventInput[] = [];
       for (const [dateSlot, posts] of Object.entries(postsByDate)) {
         for (const post of posts) {
-          const color = TYPE_COLORS[post.type] ?? "#9AA0A6";
           const title =
             post.headline ?? post.textContent?.slice(0, 60) ?? "Untitled post";
           out.push({
@@ -66,9 +93,7 @@ export const FullCalendarView = forwardRef<FullCalendarViewHandle, FullCalendarV
               ? new Date(new Date(post.scheduledAt).getTime() + 60 * 60 * 1000).toISOString()
               : undefined,
             allDay: !post.scheduledAt,
-            backgroundColor: color,
-            borderColor: color,
-            textColor: "#fff",
+            ...eventColors(post.type, post.status),
             extendedProps: { postId: post.id, type: post.type, status: post.status },
           });
         }
@@ -78,18 +103,7 @@ export const FullCalendarView = forwardRef<FullCalendarViewHandle, FullCalendarV
 
     const handleEventClick = (info: EventClickArg) => {
       const postId = info.event.extendedProps.postId as number | undefined;
-      if (postId != null) onOpenPost(postId);
-    };
-
-    const handleSelect = (info: DateSelectArg) => {
-      const je = info.jsEvent as MouseEvent | undefined;
-      const anchor = je ? { top: je.clientY, left: je.clientX } : undefined;
-      onCreatePost(info.start, anchor);
-      calendarRef.current?.getApi().unselect();
-    };
-
-    const handleDateClick = (info: { date: Date; jsEvent: MouseEvent }) => {
-      onCreatePost(info.date, { top: info.jsEvent.clientY, left: info.jsEvent.clientX });
+      if (postId != null) onOpenPost(postId, info.el as HTMLElement);
     };
 
     return (
@@ -339,17 +353,53 @@ export const FullCalendarView = forwardRef<FullCalendarViewHandle, FullCalendarV
           }}
           nowIndicator
           editable={false}
-          selectable
-          selectMirror
+          selectable={false}
           dayMaxEvents
           scrollTime={`${Math.max(0, new Date().getHours() - 1)
             .toString()
             .padStart(2, "0")}:00:00`}
           events={events}
           eventClick={handleEventClick}
-          select={handleSelect}
-          dateClick={handleDateClick}
-          datesSet={(info) => onDatesChange?.(info.start, info.end, info.view.title)}
+          eventContent={(arg) => {
+            const status = (arg.event.extendedProps.status as string) ?? "";
+            return (
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  minWidth: 0,
+                  width: "100%",
+                  px: "2px",
+                  lineHeight: 1.3,
+                }}
+              >
+                <Box
+                  component="span"
+                  sx={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    bgcolor: STATUS_DOT[status] ?? "currentColor",
+                    boxShadow: "0 0 0 1.5px rgba(255,255,255,0.65)",
+                  }}
+                />
+                {arg.timeText && (
+                  <Box component="span" sx={{ fontWeight: 600, flexShrink: 0 }}>
+                    {arg.timeText}
+                  </Box>
+                )}
+                <Box
+                  component="span"
+                  sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                >
+                  {arg.event.title}
+                </Box>
+              </Box>
+            );
+          }}
+          datesSet={(info) => onDatesChange?.(info.view.currentStart, info.view.title)}
           height="100%"
           expandRows
         />

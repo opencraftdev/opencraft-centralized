@@ -11,3 +11,6 @@ tsconfig.tsbuildinfo
 
 # Local env
 .env.local
+
+# Local scratch / API debug dumps
+_*.json

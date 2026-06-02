@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: #fff;
+    background:
+      radial-gradient(900px 700px at 90% 5%, rgba(11,87,208,0.55), transparent 60%),
+      radial-gradient(800px 700px at 0% 100%, rgba(99,102,241,0.42), transparent 55%),
+      linear-gradient(160deg, #0B1220 0%, #111A2E 55%, #0B1220 100%);
+    overflow: hidden;
+  }
+  .frame {
+    width: 1080px; height: 1920px;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    padding: 110px 90px 130px;
+  }
+
+  /* top */
+  .topbar { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 16px;
+    background: {{ accent }};
+    padding: 18px 30px; border-radius: 999px;
+    font-size: 38px; font-weight: 800; letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .badge .dot { width: 18px; height: 18px; border-radius: 50%; background: #fff; }
+  .kicker { font-size: 34px; font-weight: 600; color: rgba(255,255,255,0.6); letter-spacing: 3px; text-transform: uppercase; }
+
+  /* center */
+  .center { display: flex; flex-direction: column; justify-content: center; }
+  .headline {
+    font-size: 130px; font-weight: 800; line-height: 1.04;
+    letter-spacing: -2px; text-transform: uppercase;
+    text-shadow: 0 8px 40px rgba(0,0,0,0.45);
+  }
+  .accent-bar { width: 160px; height: 14px; border-radius: 8px; background: {{ accent }}; margin: 44px 0 40px; }
+  .subtext { font-size: 56px; font-weight: 500; color: rgba(255,255,255,0.88); line-height: 1.3; }
+
+  /* bottom */
+  .footer { display: flex; flex-direction: column; gap: 34px; }
+  .presenter { display: flex; flex-direction: column; gap: 6px; }
+  .presenter .name { font-size: 48px; font-weight: 700; }
+  .presenter .handle { font-size: 38px; font-weight: 500; color: {{ accent }}; }
+  .brandmark {
+    display: inline-flex; align-items: center; gap: 18px;
+    font-size: 38px; font-weight: 700; color: rgba(255,255,255,0.85);
+  }
+  .brandmark .chip {
+    width: 64px; height: 64px; border-radius: 16px;
+    background: linear-gradient(135deg, {{ accent }}, #6366F1);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 36px; font-weight: 800;
+  }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <span class="badge"><span class="dot"></span>AI News</span>
+      <span class="kicker">Rangkuman Harian</span>
+    </div>
+
+    <div class="center">
+      <div class="headline">{{ headline }}</div>
+      <div class="accent-bar"></div>
+      <div class="subtext">{{ subtext }}</div>
+    </div>
+
+    <div class="footer">
+      {% if presenter_name %}
+      <div class="presenter">
+        <span class="name">{{ presenter_name }}</span>
+        <span class="handle">{{ presenter_handle }}</span>
+      </div>
+      {% endif %}
+      <div class="brandmark">
+        <span class="chip">OC</span>
+        OpenCraft
+      </div>
+    </div>
+  </div>
+</body>
+</html>
