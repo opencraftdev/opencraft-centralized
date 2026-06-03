@@ -1,8 +1,9 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { createClient } from "@/lib/supabase/server";
-import { getQueueStats, getRecentCommands } from "@/lib/comment-bot/queries";
+import { getQueueStats, getRecentCommands, getScrapedPosts } from "@/lib/comment-bot/queries";
 import { StatusOverview } from "@/features/comment-bot/components/StatusOverview";
+import { ScrapedPosts } from "@/features/comment-bot/components/ScrapedPosts";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +36,10 @@ function PageHeader({ children }: { children: React.ReactNode }) {
 export default async function CommentBotPage() {
   const supabase = await createClient();
 
-  const [stats, commands] = await Promise.all([
+  const [stats, commands, scraped] = await Promise.all([
     getQueueStats(supabase),
     getRecentCommands(supabase, 10),
+    getScrapedPosts(supabase, 20),
   ]);
 
   return (
@@ -57,6 +59,14 @@ export default async function CommentBotPage() {
 
       <Box sx={{ maxWidth: MAX_W, mx: "auto", px: 3, pt: `${HEADER_H + 16}px`, pb: 5 }}>
         <StatusOverview stats={stats} commands={commands} />
+
+        {/* Recently scraped posts */}
+        <Box sx={{ mt: 3 }}>
+          <Typography sx={{ fontSize: "0.875rem", fontWeight: 500, color: "#1F1F1F", mb: 1.5 }}>
+            Recently Scraped ({scraped.length})
+          </Typography>
+          <ScrapedPosts posts={scraped} />
+        </Box>
       </Box>
     </Box>
   );

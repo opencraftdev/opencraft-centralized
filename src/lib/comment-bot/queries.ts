@@ -85,6 +85,20 @@ export async function getQueueStats(supabase: SupabaseClient): Promise<QueueStat
   };
 }
 
+export async function getScrapedPosts(
+  supabase: SupabaseClient,
+  limit = 20,
+): Promise<ReplyRow[]> {
+  const { data, error } = await supabase
+    .from("replies")
+    .select("*")
+    .eq("status", "scraped")
+    .order("scraped_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as ReplyRow[];
+}
+
 // ── Brand Profile ─────────────────────────────────────────────
 
 export async function getBrandProfile(supabase: SupabaseClient): Promise<BrandProfileRow | null> {
