@@ -22,6 +22,7 @@ import TrendingUpOutlined from "@mui/icons-material/TrendingUpOutlined";
 import FactCheckOutlined from "@mui/icons-material/FactCheckOutlined";
 import FeedbackOutlined from "@mui/icons-material/FeedbackOutlined";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import AccountBalanceWalletOutlined from "@mui/icons-material/AccountBalanceWalletOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import ExpandLessOutlined from "@mui/icons-material/ExpandLessOutlined";
 import { NavLinkLoading } from "./loading-context";
@@ -34,6 +35,7 @@ type NavItem = { href: string; label: string; icon: React.ReactNode };
 const primaryItems: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: <HomeOutlined /> },
   { href: "/monitor", label: "Document", icon: <DescriptionOutlined /> },
+  { href: "/finance", label: "Finance", icon: <AccountBalanceWalletOutlined /> },
 ];
 
 const blogItems: NavItem[] = [
