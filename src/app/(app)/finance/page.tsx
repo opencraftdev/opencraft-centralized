@@ -70,7 +70,7 @@ export default async function FinancePage() {
       <Box sx={{ maxWidth: MAX_W, mx: "auto", px: 3, pt: `${HEADER_H + 16}px`, pb: 5 }}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <BillingCycleBanner cycle={cycle} summary={summary} />
-          <ExpenseSummary summary={summary} />
+          <ExpenseSummary expenses={expenses} summary={summary} />
           <ExpenseTable expenses={expenses} />
         </Box>
       </Box>
