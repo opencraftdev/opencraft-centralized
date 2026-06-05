@@ -42,14 +42,21 @@ export function PostDetailShell({ initialPost }: { initialPost: ContentPost }) {
   const router = useRouter();
   const [post, setPost] = useState<ContentPost>(initialPost);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleDelete() {
     if (!confirm("Delete this post? This cannot be undone.")) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
-      await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
       router.push("/calendar");
-    } finally {
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete post");
       setDeleting(false);
     }
   }
@@ -126,6 +133,11 @@ export function PostDetailShell({ initialPost }: { initialPost: ContentPost }) {
           <DeleteOutlined />
         </IconButton>
       </Box>
+      {deleteError && (
+        <Typography sx={{ fontSize: "0.75rem", color: "#D93025", mt: 0.5 }}>
+          {deleteError}
+        </Typography>
+      )}
 
       {/* Generation section — only when draft */}
       {isDraft && (
