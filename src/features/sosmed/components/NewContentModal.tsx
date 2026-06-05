@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -29,7 +29,7 @@ const OPTIONS: Option[] = [
 interface Props {
   open: boolean;
   dateSlot: string;
-  onClose: () => void;
+  onClose: (created?: boolean) => void;
 }
 
 export function NewContentModal({ open, dateSlot, onClose }: Props) {
@@ -38,32 +38,37 @@ export function NewContentModal({ open, dateSlot, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleClose() {
-    if (loading) return;
-    setSelected(null);
-    setError(null);
-    onClose();
+  useEffect(() => {
+    if (open) {
+      setSelected(null)
+      setError(null)
+    }
+  }, [open])
+
+  const handleClose = () => {
+    onClose()
   }
 
-  async function handleConfirm() {
-    if (!selected) return;
-    setLoading(true);
-    setError(null);
+  const handleConfirm = async () => {
+    if (!selected) return
+    setLoading(true)
+    setError(null)
     try {
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: selected, dateSlot }),
-      });
+      })
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        setError(json.error ?? "Failed to create post");
-        return;
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? "Failed to create post")
       }
-      const { post } = await res.json();
-      router.push(`/posts/${post.id}`);
-    } finally {
-      setLoading(false);
+      const { post } = await res.json()
+      onClose(true)
+      router.push(`/posts/${post.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong")
+      setLoading(false)
     }
   }
 

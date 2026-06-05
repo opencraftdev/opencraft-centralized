@@ -116,9 +116,9 @@ export default function CalendarPage() {
     setModalOpen(true);
   };
 
-  const handleModalClose = () => {
+  const handleModalClose = (created = false) => {
     setModalOpen(false);
-    setQueueRefreshKey((k) => k + 1);
+    if (created) setQueueRefreshKey((k) => k + 1);
   };
 
   return (

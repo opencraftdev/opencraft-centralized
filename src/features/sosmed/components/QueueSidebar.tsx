@@ -18,11 +18,16 @@ export function QueueSidebar({ refreshKey = 0 }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    fetch("/api/posts?status=draft&limit=50")
-      .then((r) => r.json())
+    const controller = new AbortController()
+    setLoading(true)
+    fetch("/api/posts?status=draft&limit=50", { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((data) => setPosts(data.posts ?? []))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (err.name !== "AbortError") console.error("Failed to load draft queue:", err)
+      })
+      .finally(() => setLoading(false))
+    return () => controller.abort()
   }, [refreshKey]);
 
   return (
