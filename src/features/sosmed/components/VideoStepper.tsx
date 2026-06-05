@@ -56,7 +56,11 @@ export function VideoStepper({ initialPost }: { initialPost: ContentPost }) {
 
   // Handle command completion
   useEffect(() => {
-    if (cmdStatus !== "completed" && cmdStatus !== "done") return;
+    if (cmdStatus !== "completed" && cmdStatus !== "done" && cmdStatus !== "failed") return;
+    if (cmdStatus === "failed") {
+      setCommandId(null);
+      return;
+    }
     const wasCommand = lastCommandRef.current;
     let alive = true;
     const ctrl = new AbortController();
@@ -90,11 +94,16 @@ export function VideoStepper({ initialPost }: { initialPost: ContentPost }) {
       setCommandId(json.command_id);
     } catch (err) {
       setFireError(err instanceof Error ? err.message : "Failed to start command");
+      throw err;
     }
   }
 
   async function handleReset() {
-    await fireCommand("reset");
+    try {
+      await fireCommand("reset");
+    } catch {
+      return;
+    }
     setSuggestItems([]);
     setSelectedVideoId(null);
     setLogLines([]);
@@ -135,7 +144,7 @@ export function VideoStepper({ initialPost }: { initialPost: ContentPost }) {
       {activeStep === 0 && (
         <Box sx={{ bgcolor: "#fff", borderRadius: "16px", p: 3 }}>
           <Typography sx={{ fontWeight: 500, fontSize: "1rem", mb: 2 }}>Find video ideas</Typography>
-          {!isPolling && suggestItems.length === 0 && (
+          {!isPolling && (
             <Button
               variant="contained"
               onClick={() => fireCommand("suggest")}
@@ -150,7 +159,14 @@ export function VideoStepper({ initialPost }: { initialPost: ContentPost }) {
               <Typography sx={{ fontSize: "0.875rem", color: "#5F6368" }}>Searching YouTube for video ideas…</Typography>
             </Box>
           )}
-          {suggestItems.length > 0 && (
+        </Box>
+      )}
+
+      {/* Step 1 — Draft (show video list first, then log once drafting) */}
+      {activeStep === 1 && (
+        <Box sx={{ bgcolor: "#fff", borderRadius: "16px", p: 3 }}>
+          <Typography sx={{ fontWeight: 500, fontSize: "1rem", mb: 2 }}>Draft video content</Typography>
+          {suggestItems.length > 0 && !isPolling && !post.textContent && (
             <>
               <SuggestList items={suggestItems} selectedVideoId={selectedVideoId} onSelect={setSelectedVideoId} />
               <Button
@@ -159,17 +175,10 @@ export function VideoStepper({ initialPost }: { initialPost: ContentPost }) {
                 onClick={() => selectedVideoId && fireCommand("draft", { videoId: selectedVideoId })}
                 sx={{ mt: 2, textTransform: "none", borderRadius: "9999px" }}
               >
-                Continue with this video →
+                Draft This Video
               </Button>
             </>
           )}
-        </Box>
-      )}
-
-      {/* Step 1 — Draft */}
-      {activeStep === 1 && (
-        <Box sx={{ bgcolor: "#fff", borderRadius: "16px", p: 3 }}>
-          <Typography sx={{ fontWeight: 500, fontSize: "1rem", mb: 2 }}>Drafting video content</Typography>
           {isPolling && (
             <Box>
               <LinearProgress sx={{ mb: 1.5, borderRadius: 4, height: 6 }} />
@@ -184,7 +193,7 @@ export function VideoStepper({ initialPost }: { initialPost: ContentPost }) {
               </Box>
             </Box>
           )}
-          {!isPolling && !post.textContent && (
+          {!isPolling && !post.textContent && suggestItems.length === 0 && (
             <Typography sx={{ fontSize: "0.875rem", color: "#5F6368" }}>Drafting complete. Refreshing…</Typography>
           )}
         </Box>
