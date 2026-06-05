@@ -23,22 +23,33 @@ export function EngageGenerator({ post, onPostUpdate, onAccept }: Props) {
   const [commandId, setCommandId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState(post.userFeedback ?? "");
   const [accepting, setAccepting] = useState(false);
+  const [fireError, setFireError] = useState<string | null>(null);
   const hasFiredRef = useRef(false);
+  const onPostUpdateRef = useRef(onPostUpdate);
+  useEffect(() => { onPostUpdateRef.current = onPostUpdate; });
 
   const { status: cmdStatus, error: cmdError, isPolling } = useCommandPoller(commandId);
 
   async function fireGenerate() {
-    const res = await fetch("/api/sosmed/command", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        command: "generate",
-        platform: "engage",
-        context: feedback ? { user_feedback: feedback } : {},
-      }),
-    });
-    const json = await res.json();
-    setCommandId(json.command_id);
+    setFireError(null);
+    try {
+      const res = await fetch("/api/sosmed/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          command: "generate",
+          platform: "engage",
+          context: feedback ? { user_feedback: feedback } : {},
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (typeof json.command_id !== "number") throw new Error("missing command_id");
+      setCommandId(json.command_id);
+    } catch (err) {
+      setFireError(err instanceof Error ? err.message : "Failed to start generation");
+      hasFiredRef.current = false;
+    }
   }
 
   // Auto-generate on mount if no content yet
@@ -51,13 +62,16 @@ export function EngageGenerator({ post, onPostUpdate, onAccept }: Props) {
 
   // Re-fetch post when command completes
   useEffect(() => {
-    if (cmdStatus === "completed" || cmdStatus === "done") {
-      setCommandId(null);
-      fetch(`/api/posts/${post.id}`)
-        .then((r) => r.json())
-        .then((data) => { if (data.post) onPostUpdate(data.post); });
-    }
-  }, [cmdStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (cmdStatus !== "completed" && cmdStatus !== "done") return;
+    let alive = true;
+    const ctrl = new AbortController();
+    setCommandId(null);
+    fetch(`/api/posts/${post.id}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((data) => { if (alive && data.post) onPostUpdateRef.current(data.post); })
+      .catch(() => {});
+    return () => { alive = false; ctrl.abort(); };
+  }, [cmdStatus, post.id]);
 
   async function handleAccept() {
     setAccepting(true);
@@ -74,10 +88,10 @@ export function EngageGenerator({ post, onPostUpdate, onAccept }: Props) {
     }
   }
 
-  const charCount = post.textContent?.length ?? 0;
+  const cleanText = post.textContent?.replace(/```[\s\S]*?```/g, "").trim() ?? null;
+  const charCount = cleanText?.length ?? 0;
   const overThreads = charCount > THREADS_LIMIT;
   const overX = charCount > X_LIMIT;
-  const cleanText = post.textContent?.replace(/```[\s\S]*?```/g, "").trim() ?? null;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
@@ -91,6 +105,7 @@ export function EngageGenerator({ post, onPostUpdate, onAccept }: Props) {
 
       {/* Error */}
       {cmdError && <Typography sx={{ fontSize: "0.875rem", color: "#D93025" }}>{cmdError}</Typography>}
+      {fireError && <Typography sx={{ fontSize: "0.875rem", color: "#D93025" }}>{fireError}</Typography>}
 
       {/* Text preview */}
       {cleanText && !isPolling && (
@@ -122,9 +137,9 @@ export function EngageGenerator({ post, onPostUpdate, onAccept }: Props) {
             variant="outlined"
             size="small"
             disabled={isPolling}
-            onClick={() => {
+            onClick={async () => {
               setCommandId(null);
-              setTimeout(() => fireGenerate(), 0);
+              await fireGenerate();
             }}
             sx={{ textTransform: "none", whiteSpace: "nowrap" }}
           >
