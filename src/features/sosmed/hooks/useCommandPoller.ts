@@ -1,0 +1,65 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import type { SosmedCommandStatus } from "@/lib/sosmed/types";
+
+export interface CommandPollState {
+  status: SosmedCommandStatus | null;
+  logText: string | null;
+  error: string | null;
+  isPolling: boolean;
+}
+
+/**
+ * Polls /api/sosmed/command/[id] every 2s until status is completed or failed.
+ * Pass null to stop polling (e.g. after re-firing a new command).
+ */
+export function useCommandPoller(commandId: number | null): CommandPollState {
+  const [state, setState] = useState<CommandPollState>({
+    status: null,
+    logText: null,
+    error: null,
+    isPolling: false,
+  });
+
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (commandId === null) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      setState({ status: null, logText: null, error: null, isPolling: false });
+      return;
+    }
+
+    setState((prev) => ({ ...prev, isPolling: true }));
+
+    async function poll() {
+      try {
+        const res = await fetch(`/api/sosmed/command/${commandId}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        const cmd = json.command;
+        setState({
+          status: cmd.status,
+          logText: cmd.log_text ?? null,
+          error: cmd.error ?? null,
+          isPolling: cmd.status === "pending" || cmd.status === "processing",
+        });
+        if (cmd.status === "completed" || cmd.status === "failed") {
+          if (intervalRef.current) clearInterval(intervalRef.current);
+        }
+      } catch {
+        // network error — keep polling
+      }
+    }
+
+    poll();
+    intervalRef.current = setInterval(poll, 2000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [commandId]);
+
+  return state;
+}
