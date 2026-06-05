@@ -27,6 +27,8 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
   const [feedback, setFeedback] = useState(post.userFeedback ?? "");
   const [stepIndex, setStepIndex] = useState(0);
   const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
+  const [firing, setFiring] = useState(false);
   const stepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onPostUpdateRef = useRef(onPostUpdate);
   useEffect(() => { onPostUpdateRef.current = onPostUpdate; });
@@ -36,6 +38,7 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
 
   async function fireGenerate(src: "claude" | "github") {
     setFireError(null);
+    setFiring(true);
     if (stepTimerRef.current) clearInterval(stepTimerRef.current);
     try {
       const res = await fetch("/api/sosmed/command", {
@@ -57,6 +60,8 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
       }, 5000);
     } catch (err) {
       setFireError(err instanceof Error ? err.message : "Failed to start generation");
+    } finally {
+      setFiring(false);
     }
   }
 
@@ -78,14 +83,21 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
 
   async function handleAccept() {
     setAccepting(true);
+    setAcceptError(null);
     try {
       const res = await fetch(`/api/posts/${post.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "accepted" }),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
       const data = await res.json();
       if (data.post) onAccept();
+    } catch (err) {
+      setAcceptError(err instanceof Error ? err.message : "Failed to accept post");
     } finally {
       setAccepting(false);
     }
@@ -130,6 +142,7 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
           </Box>
           <Button
             variant="outlined"
+            disabled={isPolling || firing}
             onClick={() => fireGenerate(effectiveSource)}
             sx={{ mt: 1.5, textTransform: "none", borderRadius: "9999px" }}
           >
@@ -191,7 +204,7 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
           <Button
             variant="outlined"
             size="small"
-            disabled={isPolling}
+            disabled={isPolling || firing}
             onClick={async () => { setCommandId(null); await fireGenerate(effectiveSource); }}
             sx={{ textTransform: "none", whiteSpace: "nowrap" }}
           >
@@ -202,15 +215,20 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
 
       {/* Approve button */}
       {cleanText && !isPolling && (
-        <Button
-          variant="contained"
-          startIcon={accepting ? <CircularProgress size={14} color="inherit" /> : <CheckCircleOutlined />}
-          disabled={accepting}
-          onClick={handleAccept}
-          sx={{ textTransform: "none", borderRadius: "9999px", alignSelf: "flex-start" }}
-        >
-          Approve &amp; Accept
-        </Button>
+        <>
+          {acceptError && (
+            <Typography sx={{ fontSize: "0.875rem", color: "#D93025" }}>{acceptError}</Typography>
+          )}
+          <Button
+            variant="contained"
+            startIcon={accepting ? <CircularProgress size={14} color="inherit" /> : <CheckCircleOutlined />}
+            disabled={accepting}
+            onClick={handleAccept}
+            sx={{ textTransform: "none", borderRadius: "9999px", alignSelf: "flex-start" }}
+          >
+            Approve &amp; Accept
+          </Button>
+        </>
       )}
     </Box>
   );

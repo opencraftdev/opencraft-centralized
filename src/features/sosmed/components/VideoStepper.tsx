@@ -71,9 +71,11 @@ export function VideoStepper({ initialPost }: { initialPost: ContentPost }) {
       .catch(() => {});
     if (wasCommand === "suggest") {
       fetch("/api/sosmed/video-state", { signal: ctrl.signal })
-        .then((r) => r.json())
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
         .then((data) => { if (alive) setSuggestItems(data.items ?? []); })
-        .catch(() => {});
+        .catch((err) => {
+          if (alive && err?.name !== "AbortError") setFireError("Failed to load video suggestions");
+        });
     }
     return () => { alive = false; ctrl.abort(); };
   }, [cmdStatus, post.id]);

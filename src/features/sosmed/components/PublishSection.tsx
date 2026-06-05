@@ -29,6 +29,7 @@ export function PublishSection({ post, onPostUpdate }: Props) {
     post.scheduledAt ? new Date(post.scheduledAt) : null,
   );
   const [savingTime, setSavingTime] = useState(false);
+  const [timeError, setTimeError] = useState<string | null>(null);
   const onPostUpdateRef = useRef(onPostUpdate);
   useEffect(() => { onPostUpdateRef.current = onPostUpdate; });
 
@@ -53,14 +54,23 @@ export function PublishSection({ post, onPostUpdate }: Props) {
     setScheduledTime(date);
     if (!date) return;
     setSavingTime(true);
+    setTimeError(null);
     try {
       const base = new Date(`${post.dateSlot}T00:00:00`);
       base.setHours(date.getHours(), date.getMinutes(), 0, 0);
-      await fetch(`/api/posts/${post.id}`, {
+      const res = await fetch(`/api/posts/${post.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scheduledAt: base.toISOString(), status: "scheduled" }),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.post) onPostUpdateRef.current(data.post);
+    } catch (err) {
+      setTimeError(err instanceof Error ? err.message : "Failed to save schedule");
     } finally {
       setSavingTime(false);
     }
@@ -120,6 +130,9 @@ export function PublishSection({ post, onPostUpdate }: Props) {
           />
           {savingTime && <CircularProgress size={16} />}
         </Box>
+        {timeError && (
+          <Typography sx={{ fontSize: "0.8125rem", color: "#D93025" }}>{timeError}</Typography>
+        )}
         {(cmdError || publishError) && (
           <Typography sx={{ fontSize: "0.8125rem", color: "#D93025" }}>
             {cmdError || publishError}

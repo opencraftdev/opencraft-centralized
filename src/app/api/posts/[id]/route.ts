@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPost } from "@/lib/posts";
-import { patchPost, deletePost } from "@/lib/sosmed/posts";
+import { patchPost, deletePost, NotFoundError } from "@/lib/sosmed/posts";
 
 export const runtime = "nodejs";
 
@@ -47,6 +47,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const post = await patchPost(admin, numId, user.id, parsed.data);
     return NextResponse.json({ post });
   } catch (e) {
+    if (e instanceof NotFoundError) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 }

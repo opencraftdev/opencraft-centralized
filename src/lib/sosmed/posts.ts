@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ContentPost, ContentPostRow, PostType, PostStatus } from "@/lib/types";
 
+export class NotFoundError extends Error {
+  constructor(msg = "Not found") { super(msg); this.name = "NotFoundError"; }
+}
+
 // mirrors lib/posts.ts rowToPost — kept local because lib/posts does not export it
 function rowToPost(row: ContentPostRow): ContentPost {
   return {
@@ -58,7 +62,10 @@ export async function patchPost(
     .eq("user_id", userId)
     .select()
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "PGRST116") throw new NotFoundError();
+    throw new Error(error.message);
+  }
   return rowToPost(data as ContentPostRow);
 }
 
