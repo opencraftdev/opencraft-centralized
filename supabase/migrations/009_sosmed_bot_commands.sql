@@ -1,6 +1,10 @@
 -- Widen bot_commands table to support sosmed worker commands.
 -- The comment-bot worker is unaffected: it filters by platform IN ('threads','x','all').
 
+-- IMPORTANT: Constraint names below match Postgres auto-generated names from 008_comment_bot.sql.
+-- If the migration was manually altered, verify actual names first:
+--   SELECT conname FROM pg_constraint WHERE conrelid = 'bot_commands'::regclass AND contype = 'c';
+
 -- Expand command values
 ALTER TABLE bot_commands DROP CONSTRAINT bot_commands_command_check;
 ALTER TABLE bot_commands ADD CONSTRAINT bot_commands_command_check
