@@ -28,40 +28,51 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [accepting, setAccepting] = useState(false);
   const stepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onPostUpdateRef = useRef(onPostUpdate);
+  useEffect(() => { onPostUpdateRef.current = onPostUpdate; });
 
   const { status: cmdStatus, error: cmdError, isPolling } = useCommandPoller(commandId);
+  const [fireError, setFireError] = useState<string | null>(null);
 
   async function fireGenerate(src: "claude" | "github") {
-    const res = await fetch("/api/sosmed/command", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        command: "generate",
-        platform: "educate",
-        context: { source: src, ...(feedback ? { user_feedback: feedback } : {}) },
-      }),
-    });
-    const json = await res.json();
-    setCommandId(json.command_id);
-    setStepIndex(0);
-    // Advance step label every 5s for UX
-    stepTimerRef.current = setInterval(() => {
-      setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
-    }, 5000);
+    setFireError(null);
+    if (stepTimerRef.current) clearInterval(stepTimerRef.current);
+    try {
+      const res = await fetch("/api/sosmed/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          command: "generate",
+          platform: "educate",
+          context: { source: src, ...(feedback ? { user_feedback: feedback } : {}) },
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (typeof json.command_id !== "number") throw new Error("missing command_id");
+      setCommandId(json.command_id);
+      setStepIndex(0);
+      stepTimerRef.current = setInterval(() => {
+        setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
+      }, 5000);
+    } catch (err) {
+      setFireError(err instanceof Error ? err.message : "Failed to start generation");
+    }
   }
 
   useEffect(() => {
-    if (cmdStatus === "completed" || cmdStatus === "done") {
-      if (stepTimerRef.current) clearInterval(stepTimerRef.current);
-      setCommandId(null);
-      fetch(`/api/posts/${post.id}`)
-        .then((r) => r.json())
-        .then((data) => { if (data.post) onPostUpdate(data.post); });
-    }
-    if (cmdStatus === "failed") {
-      if (stepTimerRef.current) clearInterval(stepTimerRef.current);
-    }
-  }, [cmdStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (cmdStatus !== "completed" && cmdStatus !== "done" && cmdStatus !== "failed") return;
+    if (stepTimerRef.current) clearInterval(stepTimerRef.current);
+    if (cmdStatus === "failed") return;
+    let alive = true;
+    const ctrl = new AbortController();
+    setCommandId(null);
+    fetch(`/api/posts/${post.id}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((data) => { if (alive && data.post) onPostUpdateRef.current(data.post); })
+      .catch(() => {});
+    return () => { alive = false; ctrl.abort(); };
+  }, [cmdStatus, post.id]);
 
   useEffect(() => () => { if (stepTimerRef.current) clearInterval(stepTimerRef.current); }, []);
 
@@ -138,6 +149,7 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
       )}
 
       {cmdError && <Typography sx={{ fontSize: "0.875rem", color: "#D93025" }}>{cmdError}</Typography>}
+      {fireError && <Typography sx={{ fontSize: "0.875rem", color: "#D93025" }}>{fireError}</Typography>}
 
       {/* Text preview */}
       {cleanText && !isPolling && (
@@ -180,7 +192,7 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
             variant="outlined"
             size="small"
             disabled={isPolling}
-            onClick={() => { setCommandId(null); setTimeout(() => fireGenerate(effectiveSource), 0); }}
+            onClick={async () => { setCommandId(null); await fireGenerate(effectiveSource); }}
             sx={{ textTransform: "none", whiteSpace: "nowrap" }}
           >
             Regenerate
