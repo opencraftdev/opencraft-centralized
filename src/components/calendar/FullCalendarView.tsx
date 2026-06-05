@@ -6,6 +6,7 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import type { EventClickArg, EventInput } from "@fullcalendar/core";
+import type { DateClickArg } from "@fullcalendar/interaction";
 import Box from "@mui/material/Box";
 import type { PostSummary } from "@/lib/types";
 
@@ -61,11 +62,12 @@ interface FullCalendarViewProps {
   // Fires when the visible range changes; `anchorDate` is the current period's
   // own start (month/week/day), not the leading grid cell.
   onDatesChange?: (anchorDate: Date, title: string) => void;
+  onDateClick?: (dateStr: string) => void;
 }
 
 export const FullCalendarView = forwardRef<FullCalendarViewHandle, FullCalendarViewProps>(
   function FullCalendarView(
-    { initialDate, initialView = "timeGridWeek", postsByDate, onOpenPost, onDatesChange },
+    { initialDate, initialView = "timeGridWeek", postsByDate, onOpenPost, onDatesChange, onDateClick },
     ref,
   ) {
     const calendarRef = useRef<FullCalendar>(null);
@@ -360,6 +362,7 @@ export const FullCalendarView = forwardRef<FullCalendarViewHandle, FullCalendarV
             .padStart(2, "0")}:00:00`}
           events={events}
           eventClick={handleEventClick}
+          dateClick={(arg: DateClickArg) => onDateClick?.(arg.dateStr)}
           eventContent={(arg) => {
             const status = (arg.event.extendedProps.status as string) ?? "";
             return (
