@@ -6,6 +6,8 @@ import { listPosts } from "@/lib/posts";
 import { createPost } from "@/lib/sosmed/posts";
 import type { PostStatus } from "@/lib/types";
 
+export const runtime = "nodejs";
+
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -24,7 +26,7 @@ const createSchema = z.object({
   dateSlot: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -34,6 +36,10 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   const admin = createAdminClient();
-  const post = await createPost(admin, { userId: user.id, type: parsed.data.type, dateSlot: parsed.data.dateSlot });
-  return NextResponse.json({ post }, { status: 201 });
+  try {
+    const post = await createPost(admin, { userId: user.id, type: parsed.data.type, dateSlot: parsed.data.dateSlot });
+    return NextResponse.json({ post }, { status: 201 });
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
 }

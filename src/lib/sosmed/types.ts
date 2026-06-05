@@ -1,6 +1,6 @@
 export type SosmedPlatform = "engage" | "educate" | "video";
 export type SosmedCommand = "generate" | "publish" | "suggest" | "draft" | "approve" | "reset";
-export type SosmedCommandStatus = "pending" | "processing" | "completed" | "failed";
+export type SosmedCommandStatus = "pending" | "running" | "processing" | "done" | "completed" | "failed";
 
 export interface SosmedCommandRow {
   id: number;

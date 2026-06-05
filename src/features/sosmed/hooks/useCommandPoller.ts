@@ -43,9 +43,9 @@ export function useCommandPoller(commandId: number | null): CommandPollState {
           status: cmd.status,
           logText: cmd.log_text ?? null,
           error: cmd.error ?? null,
-          isPolling: cmd.status === "pending" || cmd.status === "processing",
+          isPolling: cmd.status === "pending" || cmd.status === "processing" || cmd.status === "running",
         });
-        if (cmd.status === "completed" || cmd.status === "failed") {
+        if (cmd.status === "completed" || cmd.status === "done" || cmd.status === "failed") {
           if (intervalRef.current) clearInterval(intervalRef.current);
         }
       } catch {

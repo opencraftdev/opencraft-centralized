@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ContentPost, ContentPostRow, PostType, PostStatus } from "@/lib/types";
 
+// mirrors lib/posts.ts rowToPost — kept local because lib/posts does not export it
 function rowToPost(row: ContentPostRow): ContentPost {
   return {
     id: row.id,
@@ -41,12 +42,14 @@ export async function patchPost(
   admin: SupabaseClient,
   id: number,
   userId: string,
-  patch: { status?: PostStatus; userFeedback?: string; scheduledAt?: string | null },
+  patch: { status?: PostStatus; userFeedback?: string | null; scheduledAt?: string | null },
 ): Promise<ContentPost> {
   const update: Record<string, unknown> = {};
   if (patch.status !== undefined) update.status = patch.status;
   if (patch.userFeedback !== undefined) update.user_feedback = patch.userFeedback;
   if (patch.scheduledAt !== undefined) update.scheduled_at = patch.scheduledAt;
+
+  if (Object.keys(update).length === 0) throw new Error("Nothing to update");
 
   const { data, error } = await admin
     .from("content_posts")
