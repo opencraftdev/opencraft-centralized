@@ -24,6 +24,7 @@ function formatDateTime(value: string): string {
 
 export function PublishSection({ post, onPostUpdate }: Props) {
   const [publishCommandId, setPublishCommandId] = useState<number | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [scheduledTime, setScheduledTime] = useState<Date | null>(
     post.scheduledAt ? new Date(post.scheduledAt) : null,
   );
@@ -37,11 +38,14 @@ export function PublishSection({ post, onPostUpdate }: Props) {
     if (cmdStatus !== "completed" && cmdStatus !== "done") return;
     let alive = true;
     const ctrl = new AbortController();
-    setPublishCommandId(null);
     fetch(`/api/posts/${post.id}`, { signal: ctrl.signal })
       .then((r) => r.json())
-      .then((data) => { if (alive && data.post) onPostUpdateRef.current(data.post); })
-      .catch(() => {});
+      .then((data) => {
+        if (!alive) return;
+        setPublishCommandId(null);
+        if (data.post) onPostUpdateRef.current(data.post);
+      })
+      .catch(() => { if (alive) setPublishCommandId(null); });
     return () => { alive = false; ctrl.abort(); };
   }, [cmdStatus, post.id]);
 
@@ -63,6 +67,7 @@ export function PublishSection({ post, onPostUpdate }: Props) {
   }
 
   async function handlePublishNow() {
+    setPublishError(null);
     try {
       const res = await fetch("/api/sosmed/command", {
         method: "POST",
@@ -73,8 +78,8 @@ export function PublishSection({ post, onPostUpdate }: Props) {
       const json = await res.json();
       if (typeof json.command_id !== "number") throw new Error("missing command_id");
       setPublishCommandId(json.command_id);
-    } catch {
-      // cmdError from poller will surface errors; silently fail here
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Failed to start publish");
     }
   }
 
@@ -115,7 +120,11 @@ export function PublishSection({ post, onPostUpdate }: Props) {
           />
           {savingTime && <CircularProgress size={16} />}
         </Box>
-        {cmdError && <Typography sx={{ fontSize: "0.8125rem", color: "#D93025" }}>{cmdError}</Typography>}
+        {(cmdError || publishError) && (
+          <Typography sx={{ fontSize: "0.8125rem", color: "#D93025" }}>
+            {cmdError || publishError}
+          </Typography>
+        )}
         <Button
           variant="contained"
           disabled={isPolling}
