@@ -1,25 +1,27 @@
 import Chip from "@mui/material/Chip";
 import type { SxProps, Theme } from "@mui/material/styles";
 
-type BadgeVariant = "draft" | "accepted" | "scheduled" | "published" | "failed" | "posted";
+type BadgeVariant = "draft" | "accepted" | "scheduled" | "publishing" | "published" | "failed" | "posted";
 type TypeVariant = "engage" | "educate" | "video";
 
 const STATUS_LABELS: Record<BadgeVariant, string> = {
-  draft:     "Draft",
-  accepted:  "Accepted",
-  scheduled: "Scheduled",
-  published: "Published",
-  failed:    "Failed",
-  posted:    "Posted",
+  draft:      "Draft",
+  accepted:   "Accepted",
+  scheduled:  "Scheduled",
+  publishing: "Publishing",
+  published:  "Published",
+  failed:     "Failed",
+  posted:     "Posted",
 };
 
 const STATUS_COLORS: Record<BadgeVariant, { bgcolor: string; color: string }> = {
-  draft:     { bgcolor: "rgba(95,99,104,0.08)",  color: "#5f6368" },
-  accepted:  { bgcolor: "rgba(227,116,0,0.08)",  color: "#e37400" },
-  scheduled: { bgcolor: "rgba(26,115,232,0.08)", color: "#1a73e8" },
-  published: { bgcolor: "rgba(24,128,56,0.08)",  color: "#188038" },
-  failed:    { bgcolor: "rgba(217,48,37,0.08)",  color: "#d93025" },
-  posted:    { bgcolor: "rgba(24,128,56,0.08)",  color: "#188038" },
+  draft:      { bgcolor: "rgba(95,99,104,0.08)",  color: "#5f6368" },
+  accepted:   { bgcolor: "rgba(227,116,0,0.08)",  color: "#e37400" },
+  scheduled:  { bgcolor: "rgba(26,115,232,0.08)", color: "#1a73e8" },
+  publishing: { bgcolor: "rgba(0,131,143,0.08)",  color: "#00838f" },
+  published:  { bgcolor: "rgba(24,128,56,0.08)",  color: "#188038" },
+  failed:     { bgcolor: "rgba(217,48,37,0.08)",  color: "#d93025" },
+  posted:     { bgcolor: "rgba(24,128,56,0.08)",  color: "#188038" },
 };
 
 const TYPE_LABELS: Record<TypeVariant, string> = {

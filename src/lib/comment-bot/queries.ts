@@ -120,6 +120,7 @@ export async function getRecentCommands(
   const { data, error } = await supabase
     .from("bot_commands")
     .select("*")
+    .or("platform.in.(threads,x,all),platform.is.null")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
