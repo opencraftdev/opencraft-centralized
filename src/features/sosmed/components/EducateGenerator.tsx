@@ -47,7 +47,7 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
         body: JSON.stringify({
           command: "generate",
           platform: "educate",
-          context: { source: src, ...(feedback ? { user_feedback: feedback } : {}) },
+          context: { postId: post.id, source: src, ...(feedback ? { user_feedback: feedback } : {}) },
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -65,13 +65,14 @@ export function EducateGenerator({ post, onPostUpdate, onAccept }: Props) {
     }
   }
 
+  // Re-fetch post when command completes. See EngageGenerator for why we don't
+  // reset commandId here — it would self-abort the in-flight post fetch.
   useEffect(() => {
     if (cmdStatus !== "completed" && cmdStatus !== "done" && cmdStatus !== "failed") return;
     if (stepTimerRef.current) clearInterval(stepTimerRef.current);
     if (cmdStatus === "failed") return;
     let alive = true;
     const ctrl = new AbortController();
-    setCommandId(null);
     fetch(`/api/posts/${post.id}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data) => { if (alive && data.post) onPostUpdateRef.current(data.post); })

@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 const patchSchema = z.object({
-  status: z.enum(["draft", "accepted", "scheduled", "published", "failed"]).optional(),
+  status: z.enum(["draft", "accepted", "scheduled", "publishing", "published", "failed"]).optional(),
   userFeedback: z.string().nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
 });

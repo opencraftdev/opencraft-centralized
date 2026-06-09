@@ -54,7 +54,10 @@ export function VideoStepper({ initialPost }: { initialPost: ContentPost }) {
     }
   }, [logText]);
 
-  // Handle command completion
+  // Handle command completion.
+  // Don't reset commandId here on success — it would flip cmdStatus back to null,
+  // re-trigger this effect, and the previous cleanup would abort the post fetch.
+  // On failure we can reset because no fetch is in flight to abort.
   useEffect(() => {
     if (cmdStatus !== "completed" && cmdStatus !== "done" && cmdStatus !== "failed") return;
     if (cmdStatus === "failed") {
@@ -64,7 +67,6 @@ export function VideoStepper({ initialPost }: { initialPost: ContentPost }) {
     const wasCommand = lastCommandRef.current;
     let alive = true;
     const ctrl = new AbortController();
-    setCommandId(null);
     fetch(`/api/posts/${post.id}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data) => { if (alive && data.post) setPost(data.post); })
@@ -87,7 +89,7 @@ export function VideoStepper({ initialPost }: { initialPost: ContentPost }) {
       const res = await fetch("/api/sosmed/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, platform: "video", context: context ?? {} }),
+        body: JSON.stringify({ command, platform: "video", context: { postId: post.id, ...(context ?? {}) } }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();

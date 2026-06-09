@@ -68,6 +68,7 @@ export function PostDetail({ post }: { post: ContentPost }) {
   const hasPublishInfo =
     post.status === "published" ||
     post.status === "scheduled" ||
+    post.status === "publishing" ||
     (post.publishResults?.length ?? 0) > 0;
 
   const isEmpty =
@@ -237,6 +238,11 @@ export function PostDetail({ post }: { post: ContentPost }) {
             {post.status === "scheduled" && post.scheduledAt && (
               <Typography variant="body2" sx={{ color: "#1A73E8", fontWeight: 500, mb: 1 }}>
                 Scheduled · {formatDateTime(post.scheduledAt)}
+              </Typography>
+            )}
+            {post.status === "publishing" && (
+              <Typography variant="body2" sx={{ color: "#00838F", fontWeight: 500, mb: 1 }}>
+                Publishing…
               </Typography>
             )}
             {post.publishResults?.map((r) => (

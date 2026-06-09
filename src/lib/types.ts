@@ -1,5 +1,5 @@
 export type PostType = "engage" | "educate" | "video";
-export type PostStatus = "draft" | "accepted" | "scheduled" | "published" | "failed";
+export type PostStatus = "draft" | "accepted" | "scheduled" | "publishing" | "published" | "failed";
 export type TemplateType = PostType | "off";
 
 export interface PostCaptions {

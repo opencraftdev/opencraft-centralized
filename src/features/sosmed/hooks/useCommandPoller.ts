@@ -33,11 +33,14 @@ export function useCommandPoller(commandId: number | null): CommandPollState {
 
     setState((prev) => ({ ...prev, isPolling: true }));
 
+    const controller = new AbortController();
+
     async function poll() {
       try {
-        const res = await fetch(`/api/sosmed/command/${commandId}`);
-        if (!res.ok) return;
+        const res = await fetch(`/api/sosmed/command/${commandId}`, { signal: controller.signal });
+        if (!res.ok || controller.signal.aborted) return;
         const json = await res.json();
+        if (controller.signal.aborted) return;
         const cmd = json.command;
         setState({
           status: cmd.status,
@@ -49,7 +52,7 @@ export function useCommandPoller(commandId: number | null): CommandPollState {
           if (intervalRef.current) clearInterval(intervalRef.current);
         }
       } catch {
-        // network error — keep polling
+        // network error or abort — keep polling on network, exit on abort
       }
     }
 
@@ -57,6 +60,7 @@ export function useCommandPoller(commandId: number | null): CommandPollState {
     intervalRef.current = setInterval(poll, 2000);
 
     return () => {
+      controller.abort();
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [commandId]);

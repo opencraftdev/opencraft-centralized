@@ -93,6 +93,17 @@ export function PublishSection({ post, onPostUpdate }: Props) {
     }
   }
 
+  if (post.status === "publishing") {
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        <CircularProgress size={16} />
+        <Typography sx={{ color: "#00838F", fontWeight: 500, fontSize: "0.9375rem" }}>
+          Publishing…
+        </Typography>
+      </Box>
+    );
+  }
+
   if (post.status === "published") {
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>

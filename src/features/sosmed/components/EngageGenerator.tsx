@@ -42,7 +42,7 @@ export function EngageGenerator({ post, onPostUpdate, onAccept }: Props) {
         body: JSON.stringify({
           command: "generate",
           platform: "engage",
-          context: feedback ? { user_feedback: feedback } : {},
+          context: { postId: post.id, ...(feedback ? { user_feedback: feedback } : {}) },
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -65,12 +65,14 @@ export function EngageGenerator({ post, onPostUpdate, onAccept }: Props) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch post when command completes
+  // Re-fetch post when command completes.
+  // Don't reset commandId here — the poller already stopped its interval, and
+  // setting commandId=null would flip cmdStatus back to null on the next render,
+  // re-triggering this effect and aborting our own in-flight post fetch.
   useEffect(() => {
     if (cmdStatus !== "completed" && cmdStatus !== "done") return;
     let alive = true;
     const ctrl = new AbortController();
-    setCommandId(null);
     fetch(`/api/posts/${post.id}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data) => { if (alive && data.post) onPostUpdateRef.current(data.post); })

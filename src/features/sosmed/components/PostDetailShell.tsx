@@ -65,6 +65,7 @@ export function PostDetailShell({ initialPost }: { initialPost: ContentPost }) {
   const canPublish =
     post.status === "accepted" ||
     post.status === "scheduled" ||
+    post.status === "publishing" ||
     post.status === "published";
 
   // captions is PostCaptions | null; each field is a non-nullable string

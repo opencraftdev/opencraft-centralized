@@ -20,6 +20,7 @@ const TYPE_COLORS: Record<string, string> = {
 const STATUS_DOT: Record<string, string> = {
   published: "#34A853",
   posted: "#34A853",
+  publishing: "#00838F",
   scheduled: "#FBBC04",
   accepted: "#1A73E8",
   failed: "#EA4335",
