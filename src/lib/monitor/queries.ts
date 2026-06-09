@@ -9,6 +9,7 @@ import type {
   AgentSummary,
   DocumentHistoryItem,
   DocumentStats,
+  BlogArticleItem,
 } from "@/lib/monitor/types";
 
 function startOfTodayIso(): string {
@@ -209,6 +210,78 @@ export async function getDocuments(
       ...(await resolveLinks(supabase, doc)),
     })),
   );
+}
+
+// ── Blog drafts (Blogpost Automation, agent-authored) ───────
+//
+// The History view lists the blogs the agent drafted FOR us — the OpenCraft
+// originals in public.articles — not the scraped external articles the bot
+// merely monitors. Read straight from `articles` so it's always complete and
+// fresh (the agent_documents telemetry mirror lags behind the source table).
+
+// Public site where the blog is served: /{locale}/blog/{slug}. Mirrors the URL
+// the sync bot builds (see lib/monitor/blog-bot.ts).
+const BLOG_BASE_URL = (process.env.BLOG_PUBLIC_BASE_URL ?? "https://ocraft.id").replace(/\/+$/, "");
+const BLOG_LOCALE = process.env.BLOG_PUBLIC_LOCALE ?? "id";
+
+// The source_name the agent stamps on its own drafts, vs. scraped sources
+// (LangChain, Anthropic, …).
+const OWN_SOURCE = "OpenCraft";
+
+function blogWordCount(content: string | null): number | null {
+  if (!content) return null;
+  const words = content.trim().split(/\s+/).filter(Boolean);
+  return words.length || null;
+}
+
+export async function getBlogDrafts(
+  supabase: SupabaseClient,
+  limit = 200,
+): Promise<BlogArticleItem[]> {
+  const { data, error } = await supabase
+    .from("articles")
+    .select("slug,title,summary,content,source_name,published_at,created_at")
+    .eq("source_name", OWN_SOURCE)
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+
+  type ArticleRow = {
+    slug: string | null;
+    title: string | null;
+    summary: string | null;
+    content: string | null;
+    source_name: string | null;
+    published_at: string | null;
+    created_at: string;
+  };
+
+  return ((data ?? []) as ArticleRow[]).map((a) => ({
+    slug: a.slug ?? "",
+    title: a.title?.trim() || "Untitled draft",
+    summary: a.summary,
+    source_name: a.source_name,
+    word_count: blogWordCount(a.content),
+    url: a.slug ? `${BLOG_BASE_URL}/${BLOG_LOCALE}/blog/${a.slug}` : null,
+    published_at: a.published_at,
+    created_at: a.created_at,
+  }));
+}
+
+export interface BlogDraftStats {
+  total: number;
+  totalWords: number;
+  latestAt: string | null;
+}
+
+// Stats derived from the same OpenCraft-only article set the list shows.
+export function blogDraftStats(drafts: BlogArticleItem[]): BlogDraftStats {
+  return {
+    total: drafts.length,
+    totalWords: drafts.reduce((sum, d) => sum + (d.word_count ?? 0), 0),
+    latestAt: drafts[0]?.published_at ?? drafts[0]?.created_at ?? null,
+  };
 }
 
 export async function getDocumentStats(

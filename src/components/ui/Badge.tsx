@@ -36,17 +36,29 @@ const TYPE_COLORS: Record<TypeVariant, { bgcolor: string; color: string }> = {
   video:   { bgcolor: "rgba(95,99,104,0.08)",   color: "#5f6368" },
 };
 
+// Neutral grey for any value not in the maps above. Live data (e.g. the shared
+// `articles` table) can carry status/type values outside the TS unions, and an
+// unmapped lookup must never crash the page — fall back instead of throwing.
+const FALLBACK_COLORS = { bgcolor: "rgba(95,99,104,0.08)", color: "#5f6368" };
+
+function humanize(value: string | null | undefined): string {
+  if (!value) return "—";
+  const spaced = value.replace(/[_-]+/g, " ").trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 interface StatusBadgeProps {
-  status: BadgeVariant;
+  status: string;
   sx?: SxProps<Theme>;
   className?: string;
 }
 
 export function StatusBadge({ status, sx, className }: StatusBadgeProps) {
-  const colors = STATUS_COLORS[status];
+  const colors = STATUS_COLORS[status as BadgeVariant] ?? FALLBACK_COLORS;
+  const label = STATUS_LABELS[status as BadgeVariant] ?? humanize(status);
   return (
     <Chip
-      label={STATUS_LABELS[status]}
+      label={label}
       size="small"
       className={className}
       sx={{
@@ -60,16 +72,17 @@ export function StatusBadge({ status, sx, className }: StatusBadgeProps) {
 }
 
 interface TypeBadgeProps {
-  type: TypeVariant;
+  type: string;
   sx?: SxProps<Theme>;
   className?: string;
 }
 
 export function TypeBadge({ type, sx, className }: TypeBadgeProps) {
-  const colors = TYPE_COLORS[type];
+  const colors = TYPE_COLORS[type as TypeVariant] ?? FALLBACK_COLORS;
+  const label = TYPE_LABELS[type as TypeVariant] ?? humanize(type);
   return (
     <Chip
-      label={TYPE_LABELS[type]}
+      label={label}
       size="small"
       className={className}
       sx={{

@@ -1,16 +1,15 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { runBlogMonitorSync } from "@/lib/monitor/blog-bot";
 import { notifyNewBlogArticles } from "@/lib/integrations/discord";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// POST (or GET, for cron services that only do GET) /api/monitor/blog/sync
-// Reconciles the shared `articles` table into the Blogpost Automation agent's
-// telemetry. Protected by MONITOR_CRON_SECRET — pass it as `Authorization:
-// Bearer <secret>` or `?key=<secret>`.
+// POST/GET /api/integrations/discord/notify
+// Scans for newly-published articles and posts them to Discord (dedup'd).
+// Meant for a scheduler or a Supabase Database Webhook to call on new rows.
+// Protected by MONITOR_CRON_SECRET (Authorization: Bearer <secret> or ?key=).
 
 function safeEqual(a: string, b: string): boolean {
   const ab = Buffer.from(a);
@@ -21,7 +20,7 @@ function safeEqual(a: string, b: string): boolean {
 
 function authorized(req: Request): boolean {
   const secret = process.env.MONITOR_CRON_SECRET;
-  if (!secret) return false; // fail closed when unconfigured
+  if (!secret) return false;
   const header = req.headers.get("authorization") ?? "";
   const bearer = /^Bearer\s+(.+)$/i.exec(header.trim())?.[1]?.trim();
   const token = bearer ?? new URL(req.url).searchParams.get("key") ?? "";
@@ -33,20 +32,11 @@ async function handle(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const admin = createAdminClient();
-    const result = await runBlogMonitorSync(admin);
-    // Best-effort Discord notification for any newly-published articles. Never
-    // let a webhook problem fail the telemetry sync.
-    let discord: { sent: number; reason?: string } | { error: string };
-    try {
-      discord = await notifyNewBlogArticles(admin);
-    } catch (notifyErr) {
-      discord = { error: notifyErr instanceof Error ? notifyErr.message : "notify failed" };
-    }
-    return NextResponse.json({ ok: true, ...result, discord });
+    const result = await notifyNewBlogArticles(createAdminClient());
+    return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal error";
-    console.error("blog monitor sync failed:", err);
+    console.error("discord notify failed:", err);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
