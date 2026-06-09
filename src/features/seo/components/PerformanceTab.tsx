@@ -1,25 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Checkbox from "@mui/material/Checkbox";
 import HelpOutline from "@mui/icons-material/HelpOutlineOutlined";
 import ArrowUpwardOutlined from "@mui/icons-material/ArrowUpwardOutlined";
 import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
+import LinkOffOutlined from "@mui/icons-material/LinkOffOutlined";
 import { BarChart } from "@mui/x-charts/BarChart";
-import {
-  perfKpis,
-  perfTrend,
-  cwvMetrics,
-  topQueries,
-  topPages,
-  type KpiDelta,
-  type CwvStatus,
-  type CwvMetric,
-  type QueryRow,
-  type PageRow,
-} from "../mock";
+import type {
+  CoreWebVitals,
+  CwvMetric,
+  CwvStatus,
+  KpiDelta,
+  PageRow,
+  QueryRow,
+  SearchPerformance,
+} from "@/lib/seo/types";
 
 const CLICKS = "#1A73E8";
 const IMPRESSIONS = "#9334E6";
@@ -34,10 +32,11 @@ const CWV_META: Record<CwvStatus, { color: string; label: string }> = {
   good: { color: "#188038", label: "Good" },
   "needs-improvement": { color: "#F9AB00", label: "Needs improvement" },
   poor: { color: "#D93025", label: "Poor" },
+  unknown: { color: "#9AA0A6", label: "No data" },
 };
 
-// GSC-style summary tile (mirrors the dashboard Run-activity tiles): a flat
-// colored block with a checkbox that toggles its series in the chart.
+// GSC-style summary tile: a flat colored block with a checkbox that toggles its
+// series in the chart.
 function Tile({
   label,
   value,
@@ -97,23 +96,24 @@ function Tile({
   );
 }
 
-function PerformanceChartCard() {
+function PerformanceChartCard({
+  kpis,
+  trend,
+}: {
+  kpis: NonNullable<SearchPerformance["kpis"]>;
+  trend: SearchPerformance["trend"];
+}) {
   const [show, setShow] = useState({ clicks: true, impressions: true });
-  const [clicks, impressions] = perfKpis;
+  const { clicks, impressions } = kpis;
 
-  const labels = perfTrend.map((p) => p.label);
+  const labels = trend.map((p) => p.label);
   const series = [
     show.clicks
-      ? {
-          data: perfTrend.map((p) => p.clicks),
-          label: "Clicks",
-          color: CLICKS,
-          yAxisId: "clicks",
-        }
+      ? { data: trend.map((p) => p.clicks), label: "Clicks", color: CLICKS, yAxisId: "clicks" }
       : null,
     show.impressions
       ? {
-          data: perfTrend.map((p) => p.impressions),
+          data: trend.map((p) => p.impressions),
           label: "Impressions",
           color: IMPRESSIONS,
           yAxisId: "impr",
@@ -122,10 +122,10 @@ function PerformanceChartCard() {
   ].filter(Boolean) as { data: number[]; label: string; color: string; yAxisId: string }[];
 
   const noneSelected = series.length === 0;
+  const noData = trend.length === 0;
 
   return (
     <Box sx={{ ...CARD_SX, p: 3 }}>
-      {/* Toggle tiles — GSC style */}
       <Box sx={{ display: "flex", gap: "2px", borderRadius: "12px", overflow: "hidden", maxWidth: 560 }}>
         <Tile
           label={clicks.label}
@@ -145,21 +145,11 @@ function PerformanceChartCard() {
         />
       </Box>
 
-      {/* Chart */}
       <Box sx={{ mt: 3 }}>
-        {noneSelected ? (
-          <Box
-            sx={{
-              height: 300,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#9aa0a6",
-              fontSize: "0.875rem",
-            }}
-          >
-            Select a series to display.
-          </Box>
+        {noData ? (
+          <CenterNote>No search clicks or impressions in this period yet.</CenterNote>
+        ) : noneSelected ? (
+          <CenterNote>Select a series to display.</CenterNote>
         ) : (
           <BarChart
             height={300}
@@ -193,6 +183,23 @@ function PerformanceChartCard() {
           />
         )}
       </Box>
+    </Box>
+  );
+}
+
+function CenterNote({ children }: { children: React.ReactNode }) {
+  return (
+    <Box
+      sx={{
+        height: 300,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#9aa0a6",
+        fontSize: "0.875rem",
+      }}
+    >
+      {children}
     </Box>
   );
 }
@@ -266,6 +273,65 @@ function CwvCard({ metric }: { metric: CwvMetric }) {
   );
 }
 
+// CWV loads via the API route so a slow PageSpeed call never blocks page paint.
+function CoreWebVitalsSection() {
+  const [data, setData] = useState<CoreWebVitals | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/monitor/blog/cwv")
+      .then((r) => r.json())
+      .then((d: CoreWebVitals) => alive && setData(d))
+      .catch(() => alive && setFailed(true));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const sourceNote =
+    data?.source === "field"
+      ? "Real-user data from Google (CrUX)"
+      : data?.source === "lab"
+        ? "Lab estimate — not enough real-user traffic yet"
+        : "";
+
+  return (
+    <Box>
+      <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500, color: "#1F1F1F", mt: 0.5 }}>
+        Page experience
+      </Typography>
+      <Typography sx={{ fontSize: "0.75rem", color: "#5f6368", mb: 1.5 }}>
+        How fast and stable your pages feel to real visitors — measured by Google.
+        {sourceNote && ` · ${sourceNote}`}
+      </Typography>
+      {!data && !failed ? (
+        <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+          {[0, 1, 2].map((i) => (
+            <Box
+              key={i}
+              sx={{ ...CARD_SX, flex: "1 1 0", minWidth: 220, height: 132, bgcolor: "#F8F9FA" }}
+            />
+          ))}
+        </Box>
+      ) : failed || !data?.ok ? (
+        <Box sx={{ ...CARD_SX, p: 2.5 }}>
+          <Typography sx={{ fontSize: "0.8125rem", color: "#5f6368" }}>
+            Core Web Vitals are unavailable right now
+            {data?.reason ? ` — ${data.reason}` : "."}
+          </Typography>
+        </Box>
+      ) : (
+        <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+          {data.metrics.map((m) => (
+            <CwvCard key={m.key} metric={m} />
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 const headSx = { fontSize: "0.75rem", fontWeight: 600, color: "#5F6368" } as const;
 const metaSx = { fontSize: "0.8125rem", color: "#5F6368" } as const;
 const TABLE_COLS = "minmax(0, 1fr) 56px 64px 72px 52px";
@@ -306,91 +372,104 @@ function DataTable({
         <Typography sx={{ ...headSx, textAlign: "right" }}>Click rate</Typography>
         <Typography sx={{ ...headSx, textAlign: "right" }}>Rank</Typography>
       </Box>
-      {rows.map((r, i) => {
-        const first = "query" in r ? r.query : r.page;
-        return (
-          <Box
-            key={first}
-            sx={{
-              display: "grid",
-              gridTemplateColumns: TABLE_COLS,
-              gap: 1.5,
-              alignItems: "center",
-              px: 2.5,
-              py: 1.25,
-              borderBottom: i === rows.length - 1 ? "none" : "1px solid #F1F3F4",
-              "&:hover": { bgcolor: "#F8F9FA" },
-            }}
-          >
-            <Typography
+      {rows.length === 0 ? (
+        <Box sx={{ px: 2.5, py: 3 }}>
+          <Typography sx={{ fontSize: "0.8125rem", color: "#9aa0a6" }}>No data yet.</Typography>
+        </Box>
+      ) : (
+        rows.map((r, i) => {
+          const first = "query" in r ? r.query : r.page;
+          return (
+            <Box
+              key={first}
               sx={{
-                fontSize: "0.8125rem",
-                color: "#3C4043",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
+                display: "grid",
+                gridTemplateColumns: TABLE_COLS,
+                gap: 1.5,
+                alignItems: "center",
+                px: 2.5,
+                py: 1.25,
+                borderBottom: i === rows.length - 1 ? "none" : "1px solid #F1F3F4",
+                "&:hover": { bgcolor: "#F8F9FA" },
               }}
             >
-              {first}
-            </Typography>
-            <Typography sx={{ ...metaSx, textAlign: "right", color: "#3C4043" }}>
-              {r.clicks.toLocaleString()}
-            </Typography>
-            <Typography sx={{ ...metaSx, textAlign: "right" }}>
-              {r.impressions.toLocaleString()}
-            </Typography>
-            <Typography sx={{ ...metaSx, textAlign: "right" }}>{r.ctr}</Typography>
-            <Typography sx={{ ...metaSx, textAlign: "right" }}>{r.position.toFixed(1)}</Typography>
-          </Box>
-        );
-      })}
+              <Typography
+                sx={{
+                  fontSize: "0.8125rem",
+                  color: "#3C4043",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {first}
+              </Typography>
+              <Typography sx={{ ...metaSx, textAlign: "right", color: "#3C4043" }}>
+                {r.clicks.toLocaleString()}
+              </Typography>
+              <Typography sx={{ ...metaSx, textAlign: "right" }}>
+                {r.impressions.toLocaleString()}
+              </Typography>
+              <Typography sx={{ ...metaSx, textAlign: "right" }}>{r.ctr}</Typography>
+              <Typography sx={{ ...metaSx, textAlign: "right" }}>{r.position.toFixed(1)}</Typography>
+            </Box>
+          );
+        })
+      )}
     </Box>
   );
 }
 
-export function PerformanceTab() {
-  const ctr = perfKpis[2];
-  const position = perfKpis[3];
+// Shown when Search Console isn't wired up — CWV still renders below it.
+function ConnectGscCard({ reason }: { reason?: string }) {
+  return (
+    <Box sx={{ ...CARD_SX, p: 4, textAlign: "center" }}>
+      <LinkOffOutlined sx={{ fontSize: 40, color: "#DADCE0", mb: 1 }} />
+      <Typography sx={{ fontSize: "1rem", fontWeight: 500, color: "#3C4043" }}>
+        Search Console not connected
+      </Typography>
+      <Typography sx={{ fontSize: "0.8125rem", color: "#5f6368", mt: 0.5, maxWidth: 440, mx: "auto" }}>
+        {reason ??
+          "Connect Google Search Console to see visits, impressions, click-rate, top queries and pages."}
+      </Typography>
+    </Box>
+  );
+}
+
+export function PerformanceTab({ search }: { search: SearchPerformance }) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <PerformanceChartCard />
+      {search.connected && search.kpis ? (
+        <>
+          <PerformanceChartCard kpis={search.kpis} trend={search.trend} />
+          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+            <KpiCard kpi={search.kpis.ctr} />
+            <KpiCard kpi={search.kpis.position} />
+          </Box>
+        </>
+      ) : (
+        <ConnectGscCard reason={search.reason} />
+      )}
 
-      {/* Scalar metrics */}
-      <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-        <KpiCard kpi={ctr} />
-        <KpiCard kpi={position} />
-      </Box>
+      {/* Core Web Vitals — independent of Search Console, loaded client-side */}
+      <CoreWebVitalsSection />
 
-      {/* Page experience (Core Web Vitals, in plain English) */}
-      <Box>
-        <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500, color: "#1F1F1F", mt: 0.5 }}>
-          Page experience
-        </Typography>
-        <Typography sx={{ fontSize: "0.75rem", color: "#5f6368", mb: 1.5 }}>
-          How fast and stable your pages feel to real visitors — measured by Google.
-        </Typography>
+      {search.connected && (
         <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-          {cwvMetrics.map((m) => (
-            <CwvCard key={m.key} metric={m} />
-          ))}
+          <DataTable
+            title="Top search terms"
+            subtitle="What people typed into Google to find you"
+            firstCol="Search term"
+            rows={search.topQueries}
+          />
+          <DataTable
+            title="Most-visited pages"
+            subtitle="Your pages getting the most traffic from search"
+            firstCol="Page"
+            rows={search.topPages}
+          />
         </Box>
-      </Box>
-
-      {/* Top search terms + pages */}
-      <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-        <DataTable
-          title="Top search terms"
-          subtitle="What people typed into Google to find you"
-          firstCol="Search term"
-          rows={topQueries}
-        />
-        <DataTable
-          title="Most-visited pages"
-          subtitle="Your pages getting the most traffic from search"
-          firstCol="Page"
-          rows={topPages}
-        />
-      </Box>
+      )}
     </Box>
   );
 }

@@ -19,8 +19,8 @@ import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import VideocamOutlined from "@mui/icons-material/VideocamOutlined";
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import TrendingUpOutlined from "@mui/icons-material/TrendingUpOutlined";
-import FactCheckOutlined from "@mui/icons-material/FactCheckOutlined";
 import FeedbackOutlined from "@mui/icons-material/FeedbackOutlined";
+import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import AccountBalanceWalletOutlined from "@mui/icons-material/AccountBalanceWalletOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
@@ -41,7 +41,6 @@ const primaryItems: NavItem[] = [
 const blogItems: NavItem[] = [
   { href: "/monitor/blog", label: "History", icon: <HistoryOutlined /> },
   { href: "/monitor/blog/performance", label: "Performance", icon: <TrendingUpOutlined /> },
-  { href: "/monitor/blog/audit", label: "SEO Audit", icon: <FactCheckOutlined /> },
 ];
 
 const contentItems: NavItem[] = [
@@ -51,6 +50,7 @@ const contentItems: NavItem[] = [
 ];
 
 const bottomItems: NavItem[] = [
+  { href: "/settings", label: "Settings", icon: <SettingsOutlined /> },
   { href: "#feedback", label: "Submit feedback", icon: <FeedbackOutlined /> },
   { href: "#about", label: "About OpenCraft", icon: <InfoOutlined /> },
 ];
@@ -154,7 +154,7 @@ export function Sidebar({ userEmail: _userEmail }: { userEmail: string }) {
   const [blogsOpen, setBlogsOpen] = useState(true);
   const [contentOpen, setContentOpen] = useState(true);
 
-  const navHrefs = [...primaryItems, ...blogItems, ...contentItems]
+  const navHrefs = [...primaryItems, ...blogItems, ...contentItems, ...bottomItems]
     .map((i) => i.href)
     .filter((h) => !h.startsWith("#"));
 
@@ -234,7 +234,7 @@ export function Sidebar({ userEmail: _userEmail }: { userEmail: string }) {
         <Divider sx={{ borderColor: "#DADCE0", mx: 1, mb: 1 }} />
         <List disablePadding component="nav">
           {bottomItems.map((item) => (
-            <NavRow key={item.href} item={item} active={false} />
+            <NavRow key={item.href} item={item} active={isActive(item.href)} />
           ))}
         </List>
 

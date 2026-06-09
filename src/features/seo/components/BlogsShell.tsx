@@ -6,9 +6,9 @@ const SIDEBAR = 280;
 const TOPBAR = 64;
 const HEADER_H = 68;
 
-// Shared chrome for the Blogs section routes (History / Performance / SEO Audit):
-// the gray fixed header + centered max-width body, matching the dashboard /
-// posts / calendar design system. Each route supplies its own title + body.
+// Shared chrome for the Blogs section routes (History / Performance): the gray
+// fixed header + centered max-width body, matching the dashboard / posts /
+// calendar design system. Each route supplies its own title + body.
 export function BlogsShell({
   title,
   subtitle,

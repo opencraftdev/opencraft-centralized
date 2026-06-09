@@ -1,13 +1,8 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { createClient } from "@/lib/supabase/server";
-import {
-  getAgentBySlug,
-  getDocuments,
-  getDocumentStats,
-  getRecentRuns,
-} from "@/lib/monitor/queries";
-import { BlogLibrary } from "@/features/monitor/components/BlogLibrary";
+import { getAgentBySlug, getBlogDrafts, blogDraftStats } from "@/lib/monitor/queries";
+import { BlogHistoryList } from "@/features/monitor/components/BlogHistoryList";
 import { StatusDot } from "@/features/monitor/components/StatusDot";
 import { BlogsShell } from "@/features/seo/components/BlogsShell";
 import { relativeTime, formatNumber } from "@/features/monitor/format";
@@ -36,49 +31,31 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 export default async function BlogHistoryPage() {
   const supabase = await createClient();
-  const agent = await getAgentBySlug(supabase, SLUG);
-
-  if (!agent) {
-    return (
-      <BlogsShell title="History" subtitle="Articles tracked by Blogpost Automation">
-        <Box sx={{ ...CARD_SX, p: 4 }}>
-          <Typography sx={{ fontSize: "0.875rem", color: "rgba(0,0,0,0.54)" }}>
-            Blogpost Automation is not registered yet. Apply the telemetry migration and seed the
-            registry to populate History.
-          </Typography>
-        </Box>
-      </BlogsShell>
-    );
-  }
-
-  const [documents, stats, runs] = await Promise.all([
-    getDocuments(supabase, agent.id, 200),
-    getDocumentStats(supabase, agent.id),
-    getRecentRuns(supabase, agent.id, 1),
+  // Agent row is optional — it only drives the "online / last sync" header chip.
+  // The list reads articles directly, so it works even before the agent exists.
+  const [agent, drafts] = await Promise.all([
+    getAgentBySlug(supabase, SLUG),
+    getBlogDrafts(supabase, 200),
   ]);
-  const lastRun = runs[0] ?? null;
+  const stats = blogDraftStats(drafts);
+
+  const subtitle = agent
+    ? `Blogs the agent drafted for you · last sync ${relativeTime(agent.last_heartbeat_at)}`
+    : "Blogs the agent drafted for you";
 
   return (
     <BlogsShell
       title="History"
-      subtitle={`Blogpost Automation · last sync ${relativeTime(agent.last_heartbeat_at)}${
-        lastRun?.status === "failed" ? " · last run failed" : ""
-      }`}
-      status={<StatusDot status={agent.status} />}
+      subtitle={subtitle}
+      status={agent ? <StatusDot status={agent.status} /> : undefined}
     >
       <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 2 }}>
-        <Stat label="Articles tracked" value={formatNumber(stats.total)} />
+        <Stat label="Drafts created" value={formatNumber(stats.total)} />
         <Stat label="Total words" value={formatNumber(stats.totalWords)} />
-        <Stat label="Runs (24h)" value={formatNumber(agent.runs_24h)} />
-        <Stat
-          label="Success rate (24h)"
-          value={
-            agent.success_rate_24h == null ? "—" : `${Math.round(agent.success_rate_24h * 100)}%`
-          }
-        />
+        <Stat label="Latest draft" value={relativeTime(stats.latestAt)} />
       </Box>
       <Box sx={{ ...CARD_SX, p: { xs: 2, md: 3 } }}>
-        <BlogLibrary documents={documents} />
+        <BlogHistoryList items={drafts} />
       </Box>
     </BlogsShell>
   );
