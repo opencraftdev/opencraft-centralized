@@ -7,30 +7,33 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Collapse from "@mui/material/Collapse";
 import Chip from "@mui/material/Chip";
+import Button from "@mui/material/Button";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import ContentCopyOutlined from "@mui/icons-material/ContentCopyOutlined";
 import CheckOutlined from "@mui/icons-material/CheckOutlined";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import ExpandLessOutlined from "@mui/icons-material/ExpandLessOutlined";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import PersonOutlined from "@mui/icons-material/PersonOutlined";
+import VideocamOutlined from "@mui/icons-material/VideocamOutlined";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import { formatDate } from "@/features/monitor/format";
-import { PRESENTERS } from "@/features/tutorial-video/presenters";
+import { PRESENTERS, DEFAULT_PRESENTER_ID } from "@/features/tutorial-video/presenters";
 import type { NewsBriefRow } from "../types";
 
 const metaSx = { fontSize: "0.75rem", color: "#80868B" };
 
 // Presenter picker for presenter-neutral briefs: the user chooses who will
-// record this brief (the brief content itself names no presenter).
-function PresenterPicker() {
-  const [id, setId] = useState(PRESENTERS[0].id);
+// record this brief (the brief content itself names no presenter). Controlled —
+// BriefCard owns the selected id so the Record button can read it.
+function PresenterPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   return (
     <Select
-      value={id}
-      onChange={(e) => setId(e.target.value)}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
       size="small"
       startAdornment={<PersonOutlined sx={{ fontSize: 16, color: "#5F6368", mr: 0.5 }} />}
       sx={{
@@ -205,13 +208,25 @@ function SourceLinks({ brief }: { brief: NewsBriefRow }) {
   );
 }
 
-function BriefCard({ brief }: { brief: NewsBriefRow }) {
+function BriefCard({
+  brief,
+  selected,
+  onSelect,
+}: {
+  brief: NewsBriefRow;
+  selected: boolean;
+  onSelect: (brief: NewsBriefRow, presenterId: string) => void;
+}) {
   const caption = brief.caption;
   const captionText = caption
     ? [caption.text, (caption.hashtags ?? []).map((h) => (h.startsWith("#") ? h : `#${h}`)).join(" ")]
         .filter(Boolean)
         .join("\n\n")
     : "";
+
+  // The presenter to record as: a baked-in brief.presenter_id wins, else default.
+  // Lifted here so both the picker and the Record button share one source.
+  const [presenterId, setPresenterId] = useState(brief.presenter_id || DEFAULT_PRESENTER_ID);
 
   return (
     <Box
@@ -221,8 +236,8 @@ function BriefCard({ brief }: { brief: NewsBriefRow }) {
         gap: 2.5,
         p: 2.5,
         borderRadius: "12px",
-        border: "1px solid #E0E0E0",
-        bgcolor: "#fff",
+        border: selected ? "2px solid #0B57D0" : "1px solid #E0E0E0",
+        bgcolor: selected ? "#F0F6FF" : "#fff",
       }}
     >
       {/* Thumbnail — vertical 9:16 (short-video format) */}
@@ -261,7 +276,7 @@ function BriefCard({ brief }: { brief: NewsBriefRow }) {
           {brief.presenter_name ? (
             <Typography sx={metaSx}>{brief.presenter_name}</Typography>
           ) : (
-            <PresenterPicker />
+            <PresenterPicker value={presenterId} onChange={setPresenterId} />
           )}
           <Typography sx={metaSx}>·</Typography>
           <Typography sx={metaSx}>{formatDate(brief.created_at)}</Typography>
@@ -294,6 +309,27 @@ function BriefCard({ brief }: { brief: NewsBriefRow }) {
           </Box>
         )}
 
+        {/* Brief-first: selecting a brief carries it to the Record tab, where the
+            desktop recorder is launched and the finished clip is uploaded. */}
+        <Box sx={{ mt: 2, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
+          <Button
+            onClick={() => onSelect(brief, presenterId)}
+            variant="contained"
+            disableElevation
+            startIcon={selected ? <CheckCircleOutlined /> : <VideocamOutlined />}
+            sx={{
+              bgcolor: selected ? "#1E8E3E" : "#0B57D0",
+              borderRadius: "9999px",
+              textTransform: "none",
+              fontWeight: 600,
+              px: 3,
+              "&:hover": { bgcolor: selected ? "#177A33" : "#0A4BB8" },
+            }}
+          >
+            {selected ? "Selected — go to Record" : "Record this brief"}
+          </Button>
+        </Box>
+
         <ScriptBlock brief={brief} />
         <SourceLinks brief={brief} />
       </Box>
@@ -301,7 +337,15 @@ function BriefCard({ brief }: { brief: NewsBriefRow }) {
   );
 }
 
-export function MaterialsList({ briefs }: { briefs: NewsBriefRow[] }) {
+export function MaterialsList({
+  briefs,
+  selectedId,
+  onSelect,
+}: {
+  briefs: NewsBriefRow[];
+  selectedId: string | null;
+  onSelect: (brief: NewsBriefRow, presenterId: string) => void;
+}) {
   if (briefs.length === 0) {
     return (
       <Box sx={{ textAlign: "center", py: 8, color: "rgba(0,0,0,0.45)" }}>
@@ -319,7 +363,7 @@ export function MaterialsList({ briefs }: { briefs: NewsBriefRow[] }) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
       {briefs.map((b) => (
-        <BriefCard key={b.id} brief={b} />
+        <BriefCard key={b.id} brief={b} selected={b.id === selectedId} onSelect={onSelect} />
       ))}
     </Box>
   );

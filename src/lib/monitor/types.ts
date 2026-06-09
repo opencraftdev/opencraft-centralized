@@ -114,3 +114,17 @@ export interface DocumentStats {
   failed: number;
   totalWords: number;
 }
+
+// ── Blog drafts (the agent-authored history) ────────────────
+// A single blog the agent drafted, read straight from public.articles.
+// Used by the Blogs → History view.
+export interface BlogArticleItem {
+  slug: string;
+  title: string;
+  summary: string | null;
+  source_name: string | null;
+  word_count: number | null;
+  url: string | null; // public blog URL, null when slug is missing
+  published_at: string | null;
+  created_at: string;
+}
