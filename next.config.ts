@@ -2,7 +2,13 @@ import type { NextConfig } from "next";
 import { resolve } from "node:path";
 
 const nextConfig: NextConfig = {
-  outputFileTracingRoot: resolve(process.cwd(), ".."),
+  // Local monorepo shares node_modules in the parent dir, so trace from there.
+  // On Vercel the repo is cloned standalone into /vercel/path0; pointing the
+  // tracing root at the parent nests the build output one level too deep
+  // (path0/path0/.next) and breaks the deploy, so skip it there.
+  ...(process.env.VERCEL
+    ? {}
+    : { outputFileTracingRoot: resolve(process.cwd(), "..") }),
 
   serverExternalPackages: ["sharp", "fabric", "@remotion/renderer"],
 
