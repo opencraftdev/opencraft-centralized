@@ -28,6 +28,7 @@ import ExpandLessOutlined from "@mui/icons-material/ExpandLessOutlined";
 import SmartToyOutlined from "@mui/icons-material/SmartToyOutlined";
 import RateReviewOutlined from "@mui/icons-material/RateReviewOutlined";
 import ManageAccountsOutlined from "@mui/icons-material/ManageAccountsOutlined";
+import TravelExploreOutlined from "@mui/icons-material/TravelExploreOutlined";
 import { NavLinkLoading } from "./loading-context";
 
 const SIDEBAR_WIDTH = 280;
@@ -39,6 +40,7 @@ const primaryItems: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: <HomeOutlined /> },
   { href: "/monitor", label: "Document", icon: <DescriptionOutlined /> },
   { href: "/finance", label: "Finance", icon: <AccountBalanceWalletOutlined /> },
+  { href: "/scrapers", label: "Scrapers", icon: <TravelExploreOutlined /> },
 ];
 
 const blogItems: NavItem[] = [
