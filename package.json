@@ -20,6 +20,7 @@
     "@fullcalendar/interaction": "^6.1.20",
     "@fullcalendar/react": "^6.1.20",
     "@fullcalendar/timegrid": "^6.1.20",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@mui/icons-material": "^9.0.1",
     "@mui/material": "^9.0.1",
     "@mui/x-charts": "^9.3.0",
@@ -27,9 +28,13 @@
     "@supabase/ssr": "^0.6.0",
     "@supabase/supabase-js": "^2.49.0",
     "date-fns": "^4.1.0",
+    "mcp-handler": "^1.1.0",
     "next": "^15.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-force-graph-3d": "^1.29.1",
+    "three": "^0.184.0",
+    "three-spritetext": "^1.10.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

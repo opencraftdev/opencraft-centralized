@@ -2,6 +2,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { getDiscordSettings } from "@/lib/integrations/discord";
 import { DiscordSettingsForm } from "@/features/settings/components/DiscordSettingsForm";
+import { McpTokensCard } from "@/features/mcp-tokens/components/McpTokensCard";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function SettingsPage() {
         </Typography>
 
         <DiscordSettingsForm initial={settings} />
+        <McpTokensCard />
       </Box>
     </Box>
   );
