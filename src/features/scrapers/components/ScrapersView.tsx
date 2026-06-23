@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Table from "@mui/material/Table";
@@ -11,12 +11,15 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Chip from "@mui/material/Chip";
 import Tooltip from "@mui/material/Tooltip";
+import CircularProgress from "@mui/material/CircularProgress";
 import StarRounded from "@mui/icons-material/StarRounded";
 import EmailOutlined from "@mui/icons-material/EmailOutlined";
 import PhoneOutlined from "@mui/icons-material/PhoneOutlined";
 import LanguageOutlined from "@mui/icons-material/LanguageOutlined";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import WhatsApp from "@mui/icons-material/WhatsApp";
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import RadioButtonUncheckedRounded from "@mui/icons-material/RadioButtonUncheckedRounded";
 
 import type { ScraperCategory, ScraperLead } from "../types";
 import {
@@ -27,6 +30,7 @@ import {
   summarize,
   whatsAppLink,
 } from "../data";
+import { setLeadVerified } from "../actions";
 
 type Filter = "all" | ScraperCategory;
 
@@ -205,6 +209,79 @@ function WhatsAppCell({ lead }: { lead: ScraperLead }) {
   );
 }
 
+/** Checklist button — human sign-off that a lead has been verified. Persists the
+ *  `verified` flag to the centralized DB via the `setLeadVerified` server action.
+ *  Optimistic: flips instantly, reverts if the write fails. */
+function VerifyCell({ lead }: { lead: ScraperLead }) {
+  const [verified, setVerified] = useState(lead.verified);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const toggle = () => {
+    if (pending) return;
+    const next = !verified;
+    setVerified(next); // optimistic
+    setError(null);
+    startTransition(async () => {
+      const res = await setLeadVerified(lead.id, next);
+      if (!res.ok) {
+        setVerified(!next); // revert on failure
+        setError(res.error);
+      }
+    });
+  };
+
+  const verifiedOn =
+    verified && lead.verifiedAt
+      ? new Date(lead.verifiedAt).toLocaleDateString("id-ID")
+      : null;
+  const tooltip = error
+    ? `Gagal menyimpan: ${error}`
+    : verified
+      ? `Terverifikasi${verifiedOn ? ` · ${verifiedOn}` : ""} — klik untuk batalkan`
+      : "Tandai lead ini sudah diverifikasi";
+
+  return (
+    <Tooltip title={tooltip} arrow placement="top">
+      <Box
+        component="button"
+        type="button"
+        onClick={toggle}
+        aria-pressed={verified}
+        sx={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 0.75,
+          height: 32,
+          px: 1.5,
+          minWidth: 104,
+          borderRadius: "9999px",
+          cursor: pending ? "default" : "pointer",
+          bgcolor: verified ? "#188038" : "#fff",
+          color: verified ? "#fff" : "#188038",
+          border: `1px solid ${error ? "#D93025" : "#188038"}`,
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          whiteSpace: "nowrap",
+          opacity: pending ? 0.7 : 1,
+          transition: "all 120ms ease",
+          "&:hover": { bgcolor: verified ? "#157333" : "#18803814" },
+        }}
+      >
+        {pending ? (
+          <CircularProgress size={14} sx={{ color: verified ? "#fff" : "#188038" }} />
+        ) : verified ? (
+          <CheckCircleRounded sx={{ fontSize: 16 }} />
+        ) : (
+          <RadioButtonUncheckedRounded sx={{ fontSize: 16 }} />
+        )}
+        {verified ? "Verified" : "Verify"}
+      </Box>
+    </Tooltip>
+  );
+}
+
 export function ScrapersView({ leads }: { leads: ScraperLead[] }) {
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -269,6 +346,7 @@ export function ScrapersView({ leads }: { leads: ScraperLead[] }) {
                   <TableCell>Location</TableCell>
                   <TableCell align="center">Maps</TableCell>
                   <TableCell align="center">Outreach</TableCell>
+                  <TableCell align="center">Verified</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -340,6 +418,9 @@ export function ScrapersView({ leads }: { leads: ScraperLead[] }) {
                       </TableCell>
                       <TableCell align="center">
                         <WhatsAppCell lead={lead} />
+                      </TableCell>
+                      <TableCell align="center">
+                        <VerifyCell lead={lead} />
                       </TableCell>
                     </TableRow>
                   );
