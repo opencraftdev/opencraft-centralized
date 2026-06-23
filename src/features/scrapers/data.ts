@@ -42,3 +42,26 @@ export function countByCategory(leads: ScraperLead[]): Record<ScraperCategory, n
 export function formatRating(rating: number | null): string {
   return rating == null ? "—" : rating.toFixed(1);
 }
+
+/** Normalise a raw scraped phone number to wa.me digits (E.164 without the `+`).
+ *  Indonesian-aware: a leading `0` or bare `8…` mobile is prefixed with `62`.
+ *  Returns null if there aren't enough digits to be a real number. */
+export function toWhatsAppNumber(phone: string | null): string | null {
+  if (!phone) return null;
+  let digits = phone.replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("0")) digits = `62${digits.slice(1)}`;        // 0812… → 62812…
+  else if (digits.startsWith("8")) digits = `62${digits}`;            // 812… → 62812…
+  // (numbers already starting with a country code, e.g. 62…, are left as-is)
+  return digits.length >= 8 ? digits : null;
+}
+
+/** Build a click-to-chat wa.me URL from a lead's phone + an optional prefilled
+ *  message (the `/validate` outreach message). Returns null when the phone
+ *  can't be normalised — the UI hides the button in that case. */
+export function whatsAppLink(phone: string | null, message?: string | null): string | null {
+  const number = toWhatsAppNumber(phone);
+  if (!number) return null;
+  const base = `https://wa.me/${number}`;
+  return message ? `${base}?text=${encodeURIComponent(message)}` : base;
+}

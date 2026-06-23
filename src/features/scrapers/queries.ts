@@ -18,6 +18,9 @@ type ScraperLeadRow = {
   query: string | null;
   location: string | null;
   scraped_at: string;
+  validation_status: "pending" | "valid" | "invalid" | "needs_review" | null;
+  marketing_angle: string | null;
+  outreach_message: string | null;
 };
 
 function toLead(row: ScraperLeadRow): ScraperLead {
@@ -38,6 +41,9 @@ function toLead(row: ScraperLeadRow): ScraperLead {
     query: row.query,
     location: row.location,
     scrapedAt: row.scraped_at,
+    validationStatus: row.validation_status,
+    marketingAngle: row.marketing_angle,
+    outreachMessage: row.outreach_message,
   };
 }
 
@@ -46,7 +52,7 @@ export async function getScraperLeads(supabase: SupabaseClient): Promise<Scraper
   const { data, error } = await supabase
     .from("scraper_leads")
     .select(
-      "id,category,business_name,phone,website,email,address,rating,reviews,latitude,longitude,maps_url,query,location,scraped_at",
+      "id,category,business_name,phone,website,email,address,rating,reviews,latitude,longitude,maps_url,query,location,scraped_at,validation_status,marketing_angle,outreach_message",
     )
     .order("scraped_at", { ascending: false });
 
