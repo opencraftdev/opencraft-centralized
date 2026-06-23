@@ -10,11 +10,13 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Chip from "@mui/material/Chip";
+import Tooltip from "@mui/material/Tooltip";
 import StarRounded from "@mui/icons-material/StarRounded";
 import EmailOutlined from "@mui/icons-material/EmailOutlined";
 import PhoneOutlined from "@mui/icons-material/PhoneOutlined";
 import LanguageOutlined from "@mui/icons-material/LanguageOutlined";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
+import WhatsApp from "@mui/icons-material/WhatsApp";
 
 import type { ScraperCategory, ScraperLead } from "../types";
 import {
@@ -23,6 +25,7 @@ import {
   countByCategory,
   formatRating,
   summarize,
+  whatsAppLink,
 } from "../data";
 
 type Filter = "all" | ScraperCategory;
@@ -159,6 +162,49 @@ function ContactCell({ lead }: { lead: ScraperLead }) {
   );
 }
 
+/** Click-to-chat WhatsApp button. Opens wa.me with the lead's number and the
+ *  `/validate` outreach message prefilled. Hidden (—) when there's no usable phone. */
+function WhatsAppCell({ lead }: { lead: ScraperLead }) {
+  const href = whatsAppLink(lead.phone, lead.outreachMessage);
+  if (!href) {
+    return <Typography sx={{ fontSize: "0.8125rem", color: "#bdc1c6" }}>—</Typography>;
+  }
+  const hasMessage = !!lead.outreachMessage;
+  const tooltip = hasMessage
+    ? lead.outreachMessage!.slice(0, 180) + (lead.outreachMessage!.length > 180 ? "…" : "")
+    : "Buka chat WhatsApp (belum ada pesan outreach — jalankan /validate dulu)";
+  return (
+    <Tooltip title={tooltip} arrow placement="top">
+      <Box
+        component="a"
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        sx={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 0.75,
+          height: 32,
+          px: 1.5,
+          borderRadius: "9999px",
+          textDecoration: "none",
+          bgcolor: hasMessage ? "#25D366" : "#fff",
+          color: hasMessage ? "#fff" : "#25D366",
+          border: "1px solid #25D366",
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          whiteSpace: "nowrap",
+          transition: "all 120ms ease",
+          "&:hover": { bgcolor: hasMessage ? "#1EBE5A" : "#25D36614" },
+        }}
+      >
+        <WhatsApp sx={{ fontSize: 16 }} />
+        Chat
+      </Box>
+    </Tooltip>
+  );
+}
+
 export function ScrapersView({ leads }: { leads: ScraperLead[] }) {
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -222,6 +268,7 @@ export function ScrapersView({ leads }: { leads: ScraperLead[] }) {
                   <TableCell align="center">Rating</TableCell>
                   <TableCell>Location</TableCell>
                   <TableCell align="center">Maps</TableCell>
+                  <TableCell align="center">Outreach</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -290,6 +337,9 @@ export function ScrapersView({ leads }: { leads: ScraperLead[] }) {
                         ) : (
                           <Typography sx={{ fontSize: "0.8125rem", color: "#bdc1c6" }}>—</Typography>
                         )}
+                      </TableCell>
+                      <TableCell align="center">
+                        <WhatsAppCell lead={lead} />
                       </TableCell>
                     </TableRow>
                   );
