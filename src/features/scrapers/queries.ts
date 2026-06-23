@@ -21,6 +21,8 @@ type ScraperLeadRow = {
   validation_status: "pending" | "valid" | "invalid" | "needs_review" | null;
   marketing_angle: string | null;
   outreach_message: string | null;
+  verified: boolean | null;
+  verified_at: string | null;
 };
 
 function toLead(row: ScraperLeadRow): ScraperLead {
@@ -44,6 +46,8 @@ function toLead(row: ScraperLeadRow): ScraperLead {
     validationStatus: row.validation_status,
     marketingAngle: row.marketing_angle,
     outreachMessage: row.outreach_message,
+    verified: row.verified ?? false,
+    verifiedAt: row.verified_at,
   };
 }
 
@@ -52,7 +56,7 @@ export async function getScraperLeads(supabase: SupabaseClient): Promise<Scraper
   const { data, error } = await supabase
     .from("scraper_leads")
     .select(
-      "id,category,business_name,phone,website,email,address,rating,reviews,latitude,longitude,maps_url,query,location,scraped_at,validation_status,marketing_angle,outreach_message",
+      "id,category,business_name,phone,website,email,address,rating,reviews,latitude,longitude,maps_url,query,location,scraped_at,validation_status,marketing_angle,outreach_message,verified,verified_at",
     )
     .order("scraped_at", { ascending: false });
 

@@ -33,6 +33,10 @@ export type ScraperLead = {
   marketingAngle: string | null;
   /** Ready-to-send cold message in Bahasa Indonesia — prefilled into the WhatsApp link. */
   outreachMessage: string | null;
+  /** Human sign-off in the dashboard (checklist button), on top of validationStatus. */
+  verified: boolean;
+  /** When the lead was marked verified in the dashboard, or null. */
+  verifiedAt: string | null;
 };
 
 /** Aggregate counts for a set of leads — drives the summary cards. */
