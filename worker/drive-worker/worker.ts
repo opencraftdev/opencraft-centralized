@@ -1,6 +1,7 @@
 // drive-worker — claims queued drive_files jobs, runs them through the cc-gateway
-// "opencraft-document" profile (POST /v1/runs) and uploads the result to Storage.
+// "opencraft-document" profile (POST /v1/runs) and uploads the result to AWS S3.
 // Contract: docs/DRIVE.md. Runs on the OpenCraft VPS under systemd (logs → journald).
+import { S3Client } from "bun";
 import { createClient } from "@supabase/supabase-js";
 import fs from "node:fs";
 import path from "node:path";
@@ -18,7 +19,15 @@ const DOC_AGENT_DIR = fs.realpathSync(env("DOC_AGENT_DIR"));
 const POLL_MS = Number(process.env.POLL_MS ?? 5000);
 const RUN_TIMEOUT_MS = Number(process.env.RUN_TIMEOUT_MS ?? 960_000); // gateway run_timeout_secs=900 + slack
 const STALE_MINUTES = Number(process.env.STALE_MINUTES ?? 20);
-const BUCKET = "drive";
+
+// Drive files are stored in AWS S3 (Bun's built-in client).
+const s3 = new S3Client({
+  accessKeyId: env("AWS_ACCESS_KEY_ID"),
+  secretAccessKey: env("AWS_SECRET_ACCESS_KEY"),
+  bucket: env("AWS_S3_BUCKET"),
+  region: env("AWS_REGION", "ap-southeast-1"),
+});
+const safeKeyName = (name: string) => name.normalize("NFKD").replace(/[^\w.\-() ]+/g, "_").trim() || "file";
 
 const db = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -198,10 +207,10 @@ async function processJob(row: Row) {
       const name = path.basename(abs);
       const mime = MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
       const bytes = fs.readFileSync(abs);
-      const storagePath = `${row.id}/${name}`;
-      const up = await db.storage.from(BUCKET).upload(storagePath, bytes, { contentType: mime, upsert: true });
-      if (up.error) throw new Error(`storage upload: ${up.error.message}`);
-      if (row.storage_path && row.storage_path !== storagePath) await db.storage.from(BUCKET).remove([row.storage_path]);
+      // Same key convention as the web app (src/lib/drive/storage.ts): drive/<id>/<ascii-safe name>
+      const storagePath = `drive/${row.id}/${safeKeyName(name)}`;
+      await s3.write(storagePath, bytes, { type: mime });
+      if (row.storage_path && row.storage_path !== storagePath) await s3.delete(row.storage_path).catch(() => {});
       const summary = stripResult(text) || `Dokumen siap: ${name}`;
       messages.push({ role: "assistant", text: summary, at: now() });
       await update(row.id, {

@@ -1,11 +1,9 @@
 import { createHmac, createHash } from "node:crypto";
 
-// Dependency-free AWS SigV4 presigner for S3 GET URLs.
+// Dependency-free AWS SigV4 presigner for S3 (GET / PUT / DELETE URLs).
 //
-// The dashboard only ever needs a short-lived link to *view*
-// or *download* a document the Document Agent already uploaded — so we just
-// presign a GET. This avoids pulling in @aws-sdk/* (keeps the bundle small and
-// requires no extra install). Credentials come from env and stay server-side.
+// Drive files live in the bucket AWS_S3_BUCKET. The browser never sees credentials: it gets short-lived
+// presigned URLs to view, download or upload. Avoids pulling in @aws-sdk/* (keeps the bundle small).
 
 const ALGORITHM = "AWS4-HMAC-SHA256";
 const SERVICE = "s3";
@@ -43,6 +41,7 @@ export interface S3Config {
   accessKeyId: string;
   secretAccessKey: string;
   region: string;
+  bucket: string | null;
 }
 
 // Reads S3 credentials from env. Returns null when not configured so callers
@@ -50,13 +49,14 @@ export interface S3Config {
 export function getS3Config(): S3Config | null {
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-  const region = process.env.AWS_S3_REGION;
+  const region = process.env.AWS_S3_REGION || process.env.AWS_REGION;
   if (!accessKeyId || !secretAccessKey || !region) return null;
-  return { accessKeyId, secretAccessKey, region };
+  return { accessKeyId, secretAccessKey, region, bucket: process.env.AWS_S3_BUCKET || null };
 }
 
 interface PresignArgs {
-  bucket: string;
+  method?: "GET" | "PUT" | "DELETE"; // default GET
+  bucket?: string; // default AWS_S3_BUCKET
   key: string;
   region?: string;
   expiresIn?: number; // seconds, default 300
@@ -67,10 +67,11 @@ interface PresignArgs {
   now?: Date;
 }
 
-// Builds a presigned GET URL for an S3 object using virtual-hosted–style.
-// Returns null when credentials are missing.
-export function presignS3GetUrl({
-  bucket,
+// Builds a presigned URL for an S3 object using virtual-hosted–style.
+// Returns null when credentials (or the bucket) are missing.
+export function presignS3Url({
+  method = "GET",
+  bucket: bucketArg,
   key,
   region,
   expiresIn = 300,
@@ -78,7 +79,8 @@ export function presignS3GetUrl({
   now,
 }: PresignArgs): string | null {
   const cfg = getS3Config();
-  if (!cfg) return null;
+  const bucket = bucketArg || cfg?.bucket;
+  if (!cfg || !bucket) return null;
 
   const effectiveRegion = region || cfg.region;
   const date = now ?? new Date();
@@ -109,7 +111,7 @@ export function presignS3GetUrl({
 
   const canonicalHeaders = `host:${host}\n`;
   const canonicalRequest = [
-    "GET",
+    method,
     canonicalUri,
     canonicalQuery,
     canonicalHeaders,
@@ -133,4 +135,16 @@ export function presignS3GetUrl({
     .digest("hex");
 
   return `https://${host}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+}
+
+export const presignS3GetUrl = (args: Omit<PresignArgs, "method">) => presignS3Url({ ...args, method: "GET" });
+
+// Server-side delete of objects in AWS_S3_BUCKET (missing objects are fine: S3 returns 204).
+export async function deleteS3Objects(keys: string[]): Promise<void> {
+  for (const key of keys) {
+    const url = presignS3Url({ method: "DELETE", key, expiresIn: 60 });
+    if (!url) throw new Error("S3 is not configured");
+    const res = await fetch(url, { method: "DELETE" });
+    if (!res.ok && res.status !== 404) throw new Error(`S3 delete failed (${res.status}) for ${key}`);
+  }
 }

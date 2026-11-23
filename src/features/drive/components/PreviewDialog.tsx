@@ -70,7 +70,7 @@ export function PreviewDialog({
   const chatEnd = useRef<HTMLDivElement>(null);
 
   const ready = file?.status === "ready";
-  const linkKey = file && ready ? `${file.id}:${file.storage_path ?? ""}:${file.legacy_document_id ?? ""}` : null;
+  const linkKey = file && ready ? `${file.id}:${file.storage_path ?? ""}` : null;
 
   useEffect(() => {
     setLinks(null);

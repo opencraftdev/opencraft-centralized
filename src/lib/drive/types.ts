@@ -28,7 +28,6 @@ export interface DriveFile {
   mime_type: string | null;
   size_bytes: number | null;
   storage_path: string | null;
-  legacy_document_id: number | null;
   source: DriveFileSource;
   status: DriveFileStatus;
   doc_type: DriveDocType | null;
@@ -44,4 +43,3 @@ export interface DriveFile {
   updated_at: string;
 }
 
-export const DRIVE_BUCKET = "drive";

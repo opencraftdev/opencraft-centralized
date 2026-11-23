@@ -1,7 +1,6 @@
 // Drive mutations, run in the browser with the user's Supabase session (RLS: authenticated = full access).
 import { createClient } from "@/lib/supabase/client";
 import {
-  DRIVE_BUCKET,
   type DriveDocType,
   type DriveFile,
   type DriveFolder,
@@ -39,32 +38,39 @@ export async function moveItem(kind: ItemKind, id: string, folderId: string | nu
   await updateItem(kind, id, kind === "folder" ? { parent_id: folderId } : { folder_id: folderId });
 }
 
-// Storage keys reject some characters; keep the display name untouched in `name`.
-function safeKey(name: string): string {
-  return name.normalize("NFKD").replace(/[^\w.\-() ]+/g, "_").trim() || "file";
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || `Request gagal (${res.status})`);
+  return j as T;
 }
 
+// Files live in AWS S3: get a presigned PUT from the server, upload straight to S3, then insert the row.
 export async function uploadFile(file: File, folderId: string | null, userId: string) {
-  const client = sb();
-  const id = crypto.randomUUID();
-  const path = `${id}/${safeKey(file.name)}`;
+  const { id, key, uploadUrl } = await postJson<{ id: string; key: string; uploadUrl: string }>(
+    "/api/drive/upload",
+    { name: file.name },
+  );
   const mime = file.type || "application/octet-stream";
-  check(await client.storage.from(DRIVE_BUCKET).upload(path, file, { contentType: mime }));
-  const res = await client.from("drive_files").insert({
-    id,
-    folder_id: folderId,
-    name: file.name,
-    mime_type: mime,
-    size_bytes: file.size,
-    storage_path: path,
-    source: "upload",
-    status: "ready",
-    created_by: userId,
-  });
-  if (res.error) {
-    await client.storage.from(DRIVE_BUCKET).remove([path]);
-    throw new Error(res.error.message);
-  }
+  const put = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": mime }, body: file });
+  if (!put.ok) throw new Error(`Upload ke S3 gagal (${put.status})`);
+  check(
+    await sb().from("drive_files").insert({
+      id,
+      folder_id: folderId,
+      name: file.name,
+      mime_type: mime,
+      size_bytes: file.size,
+      storage_path: key,
+      source: "upload",
+      status: "ready",
+      created_by: userId,
+    }),
+  );
 }
 
 export const DOC_TYPE_LABEL: Record<DriveDocType, string> = {
@@ -121,13 +127,12 @@ export async function getFileLinks(id: string): Promise<{ viewUrl: string | null
   return j;
 }
 
-// Permanently delete files (and their storage objects; legacy S3 docs keep their agent_documents row).
+// Permanently delete files: S3 objects first (server looks up the keys), then the rows.
 export async function deleteFilesForever(files: DriveFile[]) {
   if (!files.length) return;
-  const client = sb();
-  const paths = files.map((f) => f.storage_path).filter((p): p is string => !!p);
-  if (paths.length) check(await client.storage.from(DRIVE_BUCKET).remove(paths));
-  check(await client.from("drive_files").delete().in("id", files.map((f) => f.id)));
+  const ids = files.map((f) => f.id);
+  if (files.some((f) => f.storage_path)) await postJson("/api/drive/objects/delete", { ids });
+  check(await sb().from("drive_files").delete().in("id", ids));
 }
 
 // Folder + everything below it (`files` = all files in its subtree). Files go first because the FK

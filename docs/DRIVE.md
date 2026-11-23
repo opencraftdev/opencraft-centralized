@@ -12,7 +12,7 @@ Browser (/documents) ──insert drive_files {status:'queued'}──► Supabas
                                           ▼
                                      claude -p renders PDF/PPTX in ~/document-agent/documents/...
                                           │
-                     worker uploads file to Storage bucket "drive", updates drive_files {status:'ready'}
+                     worker uploads file to AWS S3 (drive/<id>/...), updates drive_files {status:'ready'}
 Browser polls drive_files every ~4s while any item is queued/generating ◄──┘
 ```
 
@@ -35,7 +35,7 @@ Seeded root folders: **SPH**, **MoU**, **Deck**.
 | `folder_id uuid null` | null = root ("My Drive") |
 | `name text` | display name incl. extension |
 | `mime_type`, `size_bytes` | |
-| `storage_path text null` | object path in private bucket **`drive`**, convention `<file id>/<filename>` |
+| `storage_path text null` | **AWS S3** object key in `AWS_S3_BUCKET`, convention `drive/<file id>/<ascii-safe filename>` |
 | `legacy_document_id bigint null` | old Document Agent rows served from S3; resolve links with `getLegacyLinks()` (existing `resolveLinks` in `src/lib/documents/queries.ts`) |
 | `source` | `generated` \| `upload` \| `agent` |
 | `status` | `queued` → `generating` → `ready` \| `failed` \| `needs_input` |
@@ -48,7 +48,15 @@ Seeded root folders: **SPH**, **MoU**, **Deck**.
 | `starred bool`, `trashed_at` | UI-owned |
 | `metadata jsonb` | free-form |
 
-RLS: `authenticated` has full access to both tables and to storage objects in bucket `drive`.
+RLS: `authenticated` has full access to both tables.
+
+## Storage (AWS S3)
+
+Files live in S3 bucket `AWS_S3_BUCKET` (`opencraft-public-bucket`, ap-southeast-1) under `drive/`.
+The browser never gets AWS keys: `POST /api/drive/upload` returns a presigned PUT, `GET /api/drive/files/:id/link`
+returns presigned GETs (view + download), `POST /api/drive/objects/delete` deletes objects of given rows.
+Bucket CORS allows PUT/GET from `https://internal.ocraft.id`, `https://*.vercel.app`, `http://localhost:3000`.
+Env (Vercel + worker): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET`, `AWS_REGION`.
 
 ### Job lifecycle
 
