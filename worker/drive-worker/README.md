@@ -6,16 +6,22 @@ not on Vercel; excluded from the Next.js type-check via `tsconfig.json` `exclude
 Loop: every 5s `rpc('claim_drive_job')` → build prompt (first run: doc type + request + RESULT protocol;
 follow-up: last user message + reminder with `session_id`) → `POST $GATEWAY_URL/v1/runs` (cc-gateway profile
 `opencraft-document`, workdir `~/document-agent`) → parse the last `RESULT:` line →
-`ready`: upload to bucket `drive` at `<id>/<basename>` and update the row · `needs_input`: store the question ·
+`ready`: upload the file to Google Drive (multipart, into the Google folder of the row's `folder_id`, created
+lazily like the web app does; root = `google_drive_auth.root_folder_id`), set `google_file_id`, `mime_type`,
+`size_bytes` (a re-generated row's previous Google file is deleted after the row points at the new one) · `needs_input`: store the question ·
 anything else: `failed` + `error_msg`. One job at a time. 429 → re-queue after 30s. Rows stuck in
 `generating` > 20 min are failed on startup and every 5 min; a job in flight when the worker is stopped is
 marked `failed` ("please retry"). `cost_usd` is cumulative across a row's runs.
+
+Google Drive (`google.ts`): OAuth client + refresh token + root folder come from table `google_drive_auth`
+(readable only with the service key, i.e. `SUPABASE_SECRET_KEY`); the worker refreshes access tokens itself
+and caches them in memory until expiry. No extra env vars.
 
 ## Server layout
 
 | what | where |
 |---|---|
-| code | `~/drive-worker/{worker.ts,package.json}` |
+| code | `~/drive-worker/{worker.ts,google.ts,package.json}` |
 | env (chmod 600) | `~/drive-worker/.env`: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GATEWAY_URL=http://127.0.0.1:8788`, `GATEWAY_KEY` (cc-gateway key `drive-worker`), `DOC_AGENT_DIR=/home/opencraft/document-agent` |
 | service | `~/.config/systemd/user/drive-worker.service` (copy of `drive-worker.service`) |
 | gateway | `cc-gateway@opencraft-document` (API-only, 127.0.0.1:8788) |
@@ -23,7 +29,7 @@ marked `failed` ("please retry"). `cost_usd` is cumulative across a row's runs.
 ## Deploy / operate
 
 ```bash
-rsync -a worker.ts package.json drive-worker.service opencraft:~/drive-worker/
+rsync -a worker.ts google.ts package.json drive-worker.service opencraft:~/drive-worker/
 ssh opencraft 'cd ~/drive-worker && ~/.local/bin/bun install --production \
   && cp drive-worker.service ~/.config/systemd/user/ && systemctl --user daemon-reload \
   && systemctl --user enable drive-worker && systemctl --user restart drive-worker'

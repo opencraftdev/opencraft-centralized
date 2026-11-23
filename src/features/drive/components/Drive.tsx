@@ -47,15 +47,17 @@ import { toastError, toastSuccess } from "@/components/ui/Toast";
 import {
   createFolder,
   createGenerateJob,
-  deleteFilesForever,
-  deleteFolderForever,
+  deleteForever,
   fetchDrive,
-  getFileLinks,
   moveItem,
+  renameItem,
+  restoreItem,
   retryJob,
+  trashItem,
   updateItem,
   uploadFile,
 } from "../api";
+import { driveDownloadUrl } from "@/lib/drive/links";
 import { FileGrid, FolderGrid, ItemList, isBusy, type DriveItem, type ItemHandlers, type MenuTarget } from "./DriveItems";
 import { ConfirmDialog, GenerateDialog, MoveDialog, NameDialog } from "./DriveDialogs";
 import { PreviewDialog } from "./PreviewDialog";
@@ -273,19 +275,14 @@ export function Drive({
     }
   };
 
-  const download = async (file: DriveFile) => {
-    try {
-      const { downloadUrl } = await getFileLinks(file.id);
-      if (!downloadUrl) throw new Error("File belum tersedia untuk diunduh");
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (e) {
-      toastError((e as Error).message);
-    }
+  const download = (file: DriveFile) => {
+    if (!file.google_file_id) return toastError("File belum tersedia untuk diunduh");
+    const a = document.createElement("a");
+    a.href = driveDownloadUrl(file.google_file_id);
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
   const uploadTarget = view === "drive" ? currentFolderId : null;
@@ -686,7 +683,7 @@ export function Drive({
                   key="restore"
                   onClick={() => {
                     closeMenu();
-                    act(() => updateItem(menuItem.kind, menuItem.data.id, { trashed_at: null }), "Dipulihkan");
+                    act(() => restoreItem(menuItem.kind, menuItem.data.id), "Dipulihkan");
                   }}
                 >
                   <ListItemIcon>
@@ -723,7 +720,7 @@ export function Drive({
                 menuItem.kind === "file" && (
                   <MenuItem
                     key="download"
-                    disabled={menuItem.data.status !== "ready"}
+                    disabled={menuItem.data.status !== "ready" || !menuItem.data.google_file_id}
                     onClick={() => {
                       closeMenu();
                       download(menuItem.data);
@@ -791,10 +788,7 @@ export function Drive({
                   key="trash"
                   onClick={() => {
                     closeMenu();
-                    act(
-                      () => updateItem(menuItem.kind, menuItem.data.id, { trashed_at: new Date().toISOString() }),
-                      `"${menuItem.data.name}" dipindahkan ke sampah`,
-                    );
+                    act(() => trashItem(menuItem.kind, menuItem.data.id), `"${menuItem.data.name}" dipindahkan ke sampah`);
                   }}
                 >
                   <ListItemIcon>
@@ -813,7 +807,7 @@ export function Drive({
         submitLabel="Buat"
         onClose={() => setNewFolderOpen(false)}
         onSubmit={async (name) => {
-          await act(() => createFolder(name, uploadTarget, userId));
+          await act(() => createFolder(name, uploadTarget));
           if (view !== "drive") navigate({ folder: uploadTarget });
           setNewFolderOpen(false);
         }}
@@ -826,7 +820,7 @@ export function Drive({
         onClose={() => setRenaming(null)}
         onSubmit={async (name) => {
           if (renaming && name !== renaming.data.name) {
-            await act(() => updateItem(renaming.kind, renaming.data.id, { name }));
+            await act(() => renameItem(renaming.kind, renaming.data.id, name));
           }
           setRenaming(null);
         }}
@@ -861,14 +855,7 @@ export function Drive({
         onConfirm={async () => {
           const p = purging;
           if (p) {
-            await act(async () => {
-              if (p.kind === "file") return deleteFilesForever([p.data]);
-              const ids = subtree(p.data.id);
-              return deleteFolderForever(
-                p.data.id,
-                files.filter((f) => f.folder_id && ids.has(f.folder_id)),
-              );
-            }, "Dihapus permanen");
+            await act(() => deleteForever(p.kind, p.data.id), "Dihapus permanen");
           }
           setPurging(null);
         }}

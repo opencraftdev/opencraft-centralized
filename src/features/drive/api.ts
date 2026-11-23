@@ -1,7 +1,7 @@
-// Drive mutations, run in the browser with the user's Supabase session (RLS: authenticated = full access).
+// Drive data access from the browser. Reads + DB-only writes use the user's Supabase session (RLS:
+// authenticated = full access); anything that touches Google Drive goes through /api/drive/*.
 import { createClient } from "@/lib/supabase/client";
 import {
-  DRIVE_BUCKET,
   type DriveDocType,
   type DriveFile,
   type DriveFolder,
@@ -27,42 +27,62 @@ export async function fetchDrive(): Promise<{ folders: DriveFolder[]; files: Dri
 export type ItemKind = "folder" | "file";
 const table = (kind: ItemKind) => (kind === "folder" ? "drive_folders" : "drive_files");
 
+// DB-only fields (starred, generation-job state). Name/location/trash go through `driveItems` so the
+// change is mirrored to Google Drive.
 export async function updateItem(kind: ItemKind, id: string, patch: Record<string, unknown>) {
   check(await sb().from(table(kind)).update(patch).eq("id", id));
 }
 
-export async function createFolder(name: string, parentId: string | null, userId: string) {
-  check(await sb().from("drive_folders").insert({ name, parent_id: parentId, created_by: userId }));
+async function postJson<T = unknown>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || `Gagal (${res.status})`);
+  return j as T;
 }
 
-export async function moveItem(kind: ItemKind, id: string, folderId: string | null) {
-  await updateItem(kind, id, kind === "folder" ? { parent_id: folderId } : { folder_id: folderId });
-}
+// Mutations mirrored to Google Drive by /api/drive/items.
+const driveItems = <T = unknown>(body: Record<string, unknown>) => postJson<T>("/api/drive/items", body);
 
-// Storage keys reject some characters; keep the display name untouched in `name`.
-function safeKey(name: string): string {
-  return name.normalize("NFKD").replace(/[^\w.\-() ]+/g, "_").trim() || "file";
+export async function createFolder(name: string, parentId: string | null) {
+  return (await driveItems<{ id: string }>({ op: "createFolder", name, parentId })).id;
 }
+export const renameItem = (kind: ItemKind, id: string, name: string) => driveItems({ op: "rename", kind, id, name });
+export const moveItem = (kind: ItemKind, id: string, folderId: string | null) =>
+  driveItems({ op: "move", kind, id, folderId });
+export const trashItem = (kind: ItemKind, id: string) => driveItems({ op: "trash", kind, id });
+export const restoreItem = (kind: ItemKind, id: string) => driveItems({ op: "restore", kind, id });
+// Permanent delete; a folder takes its whole subtree (DB + Google).
+export const deleteForever = (kind: ItemKind, id: string) => driveItems({ op: "delete", kind, id });
 
+// Upload straight to Google Drive: server opens a resumable session in the folder's Google folder,
+// the browser PUTs the bytes there, then the row is stored with the Google file id.
 export async function uploadFile(file: File, folderId: string | null, userId: string) {
-  const client = sb();
-  const id = crypto.randomUUID();
-  const path = `${id}/${safeKey(file.name)}`;
   const mime = file.type || "application/octet-stream";
-  check(await client.storage.from(DRIVE_BUCKET).upload(path, file, { contentType: mime }));
-  const res = await client.from("drive_files").insert({
-    id,
+  const { uploadUrl } = await postJson<{ uploadUrl: string }>("/api/drive/upload", {
+    name: file.name,
+    mimeType: mime,
+    size: file.size,
+    folderId,
+  });
+  const put = await fetch(uploadUrl, { method: "PUT", headers: { "content-type": mime }, body: file });
+  const g = (await put.json().catch(() => ({}))) as { id?: string; size?: string };
+  if (!put.ok || !g.id) throw new Error(`Upload ke Google Drive gagal (${put.status})`);
+  const res = await sb().from("drive_files").insert({
     folder_id: folderId,
     name: file.name,
     mime_type: mime,
-    size_bytes: file.size,
-    storage_path: path,
+    size_bytes: g.size != null ? Number(g.size) : file.size,
+    google_file_id: g.id,
     source: "upload",
     status: "ready",
     created_by: userId,
   });
   if (res.error) {
-    await client.storage.from(DRIVE_BUCKET).remove([path]);
+    await driveItems({ op: "discardUpload", googleFileId: g.id }).catch(() => {});
     throw new Error(res.error.message);
   }
 }
@@ -112,27 +132,4 @@ export async function replyToJob(file: DriveFile, text: string) {
 
 export async function retryJob(file: DriveFile) {
   await updateItem("file", file.id, { status: "queued", error_msg: null });
-}
-
-export async function getFileLinks(id: string): Promise<{ viewUrl: string | null; downloadUrl: string | null }> {
-  const res = await fetch(`/api/drive/files/${id}/link`);
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(j.error || `Gagal memuat link (${res.status})`);
-  return j;
-}
-
-// Permanently delete files (and their storage objects; legacy S3 docs keep their agent_documents row).
-export async function deleteFilesForever(files: DriveFile[]) {
-  if (!files.length) return;
-  const client = sb();
-  const paths = files.map((f) => f.storage_path).filter((p): p is string => !!p);
-  if (paths.length) check(await client.storage.from(DRIVE_BUCKET).remove(paths));
-  check(await client.from("drive_files").delete().in("id", files.map((f) => f.id)));
-}
-
-// Folder + everything below it (`files` = all files in its subtree). Files go first because the FK
-// would otherwise move them to root; sub-folders are removed by ON DELETE CASCADE.
-export async function deleteFolderForever(folderId: string, files: DriveFile[]) {
-  await deleteFilesForever(files);
-  check(await sb().from("drive_folders").delete().eq("id", folderId));
 }

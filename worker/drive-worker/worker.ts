@@ -1,7 +1,8 @@
 // drive-worker — claims queued drive_files jobs, runs them through the cc-gateway
-// "opencraft-document" profile (POST /v1/runs) and uploads the result to Storage.
+// "opencraft-document" profile (POST /v1/runs) and uploads the result to Google Drive.
 // Contract: docs/DRIVE.md. Runs on the OpenCraft VPS under systemd (logs → journald).
 import { createClient } from "@supabase/supabase-js";
+import { createGoogleDrive } from "./google.ts";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -18,21 +19,22 @@ const DOC_AGENT_DIR = fs.realpathSync(env("DOC_AGENT_DIR"));
 const POLL_MS = Number(process.env.POLL_MS ?? 5000);
 const RUN_TIMEOUT_MS = Number(process.env.RUN_TIMEOUT_MS ?? 960_000); // gateway run_timeout_secs=900 + slack
 const STALE_MINUTES = Number(process.env.STALE_MINUTES ?? 20);
-const BUCKET = "drive";
 
 const db = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+const gdrive = createGoogleDrive(db);
 
 type Msg = { role: "user" | "assistant"; text: string; at: string };
 type Row = {
   id: string;
   name: string;
+  folder_id: string | null;
+  google_file_id: string | null;
   doc_type: string | null;
   prompt: string | null;
   messages: Msg[] | null;
   gateway_session_id: string | null;
-  storage_path: string | null;
   cost_usd: number | string | null;
   metadata: Record<string, unknown> | null;
 };
@@ -198,26 +200,35 @@ async function processJob(row: Row) {
       const name = path.basename(abs);
       const mime = MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
       const bytes = fs.readFileSync(abs);
-      const storagePath = `${row.id}/${name}`;
-      const up = await db.storage.from(BUCKET).upload(storagePath, bytes, { contentType: mime, upsert: true });
-      if (up.error) throw new Error(`storage upload: ${up.error.message}`);
-      if (row.storage_path && row.storage_path !== storagePath) await db.storage.from(BUCKET).remove([row.storage_path]);
+      const up = await gdrive.uploadFile({ folderId: row.folder_id, name, mimeType: mime, bytes });
       const summary = stripResult(text) || `Dokumen siap: ${name}`;
       messages.push({ role: "assistant", text: summary, at: now() });
-      await update(row.id, {
+      const ready = {
         ...base,
         status: "ready",
         name,
-        storage_path: storagePath,
+        google_file_id: up.id,
         mime_type: mime,
-        size_bytes: bytes.length,
+        size_bytes: up.size,
         doc_number: result.doc_number ?? null,
         agent_message: summary,
         messages,
         error_msg: null,
         metadata: { ...(row.metadata ?? {}), title: result.title ?? null, source_path: result.path },
-      });
-      log(`job ${row.id} ready ${storagePath} (${bytes.length} B) after ${secs}s cost=$${run.cost_usd}`);
+      };
+      try {
+        await update(row.id, ready);
+      } catch (e) {
+        await gdrive.deleteFile(up.id).catch(() => {}); // don't leave an orphan in Google Drive
+        throw e;
+      }
+      // Re-generation: the new file replaces the previous one (deleted only once the row points at the new id).
+      if (row.google_file_id && row.google_file_id !== up.id) {
+        await gdrive
+          .deleteFile(row.google_file_id)
+          .catch((e) => log(`job ${row.id} old google file ${row.google_file_id} not deleted: ${e.message}`));
+      }
+      log(`job ${row.id} ready google=${up.id} ${name} (${up.size} B) after ${secs}s cost=$${run.cost_usd}`);
       return;
     }
     throw new Error(run.is_error ? `agent run error: ${text.slice(0, 500)}` : "agent reply had no valid RESULT line");
