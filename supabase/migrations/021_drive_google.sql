@@ -2,8 +2,7 @@
 -- Contract: docs/DRIVE.md → "Storage: Google Drive".
 --
 -- PART 1 is already applied in production (wdzmuniyqqyngzckeoph); it is written idempotently.
--- PART 2 is APPLY AT CUTOVER only — after the Google-backed web app + worker are deployed and the
--- legacy rows have been re-uploaded to Google. Do not run it before that.
+-- PART 2 (cutover) has been applied.
 
 -- ───────────────────────────── PART 1: schema (applied) ─────────────────────────────
 
@@ -31,16 +30,13 @@ create unique index if not exists drive_folders_google_folder_id_idx
 create unique index if not exists drive_files_google_file_id_idx
   on public.drive_files (google_file_id) where google_file_id is not null;
 
--- ───────────────────── PART 2: APPLY AT CUTOVER (not applied yet) ─────────────────────
--- Run manually after deploy, once no row relies on Supabase Storage / the legacy S3 link any more:
---   select id, name from public.drive_files where google_file_id is null and status = 'ready';  -- expect none
---
--- drop policy if exists drive_objects_auth_select on storage.objects;
--- drop policy if exists drive_objects_auth_insert on storage.objects;
--- drop policy if exists drive_objects_auth_update on storage.objects;
--- drop policy if exists drive_objects_auth_delete on storage.objects;
--- alter table public.drive_files drop column if exists legacy_document_id;
--- alter table public.drive_files drop column if exists storage_path;
---
--- (Optional, once it is empty: remove the bucket via the Storage API / dashboard — Supabase blocks
---  direct deletes from storage.buckets / storage.objects in SQL.)
+-- ───────────────────── PART 2: cutover (APPLIED 2026-11-23) ─────────────────────
+-- Applied after the Google-backed web app + worker were deployed and the 3 imported SPH files were
+-- re-uploaded to Google (check: select id from drive_files where google_file_id is null and status='ready' → none).
+drop policy if exists drive_objects_auth_select on storage.objects;
+drop policy if exists drive_objects_auth_insert on storage.objects;
+drop policy if exists drive_objects_auth_update on storage.objects;
+drop policy if exists drive_objects_auth_delete on storage.objects;
+alter table public.drive_files drop column if exists legacy_document_id;
+alter table public.drive_files drop column if exists storage_path;
+-- The empty Supabase Storage bucket "drive" was removed via the Storage API.
