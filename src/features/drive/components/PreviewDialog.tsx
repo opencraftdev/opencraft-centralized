@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
@@ -59,28 +60,20 @@ export function PreviewDialog({
   file,
   onClose,
   onChanged,
-  onOpenChat,
 }: {
   file: DriveFile | null;
   onClose: () => void;
   onChanged: () => void;
-  onOpenChat: (fileId: string) => void; // conversation continues in the Chat Dokumen view
 }) {
   const [frameLoading, setFrameLoading] = useState(true);
-  const chatEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setFrameLoading(true);
   }, [file?.id, file?.google_file_id]);
 
-  useEffect(() => {
-    chatEnd.current?.scrollIntoView({ block: "end" });
-  }, [file?.messages?.length, file?.status]);
-
   if (!file) return null;
   const { Icon, color } = fileIcon(file);
   const generated = file.source === "generated";
-  const messages = file.messages ?? [];
   const gid = file.status === "ready" ? file.google_file_id : null;
 
   const retry = async () => {
@@ -175,7 +168,7 @@ export function PreviewDialog({
     >
       <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: "#F0F4F9" }}>
         {/* header */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 2, height: 56, flexShrink: 0 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 1.5 }, pl: 2, pr: { xs: 0.5, sm: 2 }, height: 56, flexShrink: 0 }}>
           <Icon sx={{ fontSize: 22, color }} />
           <Typography sx={{ flex: 1, minWidth: 0, fontSize: "1rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {file.name}
@@ -189,24 +182,36 @@ export function PreviewDialog({
                 href={driveViewUrl(gid)}
                 target="_blank"
                 rel="noopener noreferrer"
-                sx={{ borderRadius: "9999px", flexShrink: 0 }}
+                sx={{ borderRadius: "9999px", flexShrink: 0, display: { xs: "none", sm: "inline-flex" } }}
               >
                 Buka di Google Drive
               </Button>
+              <IconButton
+                href={driveViewUrl(gid)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Buka di Google Drive"
+                sx={{ display: { xs: "inline-flex", sm: "none" } }}
+              >
+                <OpenInNewRounded />
+              </IconButton>
               <Button
                 size="small"
                 variant="contained"
                 disableElevation
                 startIcon={<DownloadRounded />}
                 href={driveContentUrl(file.id, true)}
-                sx={{ borderRadius: "9999px", flexShrink: 0 }}
+                sx={{ borderRadius: "9999px", flexShrink: 0, display: { xs: "none", sm: "inline-flex" } }}
               >
                 Download
               </Button>
+              <IconButton href={driveContentUrl(file.id, true)} aria-label="Download" sx={{ display: { xs: "inline-flex", sm: "none" } }}>
+                <DownloadRounded />
+              </IconButton>
             </>
           )}
           <Tooltip title="Tutup">
-            <IconButton onClick={onClose}>
+            <IconButton onClick={onClose} aria-label="Tutup">
               <CloseRounded />
             </IconButton>
           </Tooltip>
@@ -215,19 +220,19 @@ export function PreviewDialog({
         <Box sx={{ flex: 1, minHeight: 0, display: "flex", gap: 1.5, px: 1.5, pb: 1.5 }}>
           <Box sx={{ flex: 1, minWidth: 0, bgcolor: "#fff", borderRadius: "12px", overflow: "hidden" }}>{body}</Box>
 
-          {/* side panel: details + conversation */}
+          {/* side panel: details (hidden on small screens, where the file gets the whole width) */}
           <Box
             sx={{
-              width: 360,
+              width: 320,
               flexShrink: 0,
               bgcolor: "#fff",
               borderRadius: "12px",
-              display: "flex",
+              display: { xs: "none", md: "flex" },
               flexDirection: "column",
               overflow: "hidden",
             }}
           >
-            <Box sx={{ px: 2.5, pt: 2, pb: 1.5, borderBottom: "1px solid #E0E3E7" }}>
+            <Box sx={{ px: 2.5, pt: 2, pb: 1.5 }}>
               <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500, mb: 1 }}>Detail</Typography>
               {[
                 ["Jenis", file.doc_type ? DOC_TYPE_LABEL[file.doc_type] : file.mime_type ?? "—"],
@@ -245,59 +250,19 @@ export function PreviewDialog({
                     </Typography>
                   </Box>
                 ))}
+              {file.chat_id && (
+                <Button
+                  component={Link}
+                  href={`/chat/${file.chat_id}`}
+                  size="small"
+                  variant="outlined"
+                  startIcon={<ChatBubbleOutlineRounded />}
+                  sx={{ borderRadius: "9999px", mt: 1.5 }}
+                >
+                  Buka chat
+                </Button>
+              )}
             </Box>
-
-            {generated ? (
-              <>
-                <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500, px: 2.5, pt: 1.5 }}>Percakapan</Typography>
-                <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 2, py: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
-                  {messages.map((m, i) => (
-                    <Box
-                      key={i}
-                      sx={{
-                        alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                        maxWidth: "88%",
-                        bgcolor: m.role === "user" ? "#D3E3FD" : "#F0F4F9",
-                        color: "#1F1F1F",
-                        borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-                        px: 1.5,
-                        py: 1,
-                      }}
-                    >
-                      <Typography sx={{ fontSize: "0.8125rem", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.text}</Typography>
-                      <Typography sx={{ fontSize: "0.6875rem", color: "#5F6368", mt: 0.5 }} suppressHydrationWarning>
-                        {m.role === "user" ? "Anda" : "Agen"} · {formatDateTime(m.at)}
-                      </Typography>
-                    </Box>
-                  ))}
-                  {isBusy(file) && (
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, color: "#5F6368", fontSize: "0.8125rem" }}>
-                      <CircularProgress size={12} /> {file.progress || "Agen sedang bekerja…"}
-                    </Box>
-                  )}
-                  <div ref={chatEnd} />
-                </Box>
-                <Box sx={{ p: 1.5, borderTop: "1px solid #E0E3E7", display: "flex", flexDirection: "column", gap: 1 }}>
-                  {file.status === "failed" && (
-                    <Button fullWidth variant="outlined" startIcon={<ReplayRounded />} onClick={retry} sx={{ borderRadius: "9999px" }}>
-                      Coba lagi
-                    </Button>
-                  )}
-                  <Button
-                    fullWidth
-                    variant={file.status === "needs_input" ? "contained" : "outlined"}
-                    disableElevation
-                    startIcon={<ChatBubbleOutlineRounded />}
-                    onClick={() => onOpenChat(file.id)}
-                    sx={{ borderRadius: "9999px" }}
-                  >
-                    {file.status === "needs_input" ? "Jawab di Chat" : "Lanjutkan di Chat"}
-                  </Button>
-                </Box>
-              </>
-            ) : (
-              <Box sx={{ flex: 1 }} />
-            )}
           </Box>
         </Box>
       </Box>

@@ -10,6 +10,8 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
+import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
+import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
 import DescriptionOutlined from "@mui/icons-material/DescriptionOutlined";
 import FeedbackOutlined from "@mui/icons-material/FeedbackOutlined";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
@@ -23,6 +25,8 @@ const TOPBAR_HEIGHT = 64;
 type NavItem = { href: string; label: string; icon: React.ReactNode };
 
 const primaryItems: NavItem[] = [
+  { href: "/chat", label: "Chat", icon: <ChatBubbleOutlineRounded /> },
+  { href: "/skills", label: "Skills", icon: <AutoAwesomeOutlined /> },
   { href: "/documents", label: "Document", icon: <DescriptionOutlined /> },
   { href: "/finance", label: "Finance", icon: <AccountBalanceWalletOutlined /> },
   { href: "/scrapers", label: "Scrapers", icon: <TravelExploreOutlined /> },
