@@ -2,7 +2,6 @@
 // These mirror the tables in supabase/migrations/002_telemetry_schema.sql.
 
 export type AgentKind = "social-media" | "document" | "comment-bot" | "blogpost";
-export type AgentStatus = "online" | "degraded" | "offline" | "unknown";
 export type DocumentStatus = "generated" | "failed" | "pending";
 
 // ── Row shapes (snake_case, as returned by Supabase) ────────
@@ -18,22 +17,6 @@ export interface AgentRow {
   last_heartbeat_at: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface AgentStatusRow {
-  id: number;
-  slug: string;
-  name: string;
-  kind: AgentKind;
-  repo_url: string | null;
-  heartbeat_interval_s: number;
-  degraded_below: number;
-  last_heartbeat_at: string | null;
-  runs_24h: number;
-  succeeded_24h: number;
-  failed_24h: number;
-  success_rate_24h: number | null;
-  status: AgentStatus;
 }
 
 export interface AgentDocumentRow {
@@ -58,12 +41,4 @@ export interface AgentDocumentRow {
   metadata: Record<string, unknown> | null;
   generated_at: string;
   created_at: string;
-}
-
-// ── View-model shapes used by the UI ────────────────────────
-
-export interface DocumentHistoryItem extends AgentDocumentRow {
-  // Ready-to-use links resolved server-side; null when no storage location.
-  viewUrl: string | null; // opens inline (in-browser) — for "View"
-  downloadUrl: string | null; // forces a file download — for "Download"
 }
