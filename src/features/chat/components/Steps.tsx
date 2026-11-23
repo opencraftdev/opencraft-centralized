@@ -6,9 +6,9 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
 import CheckRounded from "@mui/icons-material/CheckRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
-import type { DriveStep } from "@/lib/drive/types";
+import type { ChatStep } from "../types";
 
-// What the agent did while answering (docs/DRIVE.md → "Chat v2"). While a run is live the newest steps show, the
+// What the agent did while answering (docs/CHAT.md → "UI"). While a run is live the newest steps show, the
 // last one with a spinner; under a finished answer they fold into "N langkah · 34 dtk" that opens on click.
 
 export function formatDuration(ms: number) {
@@ -18,7 +18,7 @@ export function formatDuration(ms: number) {
   return s % 60 ? `${m} mnt ${s % 60} dtk` : `${m} mnt`;
 }
 
-function StepRow({ step, live }: { step: DriveStep; live: boolean }) {
+function StepRow({ step, live }: { step: ChatStep; live: boolean }) {
   return (
     <Box component="li" sx={{ display: "flex", alignItems: "center", gap: 1, minHeight: 24, listStyle: "none" }}>
       <Box sx={{ width: 16, display: "flex", justifyContent: "center", flexShrink: 0 }}>
@@ -36,7 +36,7 @@ function StepRow({ step, live }: { step: DriveStep; live: boolean }) {
 }
 
 /** The run in progress: "Menunggu giliran…" while queued, else the last 3 steps + elapsed time. */
-export function LiveSteps({ steps, queued, startedAt }: { steps: DriveStep[]; queued: boolean; startedAt: string | null }) {
+export function LiveSteps({ steps, queued, startedAt }: { steps: ChatStep[]; queued: boolean; startedAt: string | null }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (queued) return;
@@ -78,7 +78,7 @@ export function LiveSteps({ steps, queued, startedAt }: { steps: DriveStep[]; qu
 }
 
 /** "N langkah · X dtk" under a finished answer; opens the full list. Null when the message has neither. */
-export function FoldedSteps({ steps, durationMs }: { steps?: DriveStep[]; durationMs?: number }) {
+export function FoldedSteps({ steps, durationMs }: { steps?: ChatStep[]; durationMs?: number }) {
   const [open, setOpen] = useState(false);
   const n = steps?.length ?? 0;
   const parts = [n ? `${n} langkah` : null, durationMs != null ? formatDuration(durationMs) : null].filter(Boolean);

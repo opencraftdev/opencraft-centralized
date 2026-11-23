@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -42,9 +43,7 @@ import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import DriveFileRenameOutlineOutlined from "@mui/icons-material/DriveFileRenameOutlineOutlined";
 import DriveFileMoveOutlined from "@mui/icons-material/DriveFileMoveOutlined";
 import ReplayRounded from "@mui/icons-material/ReplayRounded";
-import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
-import ChatBubbleRounded from "@mui/icons-material/ChatBubbleRounded";
-import type { DriveDocType, DriveFile, DriveFolder } from "@/lib/drive/types";
+import type { DriveFile, DriveFolder } from "@/lib/drive/types";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import {
   createFolder,
@@ -62,34 +61,31 @@ import { driveContentUrl } from "@/lib/drive/links";
 import { FileGrid, FolderGrid, ItemList, isBusy, type DriveItem, type ItemHandlers, type MenuTarget } from "./DriveItems";
 import { ConfirmDialog, MoveDialog, NameDialog } from "./DriveDialogs";
 import { PreviewDialog } from "./PreviewDialog";
-import { DriveChat, NEW_CHAT } from "./DriveChat";
 import { SyncStatusBar } from "./SyncStatusBar";
 
-type View = "drive" | "chat" | "recent" | "starred" | "trash";
+type View = "drive" | "recent" | "starred" | "trash";
 type SortKey = "name" | "modified";
 type Layout = "list" | "grid";
 
 const NAV: { key: View; label: string; Icon: typeof HomeOutlined; ActiveIcon: typeof HomeOutlined }[] = [
   { key: "drive", label: "Drive Saya", Icon: HomeOutlined, ActiveIcon: HomeRounded },
-  { key: "chat", label: "Chat Dokumen", Icon: ChatBubbleOutlineRounded, ActiveIcon: ChatBubbleRounded },
   { key: "recent", label: "Terbaru", Icon: ScheduleOutlined, ActiveIcon: ScheduleRounded },
   { key: "starred", label: "Berbintang", Icon: StarBorderRounded, ActiveIcon: StarRounded },
   { key: "trash", label: "Sampah", Icon: DeleteOutlineRounded, ActiveIcon: DeleteRounded },
 ];
-const VIEW_TITLE: Record<View, string> = { drive: "Drive Saya", chat: "Chat Dokumen", recent: "Terbaru", starred: "Berbintang", trash: "Sampah" };
-const ROOT_FOLDER_FOR: Partial<Record<DriveDocType, string>> = { sph: "SPH", mou: "MoU", deck: "Deck" };
+const VIEW_TITLE: Record<View, string> = { drive: "Drive Saya", recent: "Terbaru", starred: "Berbintang", trash: "Sampah" };
 const RECENT_LIMIT = 50;
 const POLL_MS = 4000;
-const CHAT_POLL_MS = 3000;
 const LAYOUT_KEY = "drive.layout";
 
 const pill = { borderRadius: "9999px" } as const;
 
-// In the chat view `folder` is where a new document goes (the folder "+ Baru" was clicked in), `c` the conversation.
-function navigate(params: { view?: View; folder?: string | null; c?: string | null }, replace = false) {
+// "Generate dokumen" starts a chat with the document skill (docs/CHAT.md → "/documents").
+const GENERATE_HREF = "/chat?skill=opencraft-document";
+
+function navigate(params: { view?: View; folder?: string | null }, replace = false) {
   const qs = new URLSearchParams();
   if (params.view && params.view !== "drive") qs.set("view", params.view);
-  if (params.c) qs.set("c", params.c);
   if (params.folder) qs.set("folder", params.folder);
   const s = qs.toString();
   window.history[replace ? "replaceState" : "pushState"](null, "", s ? `/documents?${s}` : "/documents");
@@ -107,10 +103,8 @@ export function Drive({
   const params = useSearchParams();
   const rawView = params.get("view");
   const view: View =
-    rawView === "chat" || rawView === "recent" || rawView === "starred" || rawView === "trash" ? rawView : "drive";
+    rawView === "recent" || rawView === "starred" || rawView === "trash" ? rawView : "drive";
   const folderParam = view === "drive" ? params.get("folder") : null;
-  const chatParam = view === "chat" ? params.get("c") : null;
-  const chatFolderParam = view === "chat" ? params.get("folder") : null;
 
   const [folders, setFolders] = useState(initialFolders);
   const [files, setFiles] = useState(initialFiles);
@@ -234,16 +228,13 @@ export function Drive({
     return { shownFolders: fo, shownFiles: fi };
   }, [view, folders, files, currentFolderId, query, sort, fileGone, goneFolders]);
 
-  // Chat conversations = generated rows (docs/DRIVE.md → "Chat tab for creating documents").
-  const conversations = useMemo(() => files.filter((f) => f.source === "generated" && !fileGone(f)), [files, fileGone]);
-
-  // Poll while any live generate job is in flight (faster in the chat view).
+  // Poll while any older generate job is still in flight.
   const anyBusy = files.some((f) => isBusy(f) && !fileGone(f));
   useEffect(() => {
     if (!anyBusy) return;
-    const t = setInterval(refresh, view === "chat" ? CHAT_POLL_MS : POLL_MS);
+    const t = setInterval(refresh, POLL_MS);
     return () => clearInterval(t);
-  }, [anyBusy, refresh, view]);
+  }, [anyBusy, refresh]);
 
   const previewFile = previewId ? files.find((f) => f.id === previewId) ?? null : null;
 
@@ -318,17 +309,6 @@ export function Drive({
     await refresh();
   };
 
-  const generateDestination = (t: DriveDocType): DriveFolder | null => {
-    const chatFolder =
-      chatFolderParam && folderById.has(chatFolderParam) && !goneFolders.has(chatFolderParam)
-        ? folderById.get(chatFolderParam)!
-        : null;
-    if (view === "chat" && chatFolder) return chatFolder;
-    if (view === "drive" && currentFolder) return currentFolder;
-    const name = ROOT_FOLDER_FOR[t];
-    return name ? folders.find((f) => f.parent_id === null && !f.trashed_at && f.name === name) ?? null : null;
-  };
-
   const handlers: ItemHandlers = {
     selectedId,
     onSelect: (item) => setSelectedId(item.data.id),
@@ -345,7 +325,7 @@ export function Drive({
   return (
     <Box sx={{ height: "100%", display: "flex", gap: 1, pr: { xs: 1, md: 2 }, pb: { xs: 1, md: 2 }, pl: 1, bgcolor: "#F0F4F9" }}>
       {/* ── left sub-nav ── */}
-      {/* Below md it collapses to an icon rail so the content card (and the chat) keep their room. */}
+      {/* Below md it collapses to an icon rail so the content card keeps its room. */}
       <Box sx={{ width: { xs: 48, md: 232 }, flexShrink: 0, pt: 1, display: "flex", flexDirection: "column" }}>
         <Button
           onClick={(e) => setNewMenu(e.currentTarget)}
@@ -400,12 +380,7 @@ export function Drive({
             </ListItemIcon>
             <ListItemText>Upload file</ListItemText>
           </MenuItem>
-          <MenuItem
-            onClick={() => {
-              setNewMenu(null);
-              navigate({ view: "chat", c: NEW_CHAT, folder: view === "drive" ? currentFolderId : chatFolderParam });
-            }}
-          >
+          <MenuItem component={Link} href={GENERATE_HREF} onClick={() => setNewMenu(null)}>
             <ListItemIcon>
               <AutoAwesomeOutlined fontSize="small" sx={{ color: "#8E5CF5" }} />
             </ListItemIcon>
@@ -472,7 +447,7 @@ export function Drive({
       {/* ── content card ── */}
       <Box
         onDragOver={(e) => {
-          if (view !== "trash" && view !== "chat" && e.dataTransfer.types.includes("Files")) {
+          if (view !== "trash" && e.dataTransfer.types.includes("Files")) {
             e.preventDefault();
             setDragOver(true);
           }
@@ -483,7 +458,7 @@ export function Drive({
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
-          if (view !== "trash" && view !== "chat" && e.dataTransfer.files.length) uploadFiles(Array.from(e.dataTransfer.files));
+          if (view !== "trash" && e.dataTransfer.files.length) uploadFiles(Array.from(e.dataTransfer.files));
         }}
         sx={{
           flex: 1,
@@ -498,21 +473,6 @@ export function Drive({
           outlineOffset: -2,
         }}
       >
-        {view === "chat" ? (
-          <DriveChat
-            conversations={conversations}
-            selected={chatParam}
-            userId={userId}
-            destination={(t) => {
-              const d = generateDestination(t);
-              return { id: d?.id ?? null, name: d?.name ?? "Drive Saya" };
-            }}
-            onSelect={(c, replace) => navigate({ view: "chat", c, folder: chatFolderParam }, replace)}
-            onPreview={setPreviewId}
-            onChanged={refresh}
-          />
-        ) : (
-        <>
         {/* header */}
         <Box sx={{ px: 3, pt: 2, pb: 1.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, minHeight: 48 }}>
@@ -711,8 +671,6 @@ export function Drive({
             </Box>
           )}
         </Box>
-        </>
-        )}
       </Box>
 
       {/* ── item context menu ── */}
@@ -912,10 +870,6 @@ export function Drive({
         file={previewFile}
         onClose={() => setPreviewId(null)}
         onChanged={refresh}
-        onOpenChat={(id) => {
-          setPreviewId(null);
-          navigate({ view: "chat", c: id });
-        }}
       />
     </Box>
   );

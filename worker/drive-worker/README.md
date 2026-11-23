@@ -1,7 +1,10 @@
 # drive-worker
 
-Background worker for `/documents` generation (contract: `docs/DRIVE.md`). Runs on the OpenCraft VPS,
-not on Vercel; excluded from the Next.js type-check via `tsconfig.json` `exclude`.
+Background worker for `/documents` generation (contract: `docs/DRIVE.md`) **and** the general `/chat` + skills
+(contract: `docs/CHAT.md`). Runs on the OpenCraft VPS, not on Vercel; excluded from the Next.js type-check via
+`tsconfig.json` `exclude`. One process, three independent loops: document jobs (`worker.ts`), Google → dashboard
+sync (`sync.ts`), chat (`chat.ts`). Shared cc-gateway code (SSE client, stop, step labels, throttled live writer,
+visible-text filter, cost rule) is in `gateway.ts`; Google Drive helpers in `google.ts`.
 
 Loop: every 5s `rpc('claim_drive_job')` → build prompt (first run: doc type + request + RESULT protocol;
 follow-up: last user message + reminder with `session_id`) → `POST $GATEWAY_URL/v1/runs` with `stream:true`
@@ -44,6 +47,37 @@ Chat UX (contract `docs/DRIVE.md` → "Chat tab for creating documents"):
   `record`) unless the user explicitly asks for a new document. The new file replaces the old Google file on the same
   row; `doc_number` falls back to the row's when the RESULT omits it.
 
+Chat loop (`chat.ts`, contract `docs/CHAT.md`; on when `CHAT_GATEWAY_KEY` is set, logs prefixed `chat <id>`):
+- Every 2 s (`CHAT_POLL_MS`) `rpc('claim_chat_run')` → the input is every user message newer than `consumed_at`
+  (all when null), joined with a blank line; `consumed_at` = the newest of them. Messages sent while a run goes stay
+  unconsumed (server-side queue): when the run ends the chat is set `idle`, then back to `queued` if any user message
+  is newer than `consumed_at` (a `chat_send` after the idle update queues it itself). A leading `/name` of an enabled
+  skill becomes `Use the skill "name" (Skill tool) for this request.`.
+- `POST $CHAT_GATEWAY_URL/v1/runs` (stream) on profile `opencraft-chat`, resuming `chats.session_id`; a lost session
+  (`session_not_found` / 404) starts a new one with the last 20 messages replayed as a transcript.
+- Live: `run_steps` + `stream_text` (same throttled writer, only while `running`; step labels as for documents plus
+  generic ones: "Membaca file…", "Menulis file…", "Menjalankan perintah…", "Mencari file…", "Mencari di web…",
+  "Memakai skill <name>…"); `ATTACH:`/`RESULT:` lines and partial tails are cut.
+- End: assistant `chat_messages` row: `content` = all streamed text blocks (the gateway's `result` text is only the
+  last block, so it is used only as a fallback/addition), `steps`, `duration_ms`, `attachments`; live columns +
+  `started_at` + `cancel_requested_at` nulled. Failure → assistant row with `error`, chat `failed` + `error_msg`.
+  Stop (`cancel_requested_at`, polled every 2 s) → `DELETE /v1/runs/{id}` + abort, assistant row `stopped: true` with
+  the text so far, chat `idle` (pending messages stay pending). Stopped before the claim → `idle`, nothing consumed.
+  429 → re-queued (consumed_at restored) after 30 s. Chats left `running` are failed on startup (previous process) and
+  after 20 min; SIGTERM fails the chat in flight ("Worker dimulai ulang…").
+- Attachments: `ATTACH: {"path","folder"?,"doc_number"?}` lines (any text block). Path must resolve (realpath) under
+  `/home/opencraft/`, ≤ 100 MB. Folder (default "Chat") = the non-trashed root `drive_folders` row with that name
+  (exact, else case-insensitive), else a new row; its Google folder is created lazily by `uploadFile` →
+  `ensureFolder`. `doc_type` = sph/mou/deck for folders SPH/MoU/Deck, else null. New file → `drive_files` row
+  (`source='chat'`, `status='ready'`, `chat_id`, `chat_path` = resolved path, `created_by` = chat owner). Same
+  `chat_path` in the same chat again → new upload, the existing row points at it, the old Google file is deleted.
+  A failed attachment is reported under the answer ("Gagal melampirkan file"), the run still succeeds.
+- Skills sync: before every run and every 30 s, enabled `skills` → `$CHAT_WORKDIR/.claude/skills/<name>/SKILL.md`
+  (`name`, JSON-quoted `description` frontmatter + body) with a `.managed-by-dashboard` marker; marked folders of
+  disabled/deleted skills are removed; unmarked (hand-made) folders are never touched. Logged as `skills sync: …`.
+- Cost: claude's `total_cost_usd` of a `--resume`d run is the session's running total, so `cost_usd` (chats and
+  drive_files) = max(previous, run cost) when the same session was resumed, previous + run cost for a new session.
+
 Sync status (`docs/DRIVE.md` → "Sync status in the UI"): after every pass the loop writes `drive_sync_state` (id=1):
 `last_sync_at`, `last_sync_summary` (`+inserted ~updated -deleted`), `last_error` (null on success, the message on
 failure; `last_sync_at` then stays at the last good pass), `root_folder_id`; `google_drive_auth.last_sync_at` is still
@@ -74,15 +108,20 @@ and caches them in memory until expiry. Google's `modifiedTime` from uploads/fol
 
 | what | where |
 |---|---|
-| code | `~/drive-worker/{worker.ts,google.ts,sync.ts,package.json}` |
-| env (chmod 600) | `~/drive-worker/.env`: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GATEWAY_URL=http://127.0.0.1:8788`, `GATEWAY_KEY` (cc-gateway key `drive-worker`), `DOC_AGENT_DIR=/home/opencraft/document-agent` |
+| code | `~/drive-worker/{worker.ts,chat.ts,gateway.ts,google.ts,sync.ts,package.json}` |
+| env (chmod 600) | `~/drive-worker/.env`: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GATEWAY_URL=http://127.0.0.1:8788`, `GATEWAY_KEY` (cc-gateway key `drive-worker`), `DOC_AGENT_DIR=/home/opencraft/document-agent`, `CHAT_GATEWAY_URL=http://127.0.0.1:8789`, `CHAT_GATEWAY_KEY` (cc-gateway key `chat-worker`), `CHAT_WORKDIR=/home/opencraft/opencraft-chat` (optional: `CHAT_POLL_MS`) |
 | service | `~/.config/systemd/user/drive-worker.service` (copy of `drive-worker.service`) |
-| gateway | `cc-gateway@opencraft-document` (API-only, 127.0.0.1:8788) |
+| gateway (documents) | `cc-gateway@opencraft-document` (API-only, 127.0.0.1:8788, workdir `~/document-agent`) |
+| gateway (chat) | `cc-gateway@opencraft-chat` (API-only, 127.0.0.1:8789, workdir `~/opencraft-chat`, sonnet, max_turns 80, run_timeout_secs 900, max_concurrent_runs 1; profile `~/.cc-gateway/profiles/opencraft-chat/{config.toml,SOUL.md}`) |
+| chat workdir | `~/opencraft-chat/CLAUDE.md` (assistant rules, ATTACH protocol, boundaries), `.claude/skills/` (synced), `outputs/` (files the agent writes) |
 
 ## Deploy / operate
 
 ```bash
-rsync -a worker.ts google.ts sync.ts package.json drive-worker.service opencraft:~/drive-worker/
+# check first that nothing is running (a restart fails the job/chat in flight):
+#   select count(*) from drive_files where status in ('queued','generating');
+#   select count(*) from chats where status in ('queued','running');
+rsync -a worker.ts chat.ts gateway.ts google.ts sync.ts package.json drive-worker.service opencraft:~/drive-worker/
 ssh opencraft 'cd ~/drive-worker && ~/.bun/bin/bun install --production \
   && cp drive-worker.service ~/.config/systemd/user/ && systemctl --user daemon-reload \
   && systemctl --user enable drive-worker && systemctl --user restart drive-worker'
@@ -96,3 +135,12 @@ service itself still runs `~/.local/bin/bun worker.ts`. Progress lines per tool 
 
 Rotate the gateway key: `cc-gateway key revoke opencraft-document drive-worker`, then
 `cc-gateway key create opencraft-document drive-worker` and update `GATEWAY_KEY` in `.env`.
+
+Chat gateway profile (created 2026-11-23 by copying `opencraft-document`'s `config.toml` with workdir/bind/max_turns
+changed and no keys, plus `SOUL.md`; `cc-gateway profile create` is an interactive wizard). claude runs with
+`--dangerously-skip-permissions` (always, set by cc-gateway's runner), so no interactive prompts.
+```bash
+ssh opencraft 'systemctl --user enable --now cc-gateway@opencraft-chat'
+ssh opencraft '~/.local/bin/cc-gateway key revoke opencraft-chat chat-worker && ~/.local/bin/cc-gateway key create opencraft-chat chat-worker'
+# → put the new key in CHAT_GATEWAY_KEY in ~/drive-worker/.env, restart drive-worker
+```

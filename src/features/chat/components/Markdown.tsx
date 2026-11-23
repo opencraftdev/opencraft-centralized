@@ -5,7 +5,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Box from "@mui/material/Box";
 
-// The agent's replies are Markdown (docs/DRIVE.md → "Chat v2": short paragraphs, numbered lists, **bold**, tables).
+// The agent's replies are Markdown (docs/CHAT.md: short paragraphs, numbered lists, **bold**, tables).
 // Rendered with react-markdown + remark-gfm (no raw HTML). Links open in a new tab; wide tables scroll sideways.
 
 const components: Components = {

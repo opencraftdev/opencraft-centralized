@@ -5,7 +5,6 @@ import {
   type DriveDocType,
   type DriveFile,
   type DriveFolder,
-  type DriveMessage,
   type DriveSyncState,
 } from "@/lib/drive/types";
 
@@ -99,74 +98,9 @@ export const DOC_TYPE_LABEL: Record<DriveDocType, string> = {
   other: "Dokumen",
 };
 
-export async function createGenerateJob(args: {
-  docType: DriveDocType;
-  prompt: string;
-  folderId: string | null;
-  userId: string;
-}): Promise<string> {
-  const words = args.prompt.trim().split(/\s+/).slice(0, 8).join(" ");
-  const at = new Date().toISOString();
-  const row = check(
-    await sb()
-      .from("drive_files")
-      .insert({
-        folder_id: args.folderId,
-        name: `${DOC_TYPE_LABEL[args.docType]} — ${words}`,
-        source: "generated",
-        status: "queued",
-        doc_type: args.docType,
-        prompt: args.prompt.trim(),
-        messages: [{ role: "user", text: args.prompt.trim(), at }] satisfies DriveMessage[],
-        created_by: args.userId,
-      })
-      .select("id")
-      .single(),
-  ) as { id: string };
-  return row.id;
-}
-
-// Chat follow-up on any non-busy conversation → back to the queue (worker resumes the same session).
-// Covers answering needs_input and revising a ready document.
-export async function replyToJob(file: DriveFile, text: string) {
-  const messages: DriveMessage[] = [
-    ...(file.messages ?? []),
-    { role: "user", text: text.trim(), at: new Date().toISOString() },
-  ];
-  await updateItem("file", file.id, { messages, status: "queued", error_msg: null, cancel_requested_at: null });
-}
-
+// Re-queue a failed generate job (older rows from before Chat; new documents are made in /chat).
 export async function retryJob(file: DriveFile) {
   await updateItem("file", file.id, { status: "queued", error_msg: null, cancel_requested_at: null });
-}
-
-// One row, for the live view of a running conversation (run_steps / stream_text change every ~1.5 s).
-export async function fetchFile(id: string): Promise<DriveFile | null> {
-  return check(await sb().from("drive_files").select("*").eq("id", id).maybeSingle()) as DriveFile | null;
-}
-
-// "Stop" (docs/DRIVE.md → "Chat v2"): flag the row; the worker stops a running job within ~2 s. A row that is
-// still `queued` never reaches the worker, so the UI ends it itself — guarded by status='queued' so a job the
-// worker claimed in the meantime is left to the worker (it sees cancel_requested_at).
-export async function stopJob(file: DriveFile) {
-  const at = new Date().toISOString();
-  await updateItem("file", file.id, { cancel_requested_at: at });
-  if (file.status !== "queued") return;
-  const stopped: DriveMessage = { role: "assistant", text: "", stopped: true, at };
-  const res = await sb()
-    .from("drive_files")
-    .update({
-      messages: [...(file.messages ?? []), stopped],
-      status: file.google_file_id ? "ready" : "needs_input",
-      ...(file.google_file_id ? {} : { agent_message: "Dihentikan." }),
-      cancel_requested_at: null,
-      run_steps: null,
-      stream_text: null,
-      progress: null,
-    })
-    .eq("id", file.id)
-    .eq("status", "queued");
-  check(res);
 }
 
 // ── Google Drive sync status (docs/DRIVE.md → "Sync status in the UI") ──

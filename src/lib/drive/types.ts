@@ -1,7 +1,7 @@
 // Row shapes for the Drive tables (supabase/migrations/020_drive.sql, 021_drive_google.sql, 022_*, docs/DRIVE.md).
 
 export type DriveFileStatus = "queued" | "generating" | "needs_input" | "ready" | "failed";
-export type DriveFileSource = "generated" | "upload" | "agent" | "google"; // google = created directly in Google Drive (sync)
+export type DriveFileSource = "generated" | "upload" | "agent" | "google" | "chat"; // google = created directly in Google Drive (sync); chat = attached by the chat agent (docs/CHAT.md)
 export type DriveDocType = "sph" | "mou" | "deck" | "other";
 
 // One step of an agent run: the short Indonesian progress line and when it started (migration 024).
@@ -54,6 +54,8 @@ export interface DriveFile {
   cancel_requested_at: string | null; // set by the UI "Stop" (migration 024)
   started_at: string | null; // worker: when the current/last run was claimed
   finished_at: string | null; // worker: when the last run ended
+  chat_id?: string | null; // source='chat': the chat that attached it (migration 025)
+  chat_path?: string | null; // source='chat': server path the agent attached
   starred: boolean;
   trashed_at: string | null;
   created_by: string | null;

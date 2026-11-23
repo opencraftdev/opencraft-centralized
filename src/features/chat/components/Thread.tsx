@@ -1,0 +1,345 @@
+"use client";
+
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
+import Typography from "@mui/material/Typography";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
+import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
+import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
+import type { DriveFile } from "@/lib/drive/types";
+import { toastError } from "@/components/ui/Toast";
+import { PreviewDialog } from "@/features/drive/components/PreviewDialog";
+import type { SkillSummary } from "@/features/skills/api";
+import { fetchChat, fetchFiles, fetchMessages, retryChat, sendMessage, sendPendingNow, stopChat } from "../api";
+import { isRunning, type Chat, type ChatListItem, type ChatMessage } from "../types";
+import { Composer, type ComposerHandle } from "./Composer";
+import { AssistantMessage, LiveAnswer, PendingMessages, UserBubble } from "./Messages";
+import { ChatMenu, type ChatAction } from "./ChatList";
+
+// One chat (docs/CHAT.md → "UI" → Thread). The chat row + new messages are polled every 1.5 s while a run is queued
+// or running (the worker writes run_steps / stream_text at most every ~1.5 s); otherwise the list's poll (updated_at /
+// status of this chat changing) triggers a reload.
+
+const LIVE_POLL_MS = 1500;
+export const COLUMN = 760;
+
+/** Microseconds since the epoch from a Postgres/JS ISO timestamp (keeps Postgres' microseconds). */
+export function micros(iso: string): number {
+  const frac = /\.(\d+)/.exec(iso)?.[1] ?? "";
+  const secs = Date.parse(iso.replace(/\.\d+/, ""));
+  return secs * 1000 + Number((frac + "000000").slice(0, 6));
+}
+
+/** Messages in reading order. An answer is placed where its run started (created_at − duration), so a message sent
+ * while that run went shows after the answer, before the answer it got. */
+function readingOrder(list: ChatMessage[]): ChatMessage[] {
+  const key = (m: ChatMessage) => micros(m.created_at) - (m.role === "assistant" ? (m.duration_ms ?? 0) * 1000 : 0);
+  return [...list].sort((a, b) => key(a) - key(b));
+}
+
+function mergeMessages(prev: ChatMessage[], next: ChatMessage[]): ChatMessage[] {
+  if (!next.length) return prev;
+  const byId = new Map(prev.map((m) => [m.id, m]));
+  for (const m of next) byId.set(m.id, m);
+  return [...byId.values()];
+}
+
+export function Thread({
+  chatId,
+  listed,
+  skills,
+  onBack,
+  onChanged,
+  onAction,
+}: {
+  chatId: string;
+  listed: ChatListItem | null; // this chat's row in the (polled) list
+  skills: SkillSummary[];
+  onBack?: () => void;
+  onChanged: () => void; // refresh the list
+  onAction: (action: ChatAction, chat: ChatListItem) => void;
+}) {
+  const [chat, setChat] = useState<Chat | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [state, setState] = useState<"loading" | "ready" | "missing">("loading");
+  const [files, setFiles] = useState<Map<string, DriveFile>>(new Map());
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [sending, setSending] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const composer = useRef<ComposerHandle>(null);
+  const pinned = useRef(true);
+  const lastAt = useRef<string | null>(null);
+
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
+
+  /** full = all messages again; otherwise only the ones after the newest we have. */
+  const reload = useCallback(
+    async (full = false) => {
+      try {
+        const [row, msgs] = await Promise.all([fetchChat(chatId), fetchMessages(chatId, full ? null : lastAt.current)]);
+        if (!row) {
+          setState("missing");
+          return null;
+        }
+        setChat(row);
+        setMessages((prev) => (full ? msgs : mergeMessages(prev, msgs)));
+        if (msgs.length) {
+          const newest = msgs.reduce((a, m) => (micros(m.created_at) > micros(a) ? m.created_at : a), msgs[0].created_at);
+          if (full || !lastAt.current || micros(newest) > micros(lastAt.current)) lastAt.current = newest;
+        }
+        setState("ready");
+        return row;
+      } catch {
+        return null; // transient; the next tick / reload retries
+      }
+    },
+    [chatId],
+  );
+
+  useEffect(() => {
+    lastAt.current = null;
+    pinned.current = true;
+    void reload(true);
+  }, [reload]);
+
+  const running = chat ? isRunning(chat) : false;
+
+  // live poll while a run is queued / running
+  useEffect(() => {
+    if (!running) return;
+    let alive = true;
+    const t = setInterval(async () => {
+      if (document.hidden) return;
+      const row = await reload();
+      if (alive && row && !isRunning(row)) {
+        await reload(true); // run ended: settle the whole thread once
+        onChangedRef.current();
+      }
+    }, LIVE_POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [running, reload]);
+  useEffect(() => {
+    if (!running) setStopping(false);
+  }, [running]);
+
+  // the list saw this chat change (another tab, the worker): reload
+  useEffect(() => {
+    if (!listed || !chat || running) return;
+    if (listed.updated_at !== chat.updated_at || listed.status !== chat.status) void reload(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listed?.updated_at, listed?.status]);
+
+  // attached files → their drive_files rows (card + preview)
+  const attIds = useMemo(
+    () => [...new Set(messages.flatMap((m) => (m.attachments ?? []).map((a) => a.file_id)))].sort().join(","),
+    [messages],
+  );
+  const loadFiles = useCallback(async () => {
+    const ids = attIds ? attIds.split(",") : [];
+    if (!ids.length) return;
+    try {
+      const rows = await fetchFiles(ids);
+      setFiles(new Map(rows.map((f) => [f.id, f])));
+    } catch {
+      /* cards show "Memuat…" until the next try */
+    }
+  }, [attIds]);
+  useEffect(() => {
+    void loadFiles();
+  }, [loadFiles]);
+
+  // ── derived ──
+  const ordered = useMemo(() => readingOrder(messages), [messages]);
+  const { shown, pending } = useMemo(() => {
+    if (!chat || chat.status === "queued") return { shown: ordered, pending: [] as ChatMessage[] };
+    const since = chat.consumed_at ? micros(chat.consumed_at) : -Infinity;
+    const isPending = (m: ChatMessage) => m.role === "user" && micros(m.created_at) > since;
+    return { shown: ordered.filter((m) => !isPending(m)), pending: ordered.filter(isPending) };
+  }, [ordered, chat]);
+
+  // "Coba lagi": the newest answer failed → resend the user messages before it (back to the answer before them)
+  const retryInfo = useMemo(() => {
+    if (chat?.status !== "failed") return null;
+    let i = shown.length - 1;
+    while (i >= 0 && shown[i].role !== "assistant") i--;
+    if (i < 0 || !shown[i].error) return null;
+    const failedId = shown[i].id;
+    let j = i - 1;
+    while (j >= 0 && shown[j].role === "user") j--;
+    return { failedId, consumedAt: j >= 0 ? shown[j].created_at : null };
+  }, [chat?.status, shown]);
+
+  // ── actions ──
+  const after = async () => {
+    pinned.current = true;
+    await reload();
+    onChangedRef.current();
+  };
+  const send = async (text: string) => {
+    try {
+      await sendMessage(chatId, text);
+      await after();
+      return true;
+    } catch (e) {
+      toastError((e as Error).message);
+      return false;
+    }
+  };
+  const stop = async () => {
+    if (!chat) return;
+    setStopping(true);
+    try {
+      await stopChat(chat);
+      await after();
+    } catch (e) {
+      setStopping(false);
+      toastError((e as Error).message);
+    }
+  };
+  const sendNow = async () => {
+    setSending(true);
+    try {
+      await sendPendingNow(chatId);
+      await after();
+    } catch (e) {
+      toastError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
+  const retry = async () => {
+    if (!retryInfo) return;
+    try {
+      await retryChat(chatId, retryInfo.consumedAt);
+      await after();
+    } catch (e) {
+      toastError((e as Error).message);
+    }
+  };
+
+  // ── scroll: stay at the bottom while pinned ──
+  const scroller = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (el && pinned.current) el.scrollTop = el.scrollHeight;
+  }, [state, messages.length, chat?.status, chat?.stream_text, chat?.run_steps?.length, pending.length]);
+
+  const title = listed?.title ?? chat?.title ?? "";
+  const previewFile = previewId ? files.get(previewId) ?? null : null;
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, pl: onBack ? 0.5 : 2.5, pr: 1, minHeight: 56, borderBottom: "1px solid #E0E3E7", flexShrink: 0 }}>
+        {onBack && (
+          <IconButton onClick={onBack} aria-label="Kembali ke daftar chat">
+            <ArrowBackRounded />
+          </IconButton>
+        )}
+        <Typography component="h1" sx={{ flex: 1, minWidth: 0, fontSize: "1rem", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {state === "loading" && !title ? "Memuat…" : title || "Chat baru"}
+        </Typography>
+        {chat?.status === "failed" && (
+          <Box component="span" sx={{ px: 1, height: 20, display: "inline-flex", alignItems: "center", borderRadius: "9999px", bgcolor: "#FCE8E6", color: "#B3261E", fontSize: "0.6875rem", fontWeight: 600 }}>
+            Gagal
+          </Box>
+        )}
+        {running && (
+          <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, color: "#0B57D0", flexShrink: 0 }}>
+            <CircularProgress size={12} thickness={5} sx={{ color: "#0B57D0" }} />
+            <Typography sx={{ fontSize: "0.75rem", fontWeight: 500, display: { xs: "none", sm: "block" } }}>
+              {chat?.status === "queued" ? "Menunggu giliran" : "Sedang menjawab"}
+            </Typography>
+          </Box>
+        )}
+        {(listed || chat) && (
+          <IconButton aria-label="Menu chat" aria-haspopup="menu" onClick={(e) => setMenuAnchor(e.currentTarget)}>
+            <MoreVertRounded />
+          </IconButton>
+        )}
+      </Box>
+
+      <Box
+        ref={scroller}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
+        sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: { xs: 2, sm: 3 }, py: 3 }}
+      >
+        {state === "loading" ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
+            <CircularProgress size={28} />
+          </Box>
+        ) : state === "missing" ? (
+          <Box sx={{ textAlign: "center", color: "#5F6368", py: 8 }}>
+            <ChatBubbleOutlineRounded sx={{ fontSize: 40, color: "#C4C7C5", mb: 1 }} />
+            <Typography sx={{ fontSize: "0.9375rem" }}>Chat tidak ditemukan atau sudah dihapus.</Typography>
+            {onBack && (
+              <Button onClick={onBack} sx={{ mt: 1.5, borderRadius: "9999px" }}>
+                Kembali ke daftar
+              </Button>
+            )}
+          </Box>
+        ) : (
+          <Box sx={{ maxWidth: COLUMN, mx: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
+            {shown.map((m) =>
+              m.role === "user" ? (
+                <UserBubble key={m.id} m={m} skills={skills} />
+              ) : (
+                <AssistantMessage
+                  key={m.id}
+                  m={m}
+                  files={files}
+                  onPreview={setPreviewId}
+                  onRetry={retryInfo?.failedId === m.id ? () => void retry() : undefined}
+                />
+              ),
+            )}
+            {chat && running && <LiveAnswer chat={chat} />}
+            {chat?.status === "failed" && !retryInfo && chat.error_msg && (
+              <Typography sx={{ fontSize: "0.875rem", color: "#B3261E" }}>{chat.error_msg}</Typography>
+            )}
+            <PendingMessages items={pending} running={running} skills={skills} sending={sending} onSendNow={() => void sendNow()} />
+          </Box>
+        )}
+      </Box>
+
+      {state !== "missing" && (
+        <Box sx={{ px: { xs: 1.5, sm: 3 }, pb: { xs: 1.5, sm: 2 }, pt: 1, flexShrink: 0 }}>
+          <Box sx={{ maxWidth: COLUMN, mx: "auto" }}>
+            <Composer
+              ref={composer}
+              draftId={chatId}
+              skills={skills}
+              placeholder="Balas…"
+              running={running}
+              stopping={stopping || Boolean(chat?.cancel_requested_at)}
+              onSend={send}
+              onStop={() => void stop()}
+            />
+          </Box>
+        </Box>
+      )}
+
+      <ChatMenu
+        anchor={menuAnchor}
+        chat={listed ?? chat}
+        onClose={() => setMenuAnchor(null)}
+        onAction={onAction}
+      />
+      <PreviewDialog
+        file={previewFile}
+        onClose={() => setPreviewId(null)}
+        onChanged={() => void loadFiles()}
+      />
+    </Box>
+  );
+}

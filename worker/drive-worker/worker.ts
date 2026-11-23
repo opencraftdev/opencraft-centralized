@@ -1,9 +1,14 @@
-// drive-worker — claims queued drive_files jobs, runs them through the cc-gateway
+// drive-worker — (1) claims queued drive_files jobs, runs them through the cc-gateway
 // "opencraft-document" profile (POST /v1/runs) and uploads the result to Google Drive.
-// Contract: docs/DRIVE.md. Runs on the OpenCraft VPS under systemd (logs → journald).
+// Contract: docs/DRIVE.md. (2) Chat loop (chat.ts, docs/CHAT.md). Shared gateway code: gateway.ts. Runs on the OpenCraft VPS under systemd (logs → journald).
 import { createClient } from "@supabase/supabase-js";
 import { createGoogleDrive } from "./google.ts";
 import { createDriveSync } from "./sync.ts";
+import { createChatLoop } from "./chat.ts";
+import {
+  MIME, RetryLater, callGateway, deleteRun, liveWriter as genericLiveWriter, nextCost, now, progressFor, sleep,
+  type Gateway, type Hooks, type Req, type RunResp, type Step,
+} from "./gateway.ts";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -22,12 +27,28 @@ const RUN_TIMEOUT_MS = Number(process.env.RUN_TIMEOUT_MS ?? 960_000); // gateway
 const STALE_MINUTES = Number(process.env.STALE_MINUTES ?? 20);
 const SYNC_MS = Number(process.env.SYNC_MS ?? 30_000); // Google → dashboard sync interval; 0 = off
 const SYNC_REQUEST_POLL_MS = 2500;
-const CANCEL_POLL_MS = 2000; // how often drive_files.cancel_requested_at ("Stop") is checked during a run // how often drive_sync_state.sync_requested_at ("Sinkronkan sekarang") is checked
+const CANCEL_POLL_MS = 2000; // how often drive_files.cancel_requested_at ("Stop") is checked during a run
+const gw: Gateway = { url: GATEWAY_URL, key: GATEWAY_KEY, timeoutMs: RUN_TIMEOUT_MS };
 
 const db = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const gdrive = createGoogleDrive(db);
+// Chat (docs/CHAT.md): second loop in this process, on the cc-gateway "opencraft-chat" profile. Off without CHAT_GATEWAY_KEY.
+const chat = process.env.CHAT_GATEWAY_KEY
+  ? createChatLoop({
+      db,
+      gdrive,
+      gateway: {
+        url: env("CHAT_GATEWAY_URL", "http://127.0.0.1:8789").replace(/\/+$/, ""),
+        key: env("CHAT_GATEWAY_KEY"),
+        timeoutMs: RUN_TIMEOUT_MS,
+      },
+      workdir: env("CHAT_WORKDIR", "/home/opencraft/opencraft-chat"),
+      pollMs: Number(process.env.CHAT_POLL_MS ?? 2000),
+      log: (...a) => log(...a),
+    })
+  : null;
 const gsync = createDriveSync({
   db,
   accessToken: gdrive.accessToken,
@@ -35,7 +56,6 @@ const gsync = createDriveSync({
   log: (...a) => log(...a),
 });
 
-type Step = { label: string; at: string };
 type Msg = { role: "user" | "assistant"; text: string; at: string; steps?: Step[]; duration_ms?: number; stopped?: boolean };
 type Row = {
   id: string;
@@ -51,15 +71,11 @@ type Row = {
   metadata: Record<string, unknown> | null;
   cancel_requested_at?: string | null;
 };
-type RunResp = { run_id?: string; text?: string; session_id?: string; cost_usd?: number; is_error?: boolean };
-type Req = { prompt: string; session_id?: string };
 type Result =
   | { status: "ready"; path: string; doc_number?: string; title?: string }
   | { status: "needs_input"; question: string };
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), ...a);
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const now = () => new Date().toISOString();
 
 const DOC_LABEL: Record<string, string> = { sph: "SPH (PDF)", mou: "MoU (PDF)", deck: "Deck (PPTX)", other: "dokumen lain" };
 
@@ -123,130 +139,13 @@ function buildPrompt(row: Row): Req {
   return { prompt: body + "\n" + PROTOCOL };
 }
 
-// ---- live progress (drive_files.progress / run_steps) from the gateway's SSE tool events ----
-// The gateway sends `input` as a one-line summary string (command / file_path / path / pattern …, truncated to
-// 60 chars, e.g. "cd /home/opencraft/document-agent && python3 scripts/doc_num"), so match loosely.
-// An object input (full tool input) is handled too.
-function progressFor(name: string, input: unknown): string | null {
-  const inp = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
-  const str = (k: string) => (typeof inp[k] === "string" ? (inp[k] as string) : "");
-  const raw = typeof input === "string" ? input : "";
-  const file = (raw || str("file_path") || str("path") || str("notebook_path")).toLowerCase();
-  const cmd = (raw || str("command")).toLowerCase();
-  switch (name) {
-    case "TodoWrite":
-    case "ToolSearch":
-      return null; // bookkeeping: keep the previous line
-    case "Read":
-      if (file.includes("pricelist")) return "Membaca pricelist…";
-      if (file.includes("doc-numbers")) return "Memeriksa nomor dokumen…";
-      if (file.includes("brand")) return "Membaca data brand…";
-      if (file.includes("claude.md") || file.includes("readme")) return "Membaca panduan…";
-      if (file.includes("template") || file.includes("sample") || file.includes("types.ts")) return "Mempelajari template dokumen…";
-      if (file.endsWith(".pdf") || file.endsWith(".png") || file.endsWith(".jpg")) return "Memeriksa hasil dokumen…";
-      if (file.includes("/tmp/") || file.startsWith("tmp/")) return "Membaca data dokumen…";
-      return "Membaca file…";
-    case "Write":
-    case "Edit":
-    case "MultiEdit":
-      if (file.includes(".json") || file.includes("tmp/")) return "Menyiapkan data dokumen…";
-      return "Menyiapkan dokumen…";
-    case "Bash":
-      if (/doc_number\.py\s+record/.test(cmd)) return "Mencatat nomor dokumen…";
-      if (cmd.includes("doc_num")) return "Mengambil nomor dokumen…";
-      if (cmd.includes("polish")) return "Membuat gambar slide…";
-      if (cmd.includes("render-ppt") || cmd.includes("render-pp")) return "Membuat slide PPTX…";
-      if (cmd.includes("render")) return "Membuat PDF…";
-      if (/pdftoppm|pdftotext|pdfinfo|pdfimages/.test(cmd)) return "Memeriksa hasil dokumen…";
-      if (cmd.includes("pricelist")) return "Membaca pricelist…";
-      if (/samples?\/|templates?\//.test(cmd)) return "Mempelajari template dokumen…";
-      if (cmd.includes("tmp/") && cmd.includes(".json")) return "Menyiapkan data dokumen…";
-      return "Sedang bekerja…";
-    case "Glob":
-    case "Grep":
-      return "Mencari data…";
-    default:
-      return "Sedang bekerja…";
-  }
-}
-
-// Visible reply text: the SSE `text` events are whole assistant text blocks (cc-gateway runner.rs emits one
-// event per `text` content block of each assistant message, not token deltas), so blocks are joined with a
-// blank line. Any RESULT line (complete, or a trailing partial "RESULT…" fragment) is cut off.
-function visibleText(blocks: string[]): string {
-  const lines = blocks.join("\n\n").split(/\r?\n/).filter((l) => !l.includes("RESULT:"));
-  while (lines.length) {
-    const last = lines[lines.length - 1].trim().replace(/^`+/, "");
-    if (!last || "RESULT:".startsWith(last)) lines.pop();
-    else break;
-  }
-  return lines.join("\n").trim();
-}
-
-// Live state of the running job (docs/DRIVE.md → "Chat v2"): progress (newest label), run_steps (appended when the
-// label changes) and stream_text. Throttled writer: at most one DB write per LIVE_MS, the latest state wins, writes
-// are serialized and only land while the row is still `generating`.
-const LIVE_MS = 1500;
-function liveWriter(id: string) {
-  const steps: Step[] = [];
-  const blocks: string[] = [];
-  let label: string | null = null;
-  let lastAt = 0;
-  let dirty = false;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let chain: Promise<unknown> = Promise.resolve();
-  let closed = false;
-  const snapshot = () => ({ progress: label, run_steps: [...steps], stream_text: visibleText(blocks) || null });
-  const write = () => {
-    dirty = false;
-    lastAt = Date.now();
-    const patch = snapshot();
-    chain = chain.then(() =>
-      db.from("drive_files").update(patch).eq("id", id).eq("status", "generating")
-        .then(({ error }) => error && log(`job ${id} live: ${error.message}`)),
-    );
-  };
-  const schedule = () => {
-    if (closed) return;
-    dirty = true;
-    if (timer) return;
-    const wait = lastAt + LIVE_MS - Date.now();
-    const flush = () => {
-      timer = null;
-      if (!closed && dirty) write();
-    };
-    if (wait <= 0) flush();
-    else timer = setTimeout(flush, wait);
-  };
-  return {
-    steps,
-    text: () => visibleText(blocks),
-    step(text: string | null) {
-      if (closed || !text || text === label) return;
-      label = text;
-      steps.push({ label: text, at: now() });
-      schedule();
-    },
-    addText(t: string) {
-      if (closed || !t) return;
-      blocks.push(t);
-      schedule();
-    },
-    // Write the current state now (e.g. "Mengunggah ke Google Drive…" after the run), bypassing the throttle.
-    async flushNow() {
-      if (timer) clearTimeout(timer);
-      timer = null;
-      if (!closed) write();
-      await chain.catch(() => {});
-    },
-    // Stop writing and wait for in-flight writes, so the final update (nulls) lands last.
-    async close() {
-      closed = true;
-      if (timer) clearTimeout(timer);
-      await chain.catch(() => {});
-    },
-  };
-}
+// Live state of the running job (docs/DRIVE.md → "Chat v2"): progress (newest label), run_steps, stream_text;
+// throttled shared writer (gateway.ts), only while the row is still `generating`.
+const liveWriter = (id: string) =>
+  genericLiveWriter({
+    db, table: "drive_files", id, guard: ["status", "generating"], markers: ["RESULT:"], log,
+    fields: ({ label, steps, text }) => ({ progress: label, run_steps: steps, stream_text: text }),
+  });
 
 // Columns nulled in the same update that ends a run (ready / needs_input / failed / stopped / re-queued).
 const LIVE_CLEAR = { progress: null, run_steps: null, stream_text: null, cancel_requested_at: null };
@@ -270,122 +169,12 @@ function parseResult(text: string): Result | null {
 const stripResult = (text: string) =>
   text.split(/\r?\n/).filter((l) => !l.includes("RESULT:")).join("\n").trim();
 
-const MIME: Record<string, string> = {
-  ".pdf": "application/pdf",
-  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".csv": "text/csv",
-  ".md": "text/markdown",
-  ".txt": "text/plain",
-};
-
 // Resolve an agent-reported path; refuse anything outside DOC_AGENT_DIR (incl. via symlinks).
 function safeFile(p: string): string {
   const abs = fs.realpathSync(path.resolve(DOC_AGENT_DIR, p));
   if (!abs.startsWith(DOC_AGENT_DIR + path.sep)) throw new Error(`path escapes document-agent dir: ${p}`);
   if (!fs.statSync(abs).isFile()) throw new Error(`not a file: ${p}`);
   return abs;
-}
-
-class RetryLater extends Error {}
-
-const httpError = (status: number, msg: string) => Object.assign(new Error(msg), { status });
-
-// POST /v1/runs with stream:true (cc-telegram SPEC.md → "API gateway"). SSE events: init {run_id, session_id},
-// tool {name, input}, text {text}, result {run_id, text, session_id, cost_usd, …}, error {type, message}.
-// Errors before the run starts (401/404 session/429/…) come back as plain HTTP errors. Aborting (timeout)
-// disconnects, which stops the run in the gateway. A stream that ends without result/error is an error
-// (never re-run: the agent may already have taken a number / written files).
-type Hooks = {
-  onTool: (name: string, input: unknown) => void;
-  onText: (text: string) => void;
-  onInit: (init: { run_id?: string; session_id?: string }) => void;
-  signal: AbortSignal; // user "Stop"
-};
-async function callGateway(body: Req, hooks: Hooks): Promise<RunResp> {
-  const { onTool } = hooks;
-  const res = await fetch(`${GATEWAY_URL}/v1/runs`, {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "text/event-stream", authorization: `Bearer ${GATEWAY_KEY}` },
-    body: JSON.stringify({ ...body, stream: true }),
-    signal: AbortSignal.any([AbortSignal.timeout(RUN_TIMEOUT_MS), hooks.signal]),
-    timeout: false, // Bun: disable the default fetch timeout; AbortSignal handles it
-  } as RequestInit);
-  if (res.status === 429) {
-    await res.body?.cancel().catch(() => {});
-    throw new RetryLater("gateway busy (429)");
-  }
-  if (!res.ok) throw httpError(res.status, `gateway HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`);
-  if (!res.body) throw new Error("gateway returned no stream body");
-
-  let init: { run_id?: string; session_id?: string } = {};
-  const texts: string[] = [];
-  const decoder = new TextDecoder();
-  let buf = "";
-  const handle = (event: string, data: string): RunResp | null => {
-    let v: Record<string, unknown> = {};
-    try {
-      v = JSON.parse(data);
-    } catch {
-      return null;
-    }
-    if (event === "init") {
-      init = v as typeof init;
-      hooks.onInit(init);
-    } else if (event === "tool") onTool(String(v.name ?? ""), v.input);
-    else if (event === "text" && typeof v.text === "string") {
-      texts.push(v.text);
-      hooks.onText(v.text);
-    } else if (event === "result") {
-      const r = v as RunResp;
-      return { ...r, run_id: r.run_id ?? init.run_id, session_id: r.session_id ?? init.session_id, text: r.text ?? texts.join("\n\n") };
-    } else if (event === "error") {
-      const type = String(v.type ?? "");
-      const msg = `gateway run error (${type || "unknown"}): ${String(v.message ?? "").slice(0, 500)}`;
-      if (type === "session_not_found") throw httpError(404, msg);
-      if (type === "rate_limit_error") throw new RetryLater(msg);
-      throw Object.assign(new Error(msg), { session_id: init.session_id, run_id: init.run_id });
-    }
-    return null;
-  };
-  const reader = res.body.getReader();
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (value) buf += decoder.decode(value, { stream: true });
-      buf = buf.replace(/\r\n?/g, "\n");
-      let sep: number;
-      while ((sep = buf.indexOf("\n\n")) >= 0) {
-        const block = buf.slice(0, sep);
-        buf = buf.slice(sep + 2);
-        let event = "message";
-        const data: string[] = [];
-        for (const line of block.split("\n")) {
-          if (!line || line.startsWith(":")) continue; // keep-alive comment
-          const i = line.indexOf(":");
-          const field = i < 0 ? line : line.slice(0, i);
-          const val = i < 0 ? "" : line.slice(i + 1).replace(/^ /, "");
-          if (field === "event") event = val;
-          else if (field === "data") data.push(val);
-        }
-        if (data.length) {
-          const r = handle(event, data.join("\n"));
-          if (r) return r;
-        }
-      }
-      if (done) break;
-    }
-  } finally {
-    reader.cancel().catch(() => {});
-  }
-  throw Object.assign(new Error("gateway stream ended without a result (connection lost?); not retried"), {
-    session_id: init.session_id,
-    run_id: init.run_id,
-  });
 }
 
 async function update(id: string, patch: Record<string, unknown>) {
@@ -431,16 +220,7 @@ async function processJob(row: Row) {
   let init: { run_id?: string; session_id?: string } = {};
   const stop = new AbortController();
   let stopped = false;
-  const stopRun = () => {
-    if (!init.run_id) return;
-    fetch(`${GATEWAY_URL}/v1/runs/${encodeURIComponent(init.run_id)}`, {
-      method: "DELETE",
-      headers: { authorization: `Bearer ${GATEWAY_KEY}` },
-      signal: AbortSignal.timeout(10_000),
-    })
-      .then((r) => log(`job ${row.id} DELETE run ${init.run_id} → HTTP ${r.status}`))
-      .catch((e) => log(`job ${row.id} DELETE run ${init.run_id}: ${(e as Error).message}`));
-  };
+  const stopRun = () => deleteRun(gw, init.run_id, log, `job ${row.id}`);
   let checking = false;
   const watcher = setInterval(async () => {
     if (stopped || checking) return;
@@ -474,14 +254,14 @@ async function processJob(row: Row) {
   live.step(row.google_file_id ? "Memulai revisi…" : "Memulai…");
   try {
     try {
-      run = await callGateway(req, hooks);
+      run = await callGateway(gw, req, hooks);
     } catch (e) {
       // Session gone (gateway reset / other key) → start fresh with the full conversation replayed.
       // (404 = the gateway refused the session before running anything, so this is not a double run.)
       if ((e as { status?: number }).status === 404 && req.session_id && !stopped) {
         log(`job ${row.id} session ${req.session_id} not found, starting a new session`);
         req = buildPrompt({ ...row, gateway_session_id: null });
-        run = await callGateway(req, hooks);
+        run = await callGateway(gw, req, hooks);
       } else throw e;
     }
   } catch (e) {
@@ -510,7 +290,7 @@ async function processJob(row: Row) {
     ...LIVE_CLEAR,
     gateway_session_id: run.session_id ?? req.session_id ?? row.gateway_session_id,
     run_id: run.run_id ?? null,
-    cost_usd: +(prevCost + (run.cost_usd ?? 0)).toFixed(6),
+    cost_usd: nextCost(prevCost, run, req.session_id),
     finished_at: now(),
   };
   const secs = ((Date.now() - t0) / 1000).toFixed(0);
@@ -595,6 +375,7 @@ for (const sig of ["SIGTERM", "SIGINT"] as const)
     if (stopping) return;
     stopping = true;
     log(`${sig} received`);
+    await chat?.shutdown();
     if (currentJob) {
       // The in-flight gateway run dies with our connection; don't leave the row stuck in "generating".
       await update(currentJob, { ...LIVE_CLEAR, status: "failed", error_msg: "worker restarted during generation, please retry", finished_at: now() }).catch(
@@ -662,6 +443,8 @@ async function syncLoop() {
 
 log(`drive-worker up: gateway=${GATEWAY_URL} doc_agent_dir=${DOC_AGENT_DIR} poll=${POLL_MS}ms sync=${SYNC_MS}ms`);
 if (SYNC_MS > 0) void syncLoop();
+if (chat) void chat.run().catch((e) => log(`chat loop crashed: ${(e as Error).message}`));
+else log("chat loop off (no CHAT_GATEWAY_KEY)");
 await resetStale();
 let lastStaleCheck = Date.now();
 while (!stopping) {
