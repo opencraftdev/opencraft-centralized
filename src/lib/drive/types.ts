@@ -1,7 +1,7 @@
-// Row shapes for the Drive tables (supabase/migrations/020_drive.sql + 021_drive_google.sql, docs/DRIVE.md).
+// Row shapes for the Drive tables (supabase/migrations/020_drive.sql, 021_drive_google.sql, 022_*, docs/DRIVE.md).
 
 export type DriveFileStatus = "queued" | "generating" | "needs_input" | "ready" | "failed";
-export type DriveFileSource = "generated" | "upload" | "agent";
+export type DriveFileSource = "generated" | "upload" | "agent" | "google"; // google = created directly in Google Drive (sync)
 export type DriveDocType = "sph" | "mou" | "deck" | "other";
 
 export interface DriveMessage {
@@ -15,6 +15,7 @@ export interface DriveFolder {
   name: string;
   parent_id: string | null;
   google_folder_id: string | null; // null = not created in Google Drive yet (created lazily)
+  google_modified_at: string | null; // Google modifiedTime last seen/written (two-way sync)
   starred: boolean;
   trashed_at: string | null;
   created_by: string | null;
@@ -29,6 +30,7 @@ export interface DriveFile {
   mime_type: string | null;
   size_bytes: number | null;
   google_file_id: string | null; // null = no file in Google Drive (job not ready, or legacy row)
+  google_modified_at: string | null; // Google modifiedTime last seen/written (two-way sync)
   source: DriveFileSource;
   status: DriveFileStatus;
   doc_type: DriveDocType | null;

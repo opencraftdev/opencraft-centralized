@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
+import { requireAllowedUser } from "@/lib/auth/allowed";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { deleteFile, ensureFolder, moveFile, updateFile } from "@/lib/google/drive";
 
@@ -15,6 +15,8 @@ export const runtime = "nodejs";
 //   {op:"discardUpload", googleFileId}             undo an upload whose row insert failed
 // Google is changed first; if the DB write then fails, the Google change is reverted (best effort).
 // Items without a Google id (legacy rows, folders not created in Google yet) are DB-only.
+// Google's modifiedTime after each change is stored as google_modified_at, so the worker's two-way sync
+// sees the echo of a dashboard change as a no-op.
 
 type Kind = "folder" | "file";
 const META = {
@@ -78,14 +80,14 @@ function subtreeIds(folders: { id: string; parent_id: string | null }[], rootId:
   return [...ids];
 }
 
+const modified = (mt: string | null) => (mt ? { google_modified_at: mt } : {});
+
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  const auth = await requireAllowedUser();
+  if (auth.error) return auth.error;
+  const { user } = auth;
 
   const body = ((await req.json().catch(() => null)) ?? {}) as Record<string, unknown>;
   const op = str(body.op);
@@ -136,10 +138,11 @@ export async function POST(req: Request) {
       case "rename": {
         const name = str(body.name);
         if (!name) throw new HttpError("Nama wajib diisi", 400);
+        let mt: string | null = null;
         await mirrored(
-          async () => void (gid && (await updateFile(gid, { name }, db))),
+          async () => void (gid && (mt = await updateFile(gid, { name }, db))),
           async () => gid && updateFile(gid, { name: item.name }, db),
-          () => dbUpdate(db, kind, id, { name }),
+          () => dbUpdate(db, kind, id, { name, ...modified(mt) }),
         );
         break;
       }
@@ -151,15 +154,16 @@ export async function POST(req: Request) {
         }
         let dest: string | null = null;
         let oldParents: string[] = [];
+        let mt: string | null = null;
         await mirrored(
           async () => {
             if (!gid) return;
             dest = await ensureFolder(target, db);
-            oldParents = await moveFile(gid, dest, db);
+            ({ oldParents, modifiedTime: mt } = await moveFile(gid, dest, db));
           },
           async () =>
             gid && dest && updateFile(gid, { addParents: oldParents, removeParents: oldParents.includes(dest) ? [] : [dest] }, db),
-          () => dbUpdate(db, kind, id, { [META[kind].parent]: target }),
+          () => dbUpdate(db, kind, id, { [META[kind].parent]: target, ...modified(mt) }),
         );
         break;
       }
@@ -167,10 +171,11 @@ export async function POST(req: Request) {
       case "trash":
       case "restore": {
         const trashed = op === "trash";
+        let mt: string | null = null;
         await mirrored(
-          async () => void (gid && (await updateFile(gid, { trashed }, db))),
+          async () => void (gid && (mt = await updateFile(gid, { trashed }, db))),
           async () => gid && updateFile(gid, { trashed: !trashed }, db),
-          () => dbUpdate(db, kind, id, { trashed_at: trashed ? new Date().toISOString() : null }),
+          () => dbUpdate(db, kind, id, { trashed_at: trashed ? new Date().toISOString() : null, ...modified(mt) }),
         );
         break;
       }

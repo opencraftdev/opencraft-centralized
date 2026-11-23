@@ -3,6 +3,7 @@
 // Contract: docs/DRIVE.md. Runs on the OpenCraft VPS under systemd (logs → journald).
 import { createClient } from "@supabase/supabase-js";
 import { createGoogleDrive } from "./google.ts";
+import { createDriveSync } from "./sync.ts";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -19,11 +20,13 @@ const DOC_AGENT_DIR = fs.realpathSync(env("DOC_AGENT_DIR"));
 const POLL_MS = Number(process.env.POLL_MS ?? 5000);
 const RUN_TIMEOUT_MS = Number(process.env.RUN_TIMEOUT_MS ?? 960_000); // gateway run_timeout_secs=900 + slack
 const STALE_MINUTES = Number(process.env.STALE_MINUTES ?? 20);
+const SYNC_MS = Number(process.env.SYNC_MS ?? 30_000); // Google → dashboard sync interval; 0 = off
 
 const db = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const gdrive = createGoogleDrive(db);
+const gsync = createDriveSync({ db, accessToken: gdrive.accessToken, log: (...a) => log(...a) });
 
 type Msg = { role: "user" | "assistant"; text: string; at: string };
 type Row = {
@@ -208,6 +211,7 @@ async function processJob(row: Row) {
         status: "ready",
         name,
         google_file_id: up.id,
+        google_modified_at: up.modifiedTime,
         mime_type: mime,
         size_bytes: up.size,
         doc_number: result.doc_number ?? null,
@@ -217,6 +221,9 @@ async function processJob(row: Row) {
         metadata: { ...(row.metadata ?? {}), title: result.title ?? null, source_path: result.path },
       };
       try {
+        // The sync loop may have mirrored the fresh Google file as its own row (source='google') before
+        // this update: drop that duplicate so the unique google_file_id can move to the job row.
+        await db.from("drive_files").delete().eq("google_file_id", up.id).eq("source", "google");
         await update(row.id, ready);
       } catch (e) {
         await gdrive.deleteFile(up.id).catch(() => {}); // don't leave an orphan in Google Drive
@@ -267,7 +274,27 @@ for (const sig of ["SIGTERM", "SIGINT"] as const)
     process.exit(0);
   });
 
-log(`drive-worker up: gateway=${GATEWAY_URL} doc_agent_dir=${DOC_AGENT_DIR} poll=${POLL_MS}ms`);
+// Google → dashboard sync (docs/DRIVE.md → "Two-way sync"): its own loop, so it never blocks jobs.
+async function syncLoop() {
+  let lastErr = "";
+  while (!stopping) {
+    try {
+      const t0 = Date.now();
+      const s = await gsync.syncOnce();
+      if (s.inserted || s.updated || s.deleted || s.mode === "full")
+        log(`sync ${s.mode}: seen=${s.seen} +${s.inserted} ~${s.updated} -${s.deleted} in ${Date.now() - t0}ms`);
+      lastErr = "";
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg !== lastErr) log(`sync error: ${msg}`); // don't flood the journal with the same error
+      lastErr = msg;
+    }
+    await sleep(SYNC_MS);
+  }
+}
+
+log(`drive-worker up: gateway=${GATEWAY_URL} doc_agent_dir=${DOC_AGENT_DIR} poll=${POLL_MS}ms sync=${SYNC_MS}ms`);
+if (SYNC_MS > 0) void syncLoop();
 await resetStale();
 let lastStaleCheck = Date.now();
 while (!stopping) {

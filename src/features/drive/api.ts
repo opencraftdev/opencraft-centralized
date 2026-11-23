@@ -1,5 +1,5 @@
 // Drive data access from the browser. Reads + DB-only writes use the user's Supabase session (RLS:
-// authenticated = full access); anything that touches Google Drive goes through /api/drive/*.
+// allow-listed users only, is_allowed_user()); anything that touches Google Drive goes through /api/drive/*.
 import { createClient } from "@/lib/supabase/client";
 import {
   type DriveDocType,
@@ -69,18 +69,22 @@ export async function uploadFile(file: File, folderId: string | null, userId: st
     folderId,
   });
   const put = await fetch(uploadUrl, { method: "PUT", headers: { "content-type": mime }, body: file });
-  const g = (await put.json().catch(() => ({}))) as { id?: string; size?: string };
+  const g = (await put.json().catch(() => ({}))) as { id?: string; size?: string; modifiedTime?: string };
   if (!put.ok || !g.id) throw new Error(`Upload ke Google Drive gagal (${put.status})`);
-  const res = await sb().from("drive_files").insert({
+  const row = {
     folder_id: folderId,
     name: file.name,
     mime_type: mime,
     size_bytes: g.size != null ? Number(g.size) : file.size,
     google_file_id: g.id,
+    google_modified_at: g.modifiedTime ?? null,
     source: "upload",
     status: "ready",
     created_by: userId,
-  });
+  };
+  let res = await sb().from("drive_files").insert(row);
+  // The worker's Google→dashboard sync may have picked the new file up first (as source='google'): take that row over.
+  if (res.error?.code === "23505") res = await sb().from("drive_files").update(row).eq("google_file_id", g.id);
   if (res.error) {
     await driveItems({ op: "discardUpload", googleFileId: g.id }).catch(() => {});
     throw new Error(res.error.message);
