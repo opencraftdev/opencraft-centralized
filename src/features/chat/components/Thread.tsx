@@ -5,9 +5,10 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
+import EditOutlined from "@mui/icons-material/EditOutlined";
 import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import type { DriveFile } from "@/lib/drive/types";
 import { toastError } from "@/components/ui/Toast";
@@ -17,7 +18,7 @@ import { fetchChat, fetchFiles, fetchMessages, retryChat, sendMessage, sendPendi
 import { isRunning, type Chat, type ChatListItem, type ChatMessage } from "../types";
 import { Composer, type ComposerHandle } from "./Composer";
 import { AssistantMessage, LiveAnswer, PendingMessages, UserBubble } from "./Messages";
-import { ChatMenu, type ChatAction } from "./ChatList";
+import { ChatMenu, SidebarIcon, type ChatAction } from "./ChatList";
 
 // One chat (docs/CHAT.md → "UI" → Thread). The chat row + new messages are polled every 1.5 s while a run is queued
 // or running (the worker writes run_steps / stream_text at most every ~1.5 s); otherwise the list's poll (updated_at /
@@ -51,14 +52,16 @@ export function Thread({
   chatId,
   listed,
   skills,
-  onBack,
+  onOpenList,
+  onNew,
   onChanged,
   onAction,
 }: {
   chatId: string;
   listed: ChatListItem | null; // this chat's row in the (polled) list
   skills: SkillSummary[];
-  onBack?: () => void;
+  onOpenList?: () => void; // the chat list is hidden (drawer on a phone, collapsed on desktop)
+  onNew?: () => void; // a "Chat baru" button in the top bar (when the list is hidden)
   onChanged: () => void; // refresh the list
   onAction: (action: ChatAction, chat: ChatListItem) => void;
 }) {
@@ -237,30 +240,42 @@ export function Thread({
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, pl: onBack ? 0.5 : 2.5, pr: 1, minHeight: 56, borderBottom: "1px solid #E0E3E7", flexShrink: 0 }}>
-        {onBack && (
-          <IconButton onClick={onBack} aria-label="Kembali ke daftar chat">
-            <ArrowBackRounded />
-          </IconButton>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: onOpenList ? 1 : 2.5, pr: 1, minHeight: 56, flexShrink: 0 }}>
+        {onOpenList && (
+          <Tooltip title="Daftar chat">
+            <IconButton onClick={onOpenList} aria-label="Buka daftar chat" sx={{ color: "#444746" }}>
+              <SidebarIcon />
+            </IconButton>
+          </Tooltip>
         )}
-        <Typography component="h1" sx={{ flex: 1, minWidth: 0, fontSize: "1rem", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <Typography
+          component="h1"
+          sx={{ flex: 1, minWidth: 0, pl: onOpenList ? 0.5 : 0, fontSize: "1rem", fontWeight: 400, color: "#1F1F1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+        >
           {state === "loading" && !title ? "Memuat…" : title || "Chat baru"}
         </Typography>
         {chat?.status === "failed" && (
-          <Box component="span" sx={{ px: 1, height: 20, display: "inline-flex", alignItems: "center", borderRadius: "9999px", bgcolor: "#FCE8E6", color: "#B3261E", fontSize: "0.6875rem", fontWeight: 600 }}>
+          <Box component="span" sx={{ px: 1, height: 22, display: "inline-flex", alignItems: "center", borderRadius: "9999px", bgcolor: "#FCE8E6", color: "#B3261E", fontSize: "0.75rem", fontWeight: 500, flexShrink: 0 }}>
             Gagal
           </Box>
         )}
         {running && (
-          <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, color: "#0B57D0", flexShrink: 0 }}>
+          <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, color: "#0B57D0", flexShrink: 0, px: 0.5 }}>
             <CircularProgress size={12} thickness={5} sx={{ color: "#0B57D0" }} />
             <Typography sx={{ fontSize: "0.75rem", fontWeight: 500, display: { xs: "none", sm: "block" } }}>
               {chat?.status === "queued" ? "Menunggu giliran" : "Sedang menjawab"}
             </Typography>
           </Box>
         )}
+        {onNew && (
+          <Tooltip title="Chat baru">
+            <IconButton aria-label="Chat baru" onClick={onNew} sx={{ color: "#444746" }}>
+              <EditOutlined sx={{ fontSize: 22 }} />
+            </IconButton>
+          </Tooltip>
+        )}
         {(listed || chat) && (
-          <IconButton aria-label="Menu chat" aria-haspopup="menu" onClick={(e) => setMenuAnchor(e.currentTarget)}>
+          <IconButton aria-label="Menu chat" aria-haspopup="menu" onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ color: "#444746" }}>
             <MoreVertRounded />
           </IconButton>
         )}
@@ -272,7 +287,7 @@ export function Thread({
           const el = e.currentTarget;
           pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         }}
-        sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: { xs: 2, sm: 3 }, py: 3 }}
+        sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: { xs: 2, sm: 3 }, pt: 2, pb: 4 }}
       >
         {state === "loading" ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
@@ -282,14 +297,14 @@ export function Thread({
           <Box sx={{ textAlign: "center", color: "#5F6368", py: 8 }}>
             <ChatBubbleOutlineRounded sx={{ fontSize: 40, color: "#C4C7C5", mb: 1 }} />
             <Typography sx={{ fontSize: "0.9375rem" }}>Chat tidak ditemukan atau sudah dihapus.</Typography>
-            {onBack && (
-              <Button onClick={onBack} sx={{ mt: 1.5, borderRadius: "9999px" }}>
-                Kembali ke daftar
+            {onNew && (
+              <Button onClick={onNew} sx={{ mt: 1.5, borderRadius: "9999px" }}>
+                Chat baru
               </Button>
             )}
           </Box>
         ) : (
-          <Box sx={{ maxWidth: COLUMN, mx: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
+          <Box sx={{ maxWidth: COLUMN, mx: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
             {shown.map((m) =>
               m.role === "user" ? (
                 <UserBubble key={m.id} m={m} skills={skills} />
@@ -313,18 +328,21 @@ export function Thread({
       </Box>
 
       {state !== "missing" && (
-        <Box sx={{ px: { xs: 1.5, sm: 3 }, pb: { xs: 1.5, sm: 2 }, pt: 1, flexShrink: 0 }}>
+        <Box sx={{ px: { xs: 1, sm: 3 }, pb: 1, pt: 0.5, flexShrink: 0 }}>
           <Box sx={{ maxWidth: COLUMN, mx: "auto" }}>
             <Composer
               ref={composer}
               draftId={chatId}
               skills={skills}
-              placeholder="Balas…"
+              placeholder="Tanya OpenCraft"
               running={running}
               stopping={stopping || Boolean(chat?.cancel_requested_at)}
               onSend={send}
               onStop={() => void stop()}
             />
+            <Typography sx={{ textAlign: "center", fontSize: "0.75rem", color: "#444746", mt: 1, lineHeight: 1.5 }}>
+              AI bisa membuat kesalahan, periksa kembali hasilnya.
+            </Typography>
           </Box>
         </Box>
       )}

@@ -68,19 +68,24 @@ protocol, never touch other projects' folders unless a skill says so), API key `
 
 ### `/chat` (sidebar item "Chat", first)
 
-- Left: chat list (pinned first, then `updated_at` desc), "+ Chat baru", search by title, row menu: Ganti nama /
-  Sematkan / Hapus (`trashed_at`). Status dot while queued/running, red when failed. Mobile: list ↔ thread.
-- Empty new chat: centered greeting ("Mau dikerjakan apa hari ini?"), the composer, and the enabled skills as
-  suggestion chips (click → composer gets `/name `).
-- Thread: user bubbles; answers as Markdown in the column (no bubble) with folded "N langkah · X dtk", copy, time;
+- Look: Google Gemini's web chat in its light theme (sidebar `#F0F4F9`, white main card, pill composer, `#0B57D0`
+  accents).
+- Left: chat list (pinned first, then `updated_at` desc), "Chat baru", search by title (toggled by the search icon),
+  row menu: Ganti nama / Sematkan / Hapus (`trashed_at`). Single-line titles. Status dot while queued/running, red when
+  failed. Desktop: the column can be collapsed (remembered in localStorage). Mobile: the list is a drawer opened from
+  the thread's top bar; `/chat` shows a new chat.
+- Empty new chat: centered greeting ("Mulai dari mana?"), the composer, and the enabled skills as suggestion rows
+  under it (click → composer gets `/name `).
+- Thread: user bubbles; answers as Markdown in the column (no bubble) with copy, folded "N langkah · X dtk", time (on
+  hover);
   attachments as file cards (Pratinjau via `/api/drive/files/:id/content`, Buka di Google Drive, Download — same as
   the Drive file card); failed answer → error line + "Coba lagi" (re-queue: `status='queued'`, and the last user
   message is resent by setting `consumed_at` back to just before it).
 - Running: live steps (last 3, spinner) + elapsed time + streamed Markdown; "Menunggu giliran…" while queued.
   User messages newer than `consumed_at` while running show under the answer as "Menunggu jawaban selesai".
-- Composer: auto-grow, Enter / Shift+Enter, IME-safe, draft per chat (localStorage). `/` at the start opens the skill
-  menu (filter as you type, ↑↓ Enter, shows title + description); picked → `/name ` chip-like prefix. While running:
-  Stop button; Enter still sends (server queue).
+- Composer: auto-grow, Enter / Shift+Enter, IME-safe, draft per chat (localStorage). `/` at the start (or the "+"
+  button) opens the skill menu (filter as you type, ↑↓ Enter, shows title + description); picked → `/name ` chip-like
+  prefix. While running: Stop button; Enter still sends (server queue). A disclaimer line sits under it in a thread.
 - URL: `/chat` (new), `/chat/<id>`; `/chat?skill=<name>` starts a new chat with `/name ` prefilled.
 
 ### `/skills` (sidebar item "Skills")

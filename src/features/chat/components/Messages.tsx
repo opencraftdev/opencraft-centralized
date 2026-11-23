@@ -28,15 +28,29 @@ import { ChatMarkdown } from "./Markdown";
 import { FoldedSteps, LiveSteps } from "./Steps";
 import { SkillChip, splitSkill } from "./Composer";
 
-// The conversation (docs/CHAT.md → "UI" → Thread): user bubbles; answers as Markdown in the column with folded steps,
-// copy, time and attached files; the live run; messages not sent to the agent yet.
+// The conversation (docs/CHAT.md → "UI" → Thread), Gemini-style (light): user bubbles on the right; answers as plain
+// Markdown in the column with a row of small actions under them (copy, "Coba lagi", folded steps; time on hover) and
+// attached files; the live run; messages not sent to the agent yet.
 
 const textSx = {
-  fontSize: "0.9375rem",
-  lineHeight: 1.55,
+  fontSize: "1rem",
+  lineHeight: 1.5,
   whiteSpace: "pre-wrap",
   overflowWrap: "anywhere",
 } as const;
+
+/** Shown when the pointer is over the message (Gemini shows no timestamps inline). */
+const timeSx = {
+  fontSize: "0.75rem",
+  color: "#5E5E5E",
+  mt: 0.5,
+  px: 0.5,
+  opacity: 0,
+  transition: "opacity .15s",
+  "@media (hover: none)": { display: "none" },
+} as const;
+
+const actionSx = { color: "#444746", width: 32, height: 32, "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } } as const;
 
 /** The user's text; a leading "/name" of a known skill shows as its chip. */
 function UserText({ content, skills }: { content: string; skills: SkillSummary[] }) {
@@ -55,11 +69,11 @@ function UserText({ content, skills }: { content: string; skills: SkillSummary[]
 
 export function UserBubble({ m, skills }: { m: ChatMessage; skills: SkillSummary[] }) {
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-      <Box sx={{ maxWidth: "min(85%, 600px)", bgcolor: "#E9EEF6", color: "#1F1F1F", borderRadius: "20px 20px 6px 20px", px: 2, py: 1.25, ...textSx }}>
+    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", "&:hover .msg-time": { opacity: 1 } }}>
+      <Box sx={{ maxWidth: "min(85%, 600px)", bgcolor: "#E9EEF6", color: "#1F1F1F", borderRadius: "24px 4px 24px 24px", px: 2, py: 1.5, ...textSx }}>
         <UserText content={m.content} skills={skills} />
       </Box>
-      <Typography suppressHydrationWarning sx={{ fontSize: "0.6875rem", color: "#5F6368", mt: 0.5, px: 0.5 }}>
+      <Typography className="msg-time" suppressHydrationWarning sx={timeSx}>
         {formatDateTime(m.created_at)}
       </Typography>
     </Box>
@@ -86,13 +100,15 @@ function CopyButton({ text }: { text: string }) {
             toastError("Gagal menyalin.");
           }
         }}
-        sx={{ color: "#5F6368", width: 28, height: 28 }}
+        sx={actionSx}
       >
-        {copied ? <CheckRounded sx={{ fontSize: 16, color: "#146C2E" }} /> : <ContentCopyRounded sx={{ fontSize: 15 }} />}
+        {copied ? <CheckRounded sx={{ fontSize: 18, color: "#146C2E" }} /> : <ContentCopyRounded sx={{ fontSize: 17 }} />}
       </IconButton>
     </Tooltip>
   );
 }
+
+const fileBtnSx = { borderRadius: "9999px", color: "#0B57D0", textTransform: "none", fontWeight: 500 } as const;
 
 /** An attached file: same actions as the Drive file card (Pratinjau, Buka di Google Drive, Download). */
 export function FileCard({ att, file, onPreview }: { att: ChatAttachment; file: DriveFile | undefined; onPreview: (id: string) => void }) {
@@ -105,30 +121,30 @@ export function FileCard({ att, file, onPreview }: { att: ChatAttachment; file: 
       : [file.doc_number, file.size_bytes != null ? formatBytes(file.size_bytes) : null].filter(Boolean).join(" · ") || "Tersimpan di Drive"
     : "Memuat…";
   return (
-    <Box sx={{ width: "min(440px, 100%)", border: "1px solid #E0E3E7", borderRadius: "14px", overflow: "hidden", bgcolor: "#fff" }}>
+    <Box sx={{ width: "min(440px, 100%)", border: "1px solid #E3E3E3", borderRadius: "16px", overflow: "hidden", bgcolor: "#fff" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1.5 }}>
-        <Box sx={{ width: 40, height: 40, borderRadius: "10px", bgcolor: "#F0F4F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Box sx={{ width: 40, height: 40, borderRadius: "12px", bgcolor: "#F0F4F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon sx={{ fontSize: 24, color }} />
         </Box>
         <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography sx={{ fontSize: "0.875rem", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <Typography sx={{ fontSize: "0.875rem", fontWeight: 500, color: "#1F1F1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {file?.name ?? att.name}
           </Typography>
-          <Typography sx={{ fontSize: "0.75rem", color: "#5F6368" }}>{meta}</Typography>
+          <Typography sx={{ fontSize: "0.75rem", color: "#444746" }}>{meta}</Typography>
         </Box>
       </Box>
       {file && !gone && (
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, px: 1, pb: 1 }}>
-          <Button size="small" startIcon={<VisibilityOutlined />} onClick={() => onPreview(file.id)} sx={{ borderRadius: "9999px" }}>
+          <Button size="small" startIcon={<VisibilityOutlined />} onClick={() => onPreview(file.id)} sx={fileBtnSx}>
             Pratinjau
           </Button>
           {gid && (
-            <Button size="small" startIcon={<OpenInNewRounded />} href={driveViewUrl(gid)} target="_blank" rel="noopener noreferrer" sx={{ borderRadius: "9999px" }}>
+            <Button size="small" startIcon={<OpenInNewRounded />} href={driveViewUrl(gid)} target="_blank" rel="noopener noreferrer" sx={fileBtnSx}>
               Buka di Google Drive
             </Button>
           )}
           {gid && (
-            <Button size="small" startIcon={<DownloadRounded />} href={driveContentUrl(file.id, true)} sx={{ borderRadius: "9999px" }}>
+            <Button size="small" startIcon={<DownloadRounded />} href={driveContentUrl(file.id, true)} sx={fileBtnSx}>
               Download
             </Button>
           )}
@@ -153,38 +169,41 @@ export function AssistantMessage({
   const text = m.content?.trim() ?? "";
   const atts = m.attachments ?? [];
   return (
-    <Box sx={{ minWidth: 0 }}>
+    <Box sx={{ minWidth: 0, "&:hover .msg-time": { opacity: 1 } }}>
       {text && <ChatMarkdown text={text} />}
       {m.stopped && (
-        <Box sx={{ mt: text ? 1 : 0, display: "inline-flex", alignItems: "center", gap: 0.5, color: "#5F6368", fontSize: "0.8125rem" }}>
-          <StopCircleOutlined sx={{ fontSize: 16 }} />
+        <Box sx={{ mt: text ? 1.5 : 0, display: "inline-flex", alignItems: "center", gap: 0.75, color: "#444746", fontSize: "0.875rem" }}>
+          <StopCircleOutlined sx={{ fontSize: 18 }} />
           Dihentikan
         </Box>
       )}
       {m.error && (
-        <Box sx={{ mt: text ? 1.25 : 0, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }}>
-          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75, color: "#B3261E", minWidth: 0 }}>
-            <ErrorOutlineRounded sx={{ fontSize: 18, mt: 0.15 }} />
-            <Typography sx={{ fontSize: "0.875rem", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{m.error}</Typography>
-          </Box>
-          {onRetry && (
-            <Button size="small" variant="outlined" startIcon={<ReplayRounded />} onClick={onRetry} sx={{ borderRadius: "9999px", height: 30 }}>
-              Coba lagi
-            </Button>
-          )}
+        <Box sx={{ mt: text ? 1.5 : 0, display: "flex", alignItems: "flex-start", gap: 1, color: "#B3261E", minWidth: 0 }}>
+          <ErrorOutlineRounded sx={{ fontSize: 20, mt: 0.15 }} />
+          <Typography sx={{ fontSize: "1rem", lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{m.error}</Typography>
         </Box>
       )}
       {atts.length > 0 && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: text || m.error ? 1.5 : 0 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: text || m.error ? 2 : 0 }}>
           {atts.map((a) => (
             <FileCard key={a.file_id} att={a} file={files.get(a.file_id)} onPreview={onPreview} />
           ))}
         </Box>
       )}
-      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.5, mt: 0.75, ml: -0.5 }}>
-        <FoldedSteps steps={m.steps ?? undefined} durationMs={m.duration_ms ?? undefined} />
+      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.25, mt: 1, ml: -0.75 }}>
         {text && <CopyButton text={text} />}
-        <Typography suppressHydrationWarning sx={{ fontSize: "0.6875rem", color: "#9AA0A6", px: 0.5 }}>
+        {onRetry && (
+          <Button
+              size="small"
+              startIcon={<ReplayRounded sx={{ fontSize: "18px !important" }} />}
+              onClick={onRetry}
+              sx={{ borderRadius: "9999px", height: 32, px: 1.25, color: "#0B57D0", textTransform: "none", fontWeight: 500 }}
+            >
+              Coba lagi
+            </Button>
+        )}
+        <FoldedSteps steps={m.steps ?? undefined} durationMs={m.duration_ms ?? undefined} />
+        <Typography className="msg-time" suppressHydrationWarning sx={{ ...timeSx, mt: 0 }}>
           {formatDateTime(m.created_at)}
         </Typography>
       </Box>
@@ -204,7 +223,7 @@ export function LiveAnswer({ chat }: { chat: Chat }) {
     <Box sx={{ minWidth: 0 }}>
       <LiveSteps steps={steps} queued={queued && !chat.cancel_requested_at} startedAt={chat.started_at} />
       {text && (
-        <Box sx={{ mt: 1.5 }}>
+        <Box sx={{ mt: 2 }}>
           <ChatMarkdown text={text} />
         </Box>
       )}
@@ -242,9 +261,9 @@ export function PendingMessages({
           sx={{
             maxWidth: "min(85%, 600px)",
             border: "1px dashed #C4C7C5",
-            borderRadius: "20px 20px 6px 20px",
+            borderRadius: "24px 4px 24px 24px",
             px: 2,
-            py: 1.25,
+            py: 1.5,
             color: "#444746",
             ...textSx,
           }}
@@ -253,19 +272,18 @@ export function PendingMessages({
         </Box>
       ))}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
-        <Typography role="status" aria-live="polite" sx={{ display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.75rem", color: "#5F6368" }}>
+        <Typography role="status" aria-live="polite" sx={{ display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.75rem", color: "#444746" }}>
           <ScheduleRounded sx={{ fontSize: 14 }} />
           {status}
         </Typography>
         {!running && (
           <Button
             size="small"
-            variant="contained"
             disableElevation
             startIcon={<SendRounded sx={{ fontSize: "16px !important" }} />}
             disabled={sending}
             onClick={onSendNow}
-            sx={{ borderRadius: "9999px", height: 28 }}
+            sx={{ borderRadius: "9999px", height: 32, px: 1.75, bgcolor: "#D3E3FD", color: "#041E49", textTransform: "none", fontWeight: 500, "&:hover": { bgcolor: "#C2D7FA" } }}
           >
             Kirim sekarang
           </Button>
