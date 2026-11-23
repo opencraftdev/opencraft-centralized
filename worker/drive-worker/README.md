@@ -19,10 +19,26 @@ Chat UX (contract `docs/DRIVE.md` → "Chat tab for creating documents"):
   mapped to a short Indonesian line in `drive_files.progress` (Read pricelist → "Membaca pricelist…", Write `*.json` →
   "Menyiapkan data dokumen…", `doc_number.py` → "Mengambil/Mencatat nomor dokumen…", `render.tsx` → "Membuat PDF…",
   `render-ppt` → "Membuat slide PPTX…", `polish-deck` → "Membuat gambar slide…", else "Sedang bekerja…"; then
-  "Mengunggah ke Google Drive…"). At most one write per 2 s (latest wins); cleared (`null`) when the job ends
-  (ready / needs_input / failed / re-queued). An `error` event fails the job (`session_not_found` → new session with the
+  "Mengunggah ke Google Drive…"). Written with `run_steps`/`stream_text` (see below); cleared (`null`) when the job
+  ends. An `error` event fails the job (`session_not_found` → new session with the
   conversation replayed, as for an HTTP 404); a stream that ends without `result`/`error` fails the job ("not retried",
   so a run is never executed twice). The timeout aborts the connection, which stops the run in the gateway.
+- **Live answer, steps, stop** (contract `docs/DRIVE.md` → "Chat v2", migration 024): the gateway's `text {text}`
+  events are whole assistant text blocks (not token deltas; cc-gateway emits one per text content block), joined with a
+  blank line into `stream_text`, with any `RESULT:` line (or a trailing partial `RESULT…` fragment) cut off. Every time
+  the progress line changes, `{label, at}` is appended to `run_steps`; `progress` stays = newest label. `progress`,
+  `run_steps`, `stream_text` share one throttled writer (at most one write per 1.5 s, latest state wins, only while
+  `generating`). When the run ends the steps move into the assistant message (`steps`, `duration_ms`) and
+  `run_steps`, `stream_text`, `progress`, `cancel_requested_at` are nulled in the same update that writes the result
+  (ready, needs_input, failed, re-queued, stopped, stale reset, shutdown). **Stop**: during a run
+  `cancel_requested_at` is polled every 2 s; when set the worker aborts the SSE fetch and calls
+  `DELETE $GATEWAY_URL/v1/runs/{run_id}` (run_id from `init`), appends `{role:'assistant', text:<stream_text so far
+  or "">, stopped:true, steps, duration_ms, at}` and sets `ready` (row has `google_file_id`) or `needs_input`
+  (`agent_message` "Dihentikan."). Never `failed`. A claimed row that already has `cancel_requested_at` is finished as
+  stopped without calling the gateway. Logged as `job <id> stop requested` / `DELETE run … → HTTP 200` / `stopped by user`.
+- **Formatting**: the first prompt and the follow-up reminder tell the agent to write its reply and the needs_input
+  `question` in Markdown (Bahasa Indonesia; short paragraphs, numbered list for several questions, **bold** key
+  values, a table for item lists). The RESULT protocol is unchanged (single-line JSON; `\n` escapes inside `question`).
 - **Revisions**: a follow-up on a row that already has a Google file (it was `ready`) adds a revision note to the
   prompt: revise the same document (its `tmp/<flat>.json`), re-render, keep `doc_number` (no `doc_number.py next` /
   `record`) unless the user explicitly asks for a new document. The new file replaces the old Google file on the same
@@ -67,7 +83,7 @@ and caches them in memory until expiry. Google's `modifiedTime` from uploads/fol
 
 ```bash
 rsync -a worker.ts google.ts sync.ts package.json drive-worker.service opencraft:~/drive-worker/
-ssh opencraft 'cd ~/drive-worker && ~/.local/bin/bun install --production \
+ssh opencraft 'cd ~/drive-worker && ~/.bun/bin/bun install --production \
   && cp drive-worker.service ~/.config/systemd/user/ && systemctl --user daemon-reload \
   && systemctl --user enable drive-worker && systemctl --user restart drive-worker'
 ssh opencraft 'journalctl --user -u drive-worker -f'     # logs
