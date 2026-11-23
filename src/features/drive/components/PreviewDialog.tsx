@@ -18,21 +18,10 @@ import ErrorOutlineRounded from "@mui/icons-material/ErrorOutlineRounded";
 import HelpOutlineRounded from "@mui/icons-material/HelpOutlineRounded";
 import type { DriveFile } from "@/lib/drive/types";
 import { toastError } from "@/components/ui/Toast";
-import { getFileLinks, replyToJob, retryJob, DOC_TYPE_LABEL } from "../api";
+import { replyToJob, retryJob, DOC_TYPE_LABEL } from "../api";
+import { driveDownloadUrl, drivePreviewUrl, driveViewUrl } from "@/lib/drive/links";
 import { fileIcon, isBusy, StatusBadge } from "./DriveItems";
 import { formatBytes, formatDateTime } from "../format";
-
-type Links = { viewUrl: string | null; downloadUrl: string | null };
-
-function previewable(f: DriveFile): boolean {
-  const mime = f.mime_type ?? "";
-  return (
-    mime === "application/pdf" ||
-    mime.startsWith("image/") ||
-    mime.startsWith("text/") ||
-    f.name.toLowerCase().endsWith(".pdf")
-  );
-}
 
 function Center({ children }: { children: React.ReactNode }) {
   return (
@@ -63,29 +52,9 @@ export function PreviewDialog({
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const [links, setLinks] = useState<Links | null>(null);
-  const [loadingLinks, setLoadingLinks] = useState(false);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
-
-  const ready = file?.status === "ready";
-  const linkKey = file && ready ? `${file.id}:${file.storage_path ?? ""}:${file.legacy_document_id ?? ""}` : null;
-
-  useEffect(() => {
-    setLinks(null);
-    if (!linkKey || !file) return;
-    let cancelled = false;
-    setLoadingLinks(true);
-    getFileLinks(file.id)
-      .then((l) => !cancelled && setLinks(l))
-      .catch((e) => !cancelled && toastError((e as Error).message))
-      .finally(() => !cancelled && setLoadingLinks(false));
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linkKey]);
 
   useEffect(() => {
     setReply("");
@@ -99,6 +68,7 @@ export function PreviewDialog({
   const { Icon, color } = fileIcon(file);
   const generated = file.source === "generated";
   const messages = file.messages ?? [];
+  const gid = file.status === "ready" ? file.google_file_id : null;
 
   const sendReply = async () => {
     if (!reply.trim() || sending) return;
@@ -158,18 +128,14 @@ export function PreviewDialog({
         )}
       </Center>
     );
-  } else if (loadingLinks) {
-    body = (
-      <Center>
-        <CircularProgress size={32} />
-      </Center>
-    );
-  } else if (links?.viewUrl && previewable(file)) {
+  } else if (gid) {
     body = (
       <Box
         component="iframe"
-        src={links.viewUrl}
+        key={gid}
+        src={drivePreviewUrl(gid)}
         title={file.name}
+        allow="autoplay"
         sx={{ width: "100%", height: "100%", border: "none", bgcolor: "#fff", display: "block" }}
       />
     );
@@ -177,14 +143,7 @@ export function PreviewDialog({
     body = (
       <Center>
         <Icon sx={{ fontSize: 64, color }} />
-        <Typography sx={{ fontSize: "1rem", fontWeight: 500 }}>
-          {links?.viewUrl ? "Pratinjau tidak tersedia untuk file ini" : "File belum tersedia"}
-        </Typography>
-        {links?.downloadUrl && (
-          <Button variant="contained" startIcon={<DownloadRounded />} href={links.downloadUrl} sx={{ borderRadius: "9999px" }}>
-            Download
-          </Button>
-        )}
+        <Typography sx={{ fontSize: "1rem", fontWeight: 500 }}>File belum tersedia</Typography>
       </Center>
     );
   }
@@ -205,19 +164,29 @@ export function PreviewDialog({
             {file.name}
           </Typography>
           <StatusBadge file={file} />
-          {links?.viewUrl && (
-            <Tooltip title="Buka di tab baru">
-              <IconButton component="a" href={links.viewUrl} target="_blank" rel="noopener noreferrer">
-                <OpenInNewRounded />
-              </IconButton>
-            </Tooltip>
-          )}
-          {links?.downloadUrl && (
-            <Tooltip title="Download">
-              <IconButton component="a" href={links.downloadUrl}>
-                <DownloadRounded />
-              </IconButton>
-            </Tooltip>
+          {gid && (
+            <>
+              <Button
+                size="small"
+                startIcon={<OpenInNewRounded />}
+                href={driveViewUrl(gid)}
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ borderRadius: "9999px", flexShrink: 0 }}
+              >
+                Buka di Google Drive
+              </Button>
+              <Button
+                size="small"
+                variant="contained"
+                disableElevation
+                startIcon={<DownloadRounded />}
+                href={driveDownloadUrl(gid)}
+                sx={{ borderRadius: "9999px", flexShrink: 0 }}
+              >
+                Download
+              </Button>
+            </>
           )}
           <Tooltip title="Tutup">
             <IconButton onClick={onClose}>
