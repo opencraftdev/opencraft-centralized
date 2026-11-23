@@ -57,7 +57,7 @@ import {
   updateItem,
   uploadFile,
 } from "../api";
-import { driveDownloadUrl } from "@/lib/drive/links";
+import { driveContentUrl } from "@/lib/drive/links";
 import { FileGrid, FolderGrid, ItemList, isBusy, type DriveItem, type ItemHandlers, type MenuTarget } from "./DriveItems";
 import { ConfirmDialog, GenerateDialog, MoveDialog, NameDialog } from "./DriveDialogs";
 import { PreviewDialog } from "./PreviewDialog";
@@ -278,7 +278,7 @@ export function Drive({
   const download = (file: DriveFile) => {
     if (!file.google_file_id) return toastError("File belum tersedia untuk diunduh");
     const a = document.createElement("a");
-    a.href = driveDownloadUrl(file.google_file_id);
+    a.href = driveContentUrl(file.id, true);
     a.rel = "noopener";
     document.body.appendChild(a);
     a.click();

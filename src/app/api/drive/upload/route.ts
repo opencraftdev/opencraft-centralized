@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireAllowedUser } from "@/lib/auth/allowed";
 import { createResumableUpload, ensureFolder } from "@/lib/google/drive";
 
 export const runtime = "nodejs";
@@ -9,11 +9,8 @@ export const runtime = "nodejs";
 // The browser PUTs the file to uploadUrl, reads the Google file id from the response and inserts
 // the drive_files row (see src/features/drive/api.ts uploadFile).
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  const auth = await requireAllowedUser();
+  if (auth.error) return auth.error;
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const name = typeof body?.name === "string" ? body.name.trim() : "";

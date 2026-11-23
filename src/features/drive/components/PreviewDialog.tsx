@@ -19,9 +19,22 @@ import HelpOutlineRounded from "@mui/icons-material/HelpOutlineRounded";
 import type { DriveFile } from "@/lib/drive/types";
 import { toastError } from "@/components/ui/Toast";
 import { replyToJob, retryJob, DOC_TYPE_LABEL } from "../api";
-import { driveDownloadUrl, drivePreviewUrl, driveViewUrl } from "@/lib/drive/links";
+import { driveContentUrl, driveViewUrl } from "@/lib/drive/links";
 import { fileIcon, isBusy, StatusBadge } from "./DriveItems";
 import { formatBytes, formatDateTime } from "../format";
+
+// What the preview iframe can show (via /api/drive/files/:id/content): browser-native types, plus
+// Google Docs/Sheets/Slides and Office files, which the server turns into PDF.
+const OFFICE = /(officedocument|msword|ms-excel|ms-powerpoint)/;
+function canPreview(mime: string | null, name: string) {
+  const m = mime ?? "";
+  return (
+    /^(application\/pdf|image\/|video\/|audio\/|text\/(plain|csv))/.test(m) ||
+    (m.startsWith("application/vnd.google-apps.") && !m.endsWith(".folder") && !m.endsWith(".shortcut")) ||
+    OFFICE.test(m) ||
+    /\.pdf$/i.test(name)
+  );
+}
 
 function Center({ children }: { children: React.ReactNode }) {
   return (
@@ -54,11 +67,13 @@ export function PreviewDialog({
 }) {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [frameLoading, setFrameLoading] = useState(true);
   const chatEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setReply("");
-  }, [file?.id]);
+    setFrameLoading(true);
+  }, [file?.id, file?.google_file_id]);
 
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ block: "end" });
@@ -128,16 +143,34 @@ export function PreviewDialog({
         )}
       </Center>
     );
+  } else if (gid && canPreview(file.mime_type, file.name)) {
+    body = (
+      <Box sx={{ position: "relative", width: "100%", height: "100%" }}>
+        {frameLoading && (
+          <Box sx={{ position: "absolute", inset: 0 }}>
+            <Center>
+              <CircularProgress size={32} sx={{ color: "#0B57D0" }} />
+              <Typography sx={{ fontSize: "0.8125rem" }}>Memuat pratinjau…</Typography>
+            </Center>
+          </Box>
+        )}
+        <Box
+          component="iframe"
+          key={gid}
+          src={driveContentUrl(file.id)}
+          title={file.name}
+          onLoad={() => setFrameLoading(false)}
+          sx={{ position: "relative", width: "100%", height: "100%", border: "none", bgcolor: "transparent", display: "block" }}
+        />
+      </Box>
+    );
   } else if (gid) {
     body = (
-      <Box
-        component="iframe"
-        key={gid}
-        src={drivePreviewUrl(gid)}
-        title={file.name}
-        allow="autoplay"
-        sx={{ width: "100%", height: "100%", border: "none", bgcolor: "#fff", display: "block" }}
-      />
+      <Center>
+        <Icon sx={{ fontSize: 64, color }} />
+        <Typography sx={{ fontSize: "1rem", fontWeight: 500 }}>Pratinjau tidak tersedia untuk jenis file ini</Typography>
+        <Typography sx={{ fontSize: "0.8125rem" }}>Unduh file atau buka di Google Drive.</Typography>
+      </Center>
     );
   } else {
     body = (
@@ -181,7 +214,7 @@ export function PreviewDialog({
                 variant="contained"
                 disableElevation
                 startIcon={<DownloadRounded />}
-                href={driveDownloadUrl(gid)}
+                href={driveContentUrl(file.id, true)}
                 sx={{ borderRadius: "9999px", flexShrink: 0 }}
               >
                 Download

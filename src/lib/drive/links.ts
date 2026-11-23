@@ -1,7 +1,8 @@
-// Google Drive links for a drive_files.google_file_id (docs/DRIVE.md → "Preview/download").
-// The team's browsers are signed in to Google as the Drive account, so these private links just work.
+// Links for a drive_files row (docs/DRIVE.md → "Preview without a Google session").
+// Preview + download go through our server (no Google session needed in the browser);
+// "Buka di Google Drive" still opens drive.google.com.
 
-export const drivePreviewUrl = (id: string) => `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`;
-export const driveViewUrl = (id: string) => `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`;
-export const driveDownloadUrl = (id: string) =>
-  `https://drive.google.com/uc?id=${encodeURIComponent(id)}&export=download`;
+export const driveContentUrl = (fileId: string, download = false) =>
+  `/api/drive/files/${encodeURIComponent(fileId)}/content${download ? "?download=1" : ""}`;
+export const driveViewUrl = (googleFileId: string) =>
+  `https://drive.google.com/file/d/${encodeURIComponent(googleFileId)}/view`;

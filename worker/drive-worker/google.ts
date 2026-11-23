@@ -1,7 +1,8 @@
 // Google Drive v3 helpers for the drive-worker (plain fetch, no googleapis). Same mirror rules as the
 // web app (src/lib/google/drive.ts, docs/DRIVE.md → "Storage: Google Drive"): credentials in
 // public.google_drive_auth (service role only), dashboard root = root_folder_id, drive_folders get a
-// Google folder lazily (drive_folders.google_folder_id).
+// Google folder lazily (drive_folders.google_folder_id). Google's modifiedTime is stored as
+// google_modified_at so the two-way sync (sync.ts) sees our own changes as no-ops.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const API = "https://www.googleapis.com/drive/v3";
@@ -78,20 +79,22 @@ export function createGoogleDrive(db: SupabaseClient) {
     if (!f) throw new Error(`drive_folders ${folderId} not found`);
     if (f.google_folder_id) return f.google_folder_id as string;
     const parent = await ensureFolder(f.parent_id as string | null, depth + 1);
-    const res = await gfetch(`${API}/files?fields=id`, {
+    const res = await gfetch(`${API}/files?fields=id,modifiedTime`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: f.name, mimeType: FOLDER_MIME, parents: [parent] }),
     });
     if (!res.ok) await fail(res, "create folder");
-    const created = ((await res.json()) as { id: string }).id;
+    const { id: created, modifiedTime } = (await res.json()) as { id: string; modifiedTime?: string };
     const { data: won, error: upErr } = await db
       .from("drive_folders")
-      .update({ google_folder_id: created })
+      .update({ google_folder_id: created, google_modified_at: modifiedTime ?? null })
       .eq("id", folderId)
       .is("google_folder_id", null)
       .select("google_folder_id");
     if (upErr || !won?.length) {
+      const { data: cur } = await db.from("drive_folders").select("google_folder_id").eq("id", folderId).maybeSingle();
+      if (cur?.google_folder_id === created) return created; // the sync adopted our new folder already
       await deleteFile(created).catch(() => {});
       if (upErr) throw new Error(`drive_folders: ${upErr.message}`);
       return ensureFolder(folderId, depth + 1); // the web app created it first
@@ -105,7 +108,7 @@ export function createGoogleDrive(db: SupabaseClient) {
     name: string;
     mimeType: string;
     bytes: Uint8Array;
-  }): Promise<{ id: string; size: number }> {
+  }): Promise<{ id: string; size: number; modifiedTime: string | null }> {
     const parent = await ensureFolder(args.folderId);
     const boundary = `drive-worker-${crypto.randomUUID()}`;
     const meta = JSON.stringify({ name: args.name, mimeType: args.mimeType, parents: [parent] });
@@ -117,14 +120,14 @@ export function createGoogleDrive(db: SupabaseClient) {
       Buffer.from(args.bytes),
       Buffer.from(`\r\n--${boundary}--\r\n`),
     ]);
-    const res = await gfetch(`${UPLOAD_API}/files?uploadType=multipart&fields=id,size`, {
+    const res = await gfetch(`${UPLOAD_API}/files?uploadType=multipart&fields=id,size,modifiedTime`, {
       method: "POST",
       headers: { "content-type": `multipart/related; boundary=${boundary}` },
       body,
     });
     if (!res.ok) await fail(res, "upload");
-    const j = (await res.json()) as { id: string; size?: string };
-    return { id: j.id, size: j.size != null ? Number(j.size) : args.bytes.length };
+    const j = (await res.json()) as { id: string; size?: string; modifiedTime?: string };
+    return { id: j.id, size: j.size != null ? Number(j.size) : args.bytes.length, modifiedTime: j.modifiedTime ?? null };
   }
 
   return { uploadFile, deleteFile, ensureFolder, rootFolderId, accessToken: token };
