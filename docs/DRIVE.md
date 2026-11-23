@@ -232,3 +232,39 @@ thread, `status`, `agent_message`, and new column `progress` (live step text whi
 - Worker streams the gateway run (`/v1/runs` with `stream:true`, SSE events `tool`/`text`/`result`) and writes a
   short Indonesian `progress` line (e.g. "Membaca pricelist…", "Menyiapkan data…", "Membuat PDF…") at most every
   ~2 s; clears it when the run ends.
+
+## Chat v2 (live answer, steps, stop) — migration 024
+
+Modelled on trina-ax's chat (`web/src/components/chat/{Messages,Steps,Composer,QueuedMessages}.tsx`), cut to what
+this app needs.
+
+**Data** (`drive_files`, all written by the worker only, except `cancel_requested_at`):
+- `run_steps jsonb` — steps of the run in progress, `[{label, at}]` (the same Indonesian lines as `progress`, appended
+  when the line changes; written at most every ~1.5 s together with `stream_text`). `progress` stays = newest label.
+- `stream_text text` — the reply text streamed so far from the gateway's SSE `text` events, with any `RESULT:` line
+  (complete or partial) cut off. Throttled with `run_steps`.
+- `cancel_requested_at timestamptz` — set by the UI "Stop" while `queued`/`generating`.
+- Assistant messages in `messages` get optional fields: `steps: [{label, at}]` (moved from `run_steps` when the run
+  ends), `duration_ms`, `stopped: true` (the run was stopped by the user).
+- When a run ends (ready / needs_input / failed / stopped / re-queued) the worker sets `run_steps`, `stream_text`,
+  `progress`, `cancel_requested_at` to `null` in the same update that writes the result.
+
+**Stop**: the worker checks `cancel_requested_at` every ~2 s during a run; if set, it aborts the SSE connection (the
+gateway kills the run when its client disconnects) and also calls `DELETE /v1/runs/{run_id}`, appends
+`{role:'assistant', text:<stream_text so far or "">, stopped:true, steps, at}` and sets `status` back to `ready` if the
+row has a `google_file_id`, else `needs_input` (`agent_message` = "Dihentikan."). A `queued` row with
+`cancel_requested_at` set is not run; the UI stops a still-`queued` row itself the same way (no worker involved).
+
+**Formatting**: the agent writes its reply and its `needs_input` question in Markdown (short paragraphs, a numbered
+list when asking several things, **bold** for key values, a table for item lists). The UI renders it with
+`react-markdown` + `remark-gfm`.
+
+**UI** (`DriveChat.tsx`):
+- Answers are plain Markdown text in the column (no bubble); user messages stay bubbles. Under a finished answer:
+  a folded "N langkah · 34 dtk" (click opens the step list) and a copy button.
+- While running: the live steps (last 3, newest with a spinner) + elapsed time, then the streamed text as Markdown;
+  "Menunggu giliran…" while `queued`.
+- Composer: auto-growing textarea, Enter sends, Shift+Enter new line (IME-safe), draft kept per chat in
+  localStorage. While running: a Stop button; text sent meanwhile waits in a browser-side queue (shown above the box,
+  editable/removable) and is sent when the run ends ready/needs_input (after failed/stopped it waits with "Kirim
+  sekarang").
