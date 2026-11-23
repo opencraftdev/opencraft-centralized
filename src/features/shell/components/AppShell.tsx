@@ -22,6 +22,7 @@ export function AppShell({
   const startLoading = useCallback(() => setCount((c) => c + 1), []);
   const stopLoading = useCallback(() => setCount((c) => Math.max(0, c - 1)), []);
   const isLoading = count > 0;
+  const [navOpen, setNavOpen] = useState(false);
 
   return (
     <LoadingContext.Provider value={{ isLoading, startLoading, stopLoading }}>
@@ -30,7 +31,7 @@ export function AppShell({
           scrollbar; tall pages scroll inside <main> only. */}
       <Box sx={{ height: "100dvh", overflow: "hidden", bgcolor: "background.default" }}>
         {/* TopBar stays crisp and carries the loading bar */}
-        <TopBar userEmail={userEmail} loading={isLoading} />
+        <TopBar userEmail={userEmail} loading={isLoading} onMenu={() => setNavOpen((o) => !o)} />
 
         {/* Everything else (sidebar + page) dims to 30% while loading */}
         <Box
@@ -41,11 +42,11 @@ export function AppShell({
             transition: "opacity 180ms ease",
           }}
         >
-          <Sidebar userEmail={userEmail} />
+          <Sidebar userEmail={userEmail} mobileOpen={navOpen} onMobileClose={() => setNavOpen(false)} />
           <Box
             component="main"
             sx={{
-              ml: `${SIDEBAR_WIDTH}px`,
+              ml: { xs: 0, md: `${SIDEBAR_WIDTH}px` },
               mt: `${TOPBAR_HEIGHT}px`,
               height: `calc(100dvh - ${TOPBAR_HEIGHT}px)`,
               minHeight: 0,

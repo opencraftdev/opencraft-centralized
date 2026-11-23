@@ -21,12 +21,18 @@ const POLL_MS = Number(process.env.POLL_MS ?? 5000);
 const RUN_TIMEOUT_MS = Number(process.env.RUN_TIMEOUT_MS ?? 960_000); // gateway run_timeout_secs=900 + slack
 const STALE_MINUTES = Number(process.env.STALE_MINUTES ?? 20);
 const SYNC_MS = Number(process.env.SYNC_MS ?? 30_000); // Google → dashboard sync interval; 0 = off
+const SYNC_REQUEST_POLL_MS = 2500; // how often drive_sync_state.sync_requested_at ("Sinkronkan sekarang") is checked
 
 const db = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const gdrive = createGoogleDrive(db);
-const gsync = createDriveSync({ db, accessToken: gdrive.accessToken, log: (...a) => log(...a) });
+const gsync = createDriveSync({
+  db,
+  accessToken: gdrive.accessToken,
+  ensureFolder: gdrive.ensureFolder,
+  log: (...a) => log(...a),
+});
 
 type Msg = { role: "user" | "assistant"; text: string; at: string };
 type Row = {
@@ -39,9 +45,11 @@ type Row = {
   messages: Msg[] | null;
   gateway_session_id: string | null;
   cost_usd: number | string | null;
+  doc_number: string | null;
   metadata: Record<string, unknown> | null;
 };
 type RunResp = { run_id?: string; text?: string; session_id?: string; cost_usd?: number; is_error?: boolean };
+type Req = { prompt: string; session_id?: string };
 type Result =
   | { status: "ready"; path: string; doc_number?: string; title?: string }
   | { status: "needs_input"; question: string };
@@ -69,19 +77,133 @@ RESULT: {"status":"needs_input","question":"<pertanyaan untuk user, Bahasa Indon
 
 const REMINDER = `\n\n(Reminder: still non-interactive from the web UI. Do not guess missing data or prices. End with exactly one line: RESULT: {"status":"ready","path":...,"doc_number":...,"title":...} or RESULT: {"status":"needs_input","question":"..."})`;
 
-function buildPrompt(row: Row): { prompt: string; session_id?: string } {
+// A follow-up on a row that already produced a document (it has a Google file): the user is revising
+// that document in the chat (docs/DRIVE.md → "Chat tab"). Same document, same number, unless asked otherwise.
+function revisionNote(row: Row): string {
+  if (!row.google_file_id) return "";
+  const src = typeof row.metadata?.source_path === "string" ? (row.metadata.source_path as string) : null;
+  const flat = src ? path.basename(src, path.extname(src)) : null;
+  const num = row.doc_number;
+  return (
+    `\n\n(REVISION of the document already delivered in this conversation: "${row.name}"` +
+    (num ? `, document number ${num}` : "") +
+    (src ? `, file ${src}` : "") +
+    `.) Apply the change above to THAT SAME document: update its data` +
+    (flat ? ` (tmp/${flat}.json)` : "") +
+    ` and re-render it (overwriting the same output path is fine).` +
+    (num
+      ? ` KEEP document number ${num}: do NOT run \`doc_number.py next\` and do NOT run \`doc_number.py record\` again` +
+        ` (it is already recorded). Only if the user explicitly asks for a NEW/separate document may you take a new number.` +
+        ` The RESULT line must carry "doc_number":"${num}" (or the new number in that explicit case).`
+      : ` Do not create a separate document unless the user explicitly asks for one.`) +
+    ` If the change needs data that is missing or a price that is not in the pricelist, ask via needs_input instead.`
+  );
+}
+
+function buildPrompt(row: Row): Req {
   const msgs = row.messages ?? [];
   const userMsgs = msgs.filter((m) => m.role === "user");
   const last = userMsgs.at(-1)?.text ?? row.prompt ?? "";
-  if (row.gateway_session_id) return { prompt: last + REMINDER, session_id: row.gateway_session_id };
+  const rev = revisionNote(row);
+  if (row.gateway_session_id) return { prompt: last + rev + REMINDER, session_id: row.gateway_session_id };
   const type = DOC_LABEL[row.doc_type ?? "other"] ?? row.doc_type;
   let body = `Buat dokumen: ${type}.\n\nPermintaan user:\n${row.prompt ?? last}`;
   if (msgs.length > 1) {
     // No session to resume (e.g. lost) → replay the conversation so far.
     body += `\n\nPercakapan sejauh ini:\n` + msgs.map((m) => `${m.role === "user" ? "User" : "Agent"}: ${m.text}`).join("\n");
-    body += `\n\nLanjutkan berdasarkan pesan User terakhir.`;
+    body += `\n\nLanjutkan berdasarkan pesan User terakhir.` + rev;
   }
   return { prompt: body + "\n" + PROTOCOL };
+}
+
+// ---- live progress (drive_files.progress) from the gateway's SSE tool events ----
+const PROGRESS_MS = 2000;
+
+// The gateway sends `input` as a one-line summary string (command / file_path / path / pattern …, truncated to
+// 60 chars, e.g. "cd /home/opencraft/document-agent && python3 scripts/doc_num"), so match loosely.
+// An object input (full tool input) is handled too.
+function progressFor(name: string, input: unknown): string | null {
+  const inp = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const str = (k: string) => (typeof inp[k] === "string" ? (inp[k] as string) : "");
+  const raw = typeof input === "string" ? input : "";
+  const file = (raw || str("file_path") || str("path") || str("notebook_path")).toLowerCase();
+  const cmd = (raw || str("command")).toLowerCase();
+  switch (name) {
+    case "TodoWrite":
+    case "ToolSearch":
+      return null; // bookkeeping: keep the previous line
+    case "Read":
+      if (file.includes("pricelist")) return "Membaca pricelist…";
+      if (file.includes("doc-numbers")) return "Memeriksa nomor dokumen…";
+      if (file.includes("brand")) return "Membaca data brand…";
+      if (file.includes("claude.md") || file.includes("readme")) return "Membaca panduan…";
+      if (file.includes("template") || file.includes("sample") || file.includes("types.ts")) return "Mempelajari template dokumen…";
+      if (file.endsWith(".pdf") || file.endsWith(".png") || file.endsWith(".jpg")) return "Memeriksa hasil dokumen…";
+      if (file.includes("/tmp/") || file.startsWith("tmp/")) return "Membaca data dokumen…";
+      return "Membaca file…";
+    case "Write":
+    case "Edit":
+    case "MultiEdit":
+      if (file.includes(".json") || file.includes("tmp/")) return "Menyiapkan data dokumen…";
+      return "Menyiapkan dokumen…";
+    case "Bash":
+      if (/doc_number\.py\s+record/.test(cmd)) return "Mencatat nomor dokumen…";
+      if (cmd.includes("doc_num")) return "Mengambil nomor dokumen…";
+      if (cmd.includes("polish")) return "Membuat gambar slide…";
+      if (cmd.includes("render-ppt") || cmd.includes("render-pp")) return "Membuat slide PPTX…";
+      if (cmd.includes("render")) return "Membuat PDF…";
+      if (/pdftoppm|pdftotext|pdfinfo|pdfimages/.test(cmd)) return "Memeriksa hasil dokumen…";
+      if (cmd.includes("pricelist")) return "Membaca pricelist…";
+      if (/samples?\/|templates?\//.test(cmd)) return "Mempelajari template dokumen…";
+      if (cmd.includes("tmp/") && cmd.includes(".json")) return "Menyiapkan data dokumen…";
+      return "Sedang bekerja…";
+    case "Glob":
+    case "Grep":
+      return "Mencari data…";
+    default:
+      return "Sedang bekerja…";
+  }
+}
+
+// Throttled writer: at most one DB write per PROGRESS_MS, the latest line wins, writes are serialized.
+function progressWriter(id: string) {
+  let lastText: string | null | undefined;
+  let lastAt = 0;
+  let pending: string | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let chain: Promise<unknown> = Promise.resolve();
+  let closed = false;
+  const write = (text: string) => {
+    lastText = text;
+    lastAt = Date.now();
+    chain = chain.then(() =>
+      db.from("drive_files").update({ progress: text }).eq("id", id).eq("status", "generating")
+        .then(({ error }) => error && log(`job ${id} progress: ${error.message}`)),
+    );
+  };
+  return {
+    set(text: string | null) {
+      if (closed || !text) return;
+      pending = text;
+      if (timer) return;
+      const wait = lastAt + PROGRESS_MS - Date.now();
+      const flush = () => {
+        timer = null;
+        if (closed || pending == null) return;
+        const t = pending;
+        pending = null;
+        if (t !== lastText) write(t);
+      };
+      if (wait <= 0) flush();
+      else timer = setTimeout(flush, wait);
+    },
+    // Stop writing and wait for in-flight writes, so the final update (progress: null) lands last.
+    async close() {
+      closed = true;
+      if (timer) clearTimeout(timer);
+      await chain.catch(() => {});
+    },
+  };
 }
 
 function parseResult(text: string): Result | null {
@@ -126,22 +248,88 @@ function safeFile(p: string): string {
 
 class RetryLater extends Error {}
 
-async function callGateway(body: { prompt: string; session_id?: string }): Promise<RunResp> {
+const httpError = (status: number, msg: string) => Object.assign(new Error(msg), { status });
+
+// POST /v1/runs with stream:true (cc-telegram SPEC.md → "API gateway"). SSE events: init {run_id, session_id},
+// tool {name, input}, text {text}, result {run_id, text, session_id, cost_usd, …}, error {type, message}.
+// Errors before the run starts (401/404 session/429/…) come back as plain HTTP errors. Aborting (timeout)
+// disconnects, which stops the run in the gateway. A stream that ends without result/error is an error
+// (never re-run: the agent may already have taken a number / written files).
+async function callGateway(body: Req, onTool: (name: string, input: unknown) => void): Promise<RunResp> {
   const res = await fetch(`${GATEWAY_URL}/v1/runs`, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${GATEWAY_KEY}` },
-    body: JSON.stringify({ ...body, stream: false }),
+    headers: { "content-type": "application/json", accept: "text/event-stream", authorization: `Bearer ${GATEWAY_KEY}` },
+    body: JSON.stringify({ ...body, stream: true }),
     signal: AbortSignal.timeout(RUN_TIMEOUT_MS),
     timeout: false, // Bun: disable the default fetch timeout; AbortSignal handles it
   } as RequestInit);
-  const text = await res.text();
-  if (res.status === 429) throw new RetryLater("gateway busy (429)");
-  if (!res.ok) {
-    const err: Error & { status?: number } = new Error(`gateway HTTP ${res.status}: ${text.slice(0, 500)}`);
-    err.status = res.status;
-    throw err;
+  if (res.status === 429) {
+    await res.body?.cancel().catch(() => {});
+    throw new RetryLater("gateway busy (429)");
   }
-  return JSON.parse(text) as RunResp;
+  if (!res.ok) throw httpError(res.status, `gateway HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`);
+  if (!res.body) throw new Error("gateway returned no stream body");
+
+  let init: { run_id?: string; session_id?: string } = {};
+  const texts: string[] = [];
+  const decoder = new TextDecoder();
+  let buf = "";
+  const handle = (event: string, data: string): RunResp | null => {
+    let v: Record<string, unknown> = {};
+    try {
+      v = JSON.parse(data);
+    } catch {
+      return null;
+    }
+    if (event === "init") init = v as typeof init;
+    else if (event === "tool") onTool(String(v.name ?? ""), v.input);
+    else if (event === "text" && typeof v.text === "string") texts.push(v.text);
+    else if (event === "result") {
+      const r = v as RunResp;
+      return { ...r, run_id: r.run_id ?? init.run_id, session_id: r.session_id ?? init.session_id, text: r.text ?? texts.join("\n") };
+    } else if (event === "error") {
+      const type = String(v.type ?? "");
+      const msg = `gateway run error (${type || "unknown"}): ${String(v.message ?? "").slice(0, 500)}`;
+      if (type === "session_not_found") throw httpError(404, msg);
+      if (type === "rate_limit_error") throw new RetryLater(msg);
+      throw Object.assign(new Error(msg), { session_id: init.session_id, run_id: init.run_id });
+    }
+    return null;
+  };
+  const reader = res.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (value) buf += decoder.decode(value, { stream: true });
+      buf = buf.replace(/\r\n?/g, "\n");
+      let sep: number;
+      while ((sep = buf.indexOf("\n\n")) >= 0) {
+        const block = buf.slice(0, sep);
+        buf = buf.slice(sep + 2);
+        let event = "message";
+        const data: string[] = [];
+        for (const line of block.split("\n")) {
+          if (!line || line.startsWith(":")) continue; // keep-alive comment
+          const i = line.indexOf(":");
+          const field = i < 0 ? line : line.slice(0, i);
+          const val = i < 0 ? "" : line.slice(i + 1).replace(/^ /, "");
+          if (field === "event") event = val;
+          else if (field === "data") data.push(val);
+        }
+        if (data.length) {
+          const r = handle(event, data.join("\n"));
+          if (r) return r;
+        }
+      }
+      if (done) break;
+    }
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+  throw Object.assign(new Error("gateway stream ended without a result (connection lost?); not retried"), {
+    session_id: init.session_id,
+    run_id: init.run_id,
+  });
 }
 
 async function update(id: string, patch: Record<string, unknown>) {
@@ -157,29 +345,40 @@ async function processJob(row: Row) {
 
   let run: RunResp;
   let req = buildPrompt(row);
+  const progress = progressWriter(row.id);
+  const onTool = (name: string, input: unknown) => {
+    const line = progressFor(name, input);
+    log(`job ${row.id} tool ${name}: ${typeof input === "string" ? input : JSON.stringify(input)?.slice(0, 120)} → ${line ?? "-"}`);
+    progress.set(line);
+  };
+  progress.set(row.google_file_id ? "Memulai revisi…" : "Memulai…");
   try {
     try {
-      run = await callGateway(req);
+      run = await callGateway(req, onTool);
     } catch (e) {
       // Session gone (gateway reset / other key) → start fresh with the full conversation replayed.
+      // (404 = the gateway refused the session before running anything, so this is not a double run.)
       if ((e as { status?: number }).status === 404 && req.session_id) {
         log(`job ${row.id} session ${req.session_id} not found, starting a new session`);
         req = buildPrompt({ ...row, gateway_session_id: null });
-        run = await callGateway(req);
+        run = await callGateway(req, onTool);
       } else throw e;
     }
   } catch (e) {
+    await progress.close();
     if (e instanceof RetryLater) {
       log(`job ${row.id} ${e.message}; re-queuing`);
-      await update(row.id, { status: "queued", started_at: null });
+      await update(row.id, { status: "queued", started_at: null, progress: null });
       await sleep(30_000);
       return;
     }
-    const msg = (e as Error).name === "TimeoutError" ? `timeout after ${RUN_TIMEOUT_MS / 1000}s` : (e as Error).message;
-    log(`job ${row.id} failed: ${msg}`);
-    await update(row.id, { status: "failed", error_msg: msg, finished_at: now() });
+    const name = (e as Error).name;
+    const msg = name === "TimeoutError" || name === "AbortError" ? `timeout after ${RUN_TIMEOUT_MS / 1000}s` : (e as Error).message;
+    log(`job ${row.id} failed after ${((Date.now() - t0) / 1000).toFixed(0)}s: ${msg}`);
+    await update(row.id, { status: "failed", error_msg: msg, finished_at: now(), progress: null });
     return;
   }
+  await progress.close();
 
   const text = run.text ?? "";
   const base = {
@@ -187,6 +386,7 @@ async function processJob(row: Row) {
     run_id: run.run_id ?? null,
     cost_usd: +(prevCost + (run.cost_usd ?? 0)).toFixed(6),
     finished_at: now(),
+    progress: null,
   };
   const secs = ((Date.now() - t0) / 1000).toFixed(0);
   const result = run.is_error ? null : parseResult(text);
@@ -203,6 +403,7 @@ async function processJob(row: Row) {
       const name = path.basename(abs);
       const mime = MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
       const bytes = fs.readFileSync(abs);
+      await update(row.id, { progress: "Mengunggah ke Google Drive…" }).catch(() => {});
       const up = await gdrive.uploadFile({ folderId: row.folder_id, name, mimeType: mime, bytes });
       const summary = stripResult(text) || `Dokumen siap: ${name}`;
       messages.push({ role: "assistant", text: summary, at: now() });
@@ -214,7 +415,7 @@ async function processJob(row: Row) {
         google_modified_at: up.modifiedTime,
         mime_type: mime,
         size_bytes: up.size,
-        doc_number: result.doc_number ?? null,
+        doc_number: result.doc_number ?? row.doc_number ?? null, // a revision keeps its number
         agent_message: summary,
         messages,
         error_msg: null,
@@ -235,7 +436,7 @@ async function processJob(row: Row) {
           .deleteFile(row.google_file_id)
           .catch((e) => log(`job ${row.id} old google file ${row.google_file_id} not deleted: ${e.message}`));
       }
-      log(`job ${row.id} ready google=${up.id} ${name} (${up.size} B) after ${secs}s cost=$${run.cost_usd}`);
+      log(`job ${row.id} ready google=${up.id} ${name} doc=${ready.doc_number} (${up.size} B) after ${secs}s cost=$${run.cost_usd}${row.google_file_id ? ` (revision, replaced ${row.google_file_id})` : ""}`);
       return;
     }
     throw new Error(run.is_error ? `agent run error: ${text.slice(0, 500)}` : "agent reply had no valid RESULT line");
@@ -250,7 +451,7 @@ async function resetStale() {
   const cutoff = new Date(Date.now() - STALE_MINUTES * 60_000).toISOString();
   const { data, error } = await db
     .from("drive_files")
-    .update({ status: "failed", error_msg: `worker: stuck in generating > ${STALE_MINUTES} min`, finished_at: now() })
+    .update({ status: "failed", error_msg: `worker: stuck in generating > ${STALE_MINUTES} min`, finished_at: now(), progress: null })
     .eq("status", "generating")
     .lt("started_at", cutoff)
     .select("id");
@@ -267,7 +468,7 @@ for (const sig of ["SIGTERM", "SIGINT"] as const)
     log(`${sig} received`);
     if (currentJob) {
       // The in-flight gateway run dies with our connection; don't leave the row stuck in "generating".
-      await update(currentJob, { status: "failed", error_msg: "worker restarted during generation, please retry", finished_at: now() }).catch(
+      await update(currentJob, { status: "failed", error_msg: "worker restarted during generation, please retry", finished_at: now(), progress: null }).catch(
         (e) => log(`could not mark ${currentJob} failed: ${e.message}`),
       );
     }
@@ -275,21 +476,58 @@ for (const sig of ["SIGTERM", "SIGINT"] as const)
   });
 
 // Google → dashboard sync (docs/DRIVE.md → "Two-way sync"): its own loop, so it never blocks jobs.
+// After every pass the result goes to drive_sync_state (row id=1, shown in the UI header). Between passes the
+// loop polls drive_sync_state.sync_requested_at (set by "Sinkronkan sekarang") and syncs early when it
+// changed since the start of the last pass (compared by value, so a skewed browser clock does not matter).
+async function writeSyncState(patch: Record<string, unknown>) {
+  const { error } = await db
+    .from("drive_sync_state")
+    .upsert({ id: 1, ...patch, updated_at: now() }, { onConflict: "id" });
+  if (error) log(`drive_sync_state write: ${error.message}`);
+}
+
+async function syncRequestedAt(): Promise<string | null | undefined> {
+  const { data, error } = await db.from("drive_sync_state").select("sync_requested_at").eq("id", 1).maybeSingle();
+  if (error) return undefined; // unknown: never triggers
+  return (data?.sync_requested_at as string | null) ?? null;
+}
+
 async function syncLoop() {
   let lastErr = "";
   while (!stopping) {
+    const t0 = Date.now();
+    const seenRequest = await syncRequestedAt().catch(() => undefined);
     try {
-      const t0 = Date.now();
       const s = await gsync.syncOnce();
-      if (s.inserted || s.updated || s.deleted || s.mode === "full")
-        log(`sync ${s.mode}: seen=${s.seen} +${s.inserted} ~${s.updated} -${s.deleted} in ${Date.now() - t0}ms`);
+      if (s.inserted || s.updated || s.deleted || s.foldersCreated || s.mode === "full")
+        log(
+          `sync ${s.mode}: seen=${s.seen} +${s.inserted} ~${s.updated} -${s.deleted}` +
+            (s.foldersCreated ? ` google_folders_created=${s.foldersCreated}` : "") +
+            ` in ${Date.now() - t0}ms`,
+        );
       lastErr = "";
+      await writeSyncState({
+        last_sync_at: now(),
+        last_sync_summary: `+${s.inserted} ~${s.updated} -${s.deleted}`,
+        last_error: null,
+        root_folder_id: s.rootFolderId,
+      });
     } catch (e) {
       const msg = (e as Error).message;
       if (msg !== lastErr) log(`sync error: ${msg}`); // don't flood the journal with the same error
       lastErr = msg;
+      await writeSyncState({ last_error: msg.slice(0, 1000) });
     }
-    await sleep(SYNC_MS);
+    // Wait for the interval, or less when the UI asks for a sync now.
+    const until = t0 + SYNC_MS;
+    while (!stopping && Date.now() < until) {
+      await sleep(Math.min(SYNC_REQUEST_POLL_MS, Math.max(0, until - Date.now())));
+      const req = await syncRequestedAt().catch(() => undefined);
+      if (req && seenRequest !== undefined && req !== seenRequest) {
+        log("sync requested from the dashboard");
+        break;
+      }
+    }
   }
 }
 

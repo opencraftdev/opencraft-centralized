@@ -14,7 +14,7 @@ import IconButton from "@mui/material/IconButton";
 import FolderRounded from "@mui/icons-material/FolderRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
-import type { DriveDocType, DriveFolder } from "@/lib/drive/types";
+import type { DriveFolder } from "@/lib/drive/types";
 
 const pill = { borderRadius: "9999px", px: 2.5 } as const;
 
@@ -216,97 +216,6 @@ export function MoveDialog({
           sx={pill}
         >
           {busy ? <CircularProgress size={16} color="inherit" /> : "Pindahkan ke sini"}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-// ── Generate ────────────────────────────────────────────────
-const TYPES: { key: DriveDocType; label: string; hint: string }[] = [
-  { key: "sph", label: "SPH", hint: "Surat penawaran harga" },
-  { key: "mou", label: "MoU", hint: "Nota kesepahaman" },
-  { key: "deck", label: "Deck", hint: "Presentasi" },
-  { key: "other", label: "Lainnya", hint: "Dokumen lain" },
-];
-
-export function GenerateDialog({
-  open,
-  destination,
-  onClose,
-  onSubmit,
-}: {
-  open: boolean;
-  destination: (t: DriveDocType) => string;
-  onClose: () => void;
-  onSubmit: (docType: DriveDocType, prompt: string) => Promise<void>;
-}) {
-  const [docType, setDocType] = useState<DriveDocType>("sph");
-  const [prompt, setPrompt] = useState("");
-  const { busy, run } = useBusy();
-  useEffect(() => {
-    if (open) setPrompt("");
-  }, [open]);
-
-  const submit = () => {
-    if (!prompt.trim() || busy) return;
-    run(() => onSubmit(docType, prompt));
-  };
-
-  return (
-    <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: "1.375rem", fontWeight: 400, pb: 0.5 }}>Generate dokumen</DialogTitle>
-      <DialogContent>
-        <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368", mb: 2 }}>
-          Ceritakan dokumen yang dibutuhkan. Agen akan membuatnya di server dan menaruh hasilnya di folder{" "}
-          <b>{destination(docType)}</b>.
-        </Typography>
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
-          {TYPES.map((t) => {
-            const active = t.key === docType;
-            return (
-              <Box
-                key={t.key}
-                component="button"
-                type="button"
-                title={t.hint}
-                onClick={() => setDocType(t.key)}
-                sx={{
-                  height: 32,
-                  px: 2,
-                  borderRadius: "8px",
-                  border: active ? "1px solid #C2E7FF" : "1px solid #747775",
-                  bgcolor: active ? "#C2E7FF" : "transparent",
-                  color: active ? "#001D35" : "#444746",
-                  fontFamily: "inherit",
-                  fontSize: "0.875rem",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                }}
-              >
-                {t.label}
-              </Box>
-            );
-          })}
-        </Box>
-        <TextField
-          autoFocus
-          fullWidth
-          multiline
-          minRows={5}
-          maxRows={14}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && submit()}
-          placeholder="Buatkan SPH untuk PT Maju Jaya, paket chatbot customer service, kontak Bapak Andi"
-        />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2.5 }}>
-        <Button onClick={onClose} disabled={busy} sx={pill}>
-          Batal
-        </Button>
-        <Button variant="contained" onClick={submit} disabled={busy || !prompt.trim()} sx={pill}>
-          {busy ? <CircularProgress size={16} color="inherit" /> : "Generate"}
         </Button>
       </DialogActions>
     </Dialog>

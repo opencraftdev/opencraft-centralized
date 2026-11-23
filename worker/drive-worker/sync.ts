@@ -69,7 +69,19 @@ type ChangesPage = {
   newStartPageToken?: string;
 };
 
-export type SyncStats = { mode: "full" | "changes"; seen: number; inserted: number; updated: number; deleted: number };
+export type SyncStats = {
+  mode: "full" | "changes";
+  seen: number;
+  inserted: number;
+  updated: number;
+  deleted: number;
+  foldersCreated: number; // dashboard folders that got their Google folder this pass (eager folders)
+  rootFolderId: string;
+};
+
+// Dashboard folders younger than this are left to the web app, which creates their Google folder itself
+// right after inserting the row (avoids racing it into a duplicate).
+const EAGER_MIN_AGE_MS = 60_000;
 
 const time = (s: string | null | undefined) => (s ? Date.parse(s) : NaN);
 const newer = (google: string | undefined, row: string | null) =>
@@ -78,6 +90,8 @@ const newer = (google: string | undefined, row: string | null) =>
 export function createDriveSync(opts: {
   db: SupabaseClient;
   accessToken: () => Promise<string>;
+  // google.ts ensureFolder: creates the Google folder of a dashboard folder (parents first) if missing.
+  ensureFolder?: (folderId: string) => Promise<string>;
   log?: (...a: unknown[]) => void;
 }) {
   const { db, accessToken } = opts;
@@ -452,12 +466,52 @@ export function createDriveSync(opts: {
     }
   }
 
+  // Eager folders (docs/DRIVE.md → "Sync status in the UI"): every non-trashed dashboard folder (none of its
+  // ancestors trashed either) gets a Google folder, parents first, so Google's tree matches the dashboard.
+  async function ensureAllFolders(stats: SyncStats) {
+    if (!opts.ensureFolder) return;
+    const { data, error } = await db.from("drive_folders").select("id, name, parent_id, google_folder_id, trashed_at, created_at");
+    if (error) throw new Error(`drive_folders: ${error.message}`);
+    const rows = data as Pick<FolderRow, "id" | "name" | "parent_id" | "google_folder_id" | "trashed_at" | "created_at">[];
+    const byId = new Map(rows.map((f) => [f.id, f]));
+    const chain = (f: (typeof rows)[number]) => {
+      const out = [f];
+      for (let p = f.parent_id ? byId.get(f.parent_id) : undefined; p && out.length < 64; p = p.parent_id ? byId.get(p.parent_id) : undefined)
+        out.push(p);
+      return out;
+    };
+    const missing = rows
+      .filter((f) => !f.google_folder_id && Date.now() - time(f.created_at) > EAGER_MIN_AGE_MS)
+      .map((f) => ({ f, c: chain(f) }))
+      .filter(({ c }) => c.every((x) => !x.trashed_at))
+      .sort((a, b) => a.c.length - b.c.length); // parents first
+    for (const { f } of missing) {
+      try {
+        await opts.ensureFolder(f.id); // re-reads the row; no-op if a parent pass created it meanwhile
+        stats.foldersCreated++;
+        log(`sync: google folder created for dashboard folder ${f.id} "${f.name}"`);
+      } catch (e) {
+        log(`sync: could not create google folder for ${f.id} "${f.name}": ${(e as Error).message}`);
+      }
+    }
+  }
+
   // One sync pass. Safe to call repeatedly; never run two passes concurrently.
   async function syncOnce(): Promise<SyncStats> {
     const auth = await loadAuth();
-    const stats: SyncStats = { mode: auth.changes_page_token ? "changes" : "full", seen: 0, inserted: 0, updated: 0, deleted: 0 };
+    const stats: SyncStats = {
+      mode: auth.changes_page_token ? "changes" : "full",
+      seen: 0,
+      inserted: 0,
+      updated: 0,
+      deleted: 0,
+      foldersCreated: 0,
+      rootFolderId: auth.root_folder_id,
+    };
     if (auth.changes_page_token) await changesSync(auth.root_folder_id, auth.changes_page_token, stats);
     else await fullSync(auth.root_folder_id, stats);
+    // After the Google → dashboard pass, so folders made in Google (same name) are adopted rather than duplicated.
+    await ensureAllFolders(stats);
     return stats;
   }
 

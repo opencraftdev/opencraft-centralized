@@ -17,7 +17,15 @@ import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import LogoutOutlined from "@mui/icons-material/LogoutOutlined";
 import { logout } from "@/features/auth/actions";
 
-export function TopBar({ userEmail, loading = false }: { userEmail: string; loading?: boolean }) {
+export function TopBar({
+  userEmail,
+  loading = false,
+  onMenu,
+}: {
+  userEmail: string;
+  loading?: boolean;
+  onMenu?: () => void;
+}) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const initial = userEmail.charAt(0).toUpperCase() || "O";
@@ -48,6 +56,7 @@ export function TopBar({ userEmail, loading = false }: { userEmail: string; load
         {/* Hamburger */}
         <IconButton
           aria-label="Main menu"
+          onClick={onMenu}
           sx={{
             width: 48,
             height: 48,
@@ -75,6 +84,7 @@ export function TopBar({ userEmail, loading = false }: { userEmail: string; load
               fontWeight: 400,
               color: "#5E5E5E",
               whiteSpace: "nowrap",
+              display: { xs: "none", sm: "block" },
               letterSpacing: 0,
             }}
           >
@@ -90,6 +100,7 @@ export function TopBar({ userEmail, loading = false }: { userEmail: string; load
             alignItems: "center",
             gap: 1.5,
             flex: 1,
+            minWidth: 0,
             maxWidth: 720,
             height: 48,
             bgcolor: "#E2ECFC",
