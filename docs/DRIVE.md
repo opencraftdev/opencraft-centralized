@@ -198,3 +198,37 @@ The OAuth scope is upgraded from `drive.file` to `https://www.googleapis.com/aut
   The web app (`/api/drive/items`, upload, `ensureFolder`) and the worker store Google's `modifiedTime` after their own
   changes, so the echo arrives as a no-op.
 - Generated files in `queued/generating/needs_input/failed` state are never touched by the sync.
+
+## Sync status in the UI (migration 023)
+
+`public.drive_sync_state` (single row id=1, readable by allowed users): `root_folder_id`, `last_sync_at`,
+`last_sync_summary`, `last_error`, `sync_requested_at` (the only column the UI may update).
+- Worker writes `last_sync_at` / `last_sync_summary` / `last_error` after every sync pass (and keeps
+  `google_drive_auth.last_sync_at` too). If `sync_requested_at` > `last_sync_at`, the worker syncs within ~5 s
+  instead of waiting for the 30 s interval.
+- Worker makes sure **every** non-trashed dashboard folder has a Google folder on each pass (eager, not lazy),
+  so the folder tree in Google always matches the dashboard.
+- UI header shows "Tersinkron dengan Google Drive · <relative time>" (or the error), a "Sinkronkan sekarang"
+  button (sets `sync_requested_at = now()`, then refreshes), and "Buka di Google Drive" for the current folder
+  (`https://drive.google.com/drive/folders/<google_folder_id or root_folder_id>`).
+
+## Chat tab for creating documents
+
+A generated document **is** a conversation: one `drive_files` row with `source='generated'`, its `messages`
+thread, `status`, `agent_message`, and new column `progress` (live step text while the agent works).
+
+- UI: a **"Chat Dokumen"** view in the Drive nav (`?view=chat`, `&c=<file id>` selects a conversation).
+  Left: conversation list (generated rows, newest first, status badge). Right: chat thread (user/assistant
+  bubbles from `messages`), typing indicator + `progress` while `queued`/`generating`, the file card when `ready`
+  (preview / Buka di Google Drive / Download), error + "Coba lagi" when `failed`, composer at the bottom.
+  "+ Baru → Generate dokumen" opens a new chat (optional doc-type chips SPH / MoU / Deck / Lainnya; the first
+  message creates the row exactly like before). The old Generate dialog is replaced by this.
+- Sending a message on an existing conversation (any status except `queued`/`generating`) appends
+  `{role:'user'}` and sets `status='queued'`. This covers answering `needs_input` **and revising a `ready`
+  document** ("ganti harga jadi …").
+- Worker: follow-ups resume the gateway session. For a revision of a ready document the prompt tells the agent to
+  re-render the same document and **keep its document number** (no `doc_number.py next`, no new record) unless the
+  user explicitly asks for a new document; the new file replaces the old Google file on the same row.
+- Worker streams the gateway run (`/v1/runs` with `stream:true`, SSE events `tool`/`text`/`result`) and writes a
+  short Indonesian `progress` line (e.g. "Membaca pricelist…", "Menyiapkan data…", "Membuat PDF…") at most every
+  ~2 s; clears it when the run ends.

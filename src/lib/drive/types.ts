@@ -39,9 +39,19 @@ export interface DriveFile {
   agent_message: string | null;
   doc_number: string | null;
   error_msg: string | null;
+  progress: string | null; // live step text while the agent works (migration 023)
   starred: boolean;
   trashed_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Single row (id=1) written by the worker's sync loop; the UI may only set sync_requested_at (migration 023).
+export interface DriveSyncState {
+  root_folder_id: string | null;
+  last_sync_at: string | null;
+  last_sync_summary: string | null;
+  last_error: string | null;
+  sync_requested_at: string | null;
 }

@@ -80,7 +80,16 @@ function NavRow({
   );
 }
 
-export function Sidebar({ userEmail: _userEmail }: { userEmail: string }) {
+// Permanent drawer from md up; below md a temporary drawer toggled by the TopBar hamburger.
+export function Sidebar({
+  userEmail: _userEmail,
+  mobileOpen = false,
+  onMobileClose,
+}: {
+  userEmail: string;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}) {
   const pathname = usePathname();
 
   const navHrefs = [...primaryItems, ...bottomItems]
@@ -96,27 +105,22 @@ export function Sidebar({ userEmail: _userEmail }: { userEmail: string }) {
     return !navHrefs.some((h) => h !== href && h.startsWith(href + "/") && (pathname === h || pathname.startsWith(h + "/")));
   };
 
-  return (
-    <Drawer
-      variant="permanent"
-      sx={{
-        width: SIDEBAR_WIDTH,
-        flexShrink: 0,
-        "& .MuiDrawer-paper": {
-          width: SIDEBAR_WIDTH,
-          top: TOPBAR_HEIGHT,
-          height: `calc(100vh - ${TOPBAR_HEIGHT}px)`,
-          boxSizing: "border-box",
-          bgcolor: "#F0F4F9",
-          border: "none",
-          overflowY: "auto",
-          px: 2,
-          py: 1.5,
-          display: "flex",
-          flexDirection: "column",
-        },
-      }}
-    >
+  const paper = {
+    width: SIDEBAR_WIDTH,
+    top: TOPBAR_HEIGHT,
+    height: `calc(100dvh - ${TOPBAR_HEIGHT}px)`,
+    boxSizing: "border-box",
+    bgcolor: "#F0F4F9",
+    border: "none",
+    overflowY: "auto",
+    px: 2,
+    py: 1.5,
+    display: "flex",
+    flexDirection: "column",
+  } as const;
+
+  const content = (
+    <>
       {/* Overview at top */}
       <List disablePadding component="nav">
         {primaryItems.map((item) => (
@@ -162,6 +166,27 @@ export function Sidebar({ userEmail: _userEmail }: { userEmail: string }) {
           </Typography>
         </Box>
       </Box>
-    </Drawer>
+    </>
+  );
+
+  return (
+    <>
+      <Drawer
+        variant="permanent"
+        sx={{ display: { xs: "none", md: "block" }, width: SIDEBAR_WIDTH, flexShrink: 0, "& .MuiDrawer-paper": paper }}
+      >
+        {content}
+      </Drawer>
+      <Drawer
+        variant="temporary"
+        open={mobileOpen}
+        onClose={onMobileClose}
+        onClick={(e) => (e.target as HTMLElement).closest("a") && onMobileClose?.()}
+        ModalProps={{ keepMounted: true }}
+        sx={{ display: { xs: "block", md: "none" }, "& .MuiDrawer-paper": { ...paper, top: TOPBAR_HEIGHT } }}
+      >
+        {content}
+      </Drawer>
+    </>
   );
 }

@@ -6,6 +6,7 @@ import {
   type DriveFile,
   type DriveFolder,
   type DriveMessage,
+  type DriveSyncState,
 } from "@/lib/drive/types";
 
 const sb = () => createClient();
@@ -125,7 +126,8 @@ export async function createGenerateJob(args: {
   return row.id;
 }
 
-// needs_input → user answers → back to the queue (worker resumes the same session).
+// Chat follow-up on any non-busy conversation → back to the queue (worker resumes the same session).
+// Covers answering needs_input and revising a ready document.
 export async function replyToJob(file: DriveFile, text: string) {
   const messages: DriveMessage[] = [
     ...(file.messages ?? []),
@@ -136,4 +138,21 @@ export async function replyToJob(file: DriveFile, text: string) {
 
 export async function retryJob(file: DriveFile) {
   await updateItem("file", file.id, { status: "queued", error_msg: null });
+}
+
+// ── Google Drive sync status (docs/DRIVE.md → "Sync status in the UI") ──
+export async function fetchSyncState(): Promise<DriveSyncState | null> {
+  return check(
+    await sb()
+      .from("drive_sync_state")
+      .select("root_folder_id,last_sync_at,last_sync_summary,last_error,sync_requested_at")
+      .eq("id", 1)
+      .maybeSingle(),
+  ) as DriveSyncState | null;
+}
+
+// The only column the UI may write; the worker syncs within ~5 s when it is newer than last_sync_at.
+// Stamped with the DB clock (request_drive_sync RPC), so a skewed browser clock can't make the worker skip it.
+export async function requestSync(): Promise<string> {
+  return check(await sb().rpc("request_drive_sync")) as string;
 }

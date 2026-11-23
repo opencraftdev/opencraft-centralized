@@ -5,7 +5,6 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import IconButton from "@mui/material/IconButton";
-import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -13,12 +12,12 @@ import CloseRounded from "@mui/icons-material/CloseRounded";
 import DownloadRounded from "@mui/icons-material/DownloadRounded";
 import OpenInNewRounded from "@mui/icons-material/OpenInNewRounded";
 import ReplayRounded from "@mui/icons-material/ReplayRounded";
-import SendRounded from "@mui/icons-material/SendRounded";
+import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
 import ErrorOutlineRounded from "@mui/icons-material/ErrorOutlineRounded";
 import HelpOutlineRounded from "@mui/icons-material/HelpOutlineRounded";
 import type { DriveFile } from "@/lib/drive/types";
 import { toastError } from "@/components/ui/Toast";
-import { replyToJob, retryJob, DOC_TYPE_LABEL } from "../api";
+import { retryJob, DOC_TYPE_LABEL } from "../api";
 import { driveContentUrl, driveViewUrl } from "@/lib/drive/links";
 import { fileIcon, isBusy, StatusBadge } from "./DriveItems";
 import { formatBytes, formatDateTime } from "../format";
@@ -60,18 +59,17 @@ export function PreviewDialog({
   file,
   onClose,
   onChanged,
+  onOpenChat,
 }: {
   file: DriveFile | null;
   onClose: () => void;
   onChanged: () => void;
+  onOpenChat: (fileId: string) => void; // conversation continues in the Chat Dokumen view
 }) {
-  const [reply, setReply] = useState("");
-  const [sending, setSending] = useState(false);
   const [frameLoading, setFrameLoading] = useState(true);
   const chatEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setReply("");
     setFrameLoading(true);
   }, [file?.id, file?.google_file_id]);
 
@@ -84,20 +82,6 @@ export function PreviewDialog({
   const generated = file.source === "generated";
   const messages = file.messages ?? [];
   const gid = file.status === "ready" ? file.google_file_id : null;
-
-  const sendReply = async () => {
-    if (!reply.trim() || sending) return;
-    setSending(true);
-    try {
-      await replyToJob(file, reply);
-      setReply("");
-      onChanged();
-    } catch (e) {
-      toastError((e as Error).message);
-    } finally {
-      setSending(false);
-    }
-  };
 
   const retry = async () => {
     try {
@@ -288,41 +272,28 @@ export function PreviewDialog({
                   ))}
                   {isBusy(file) && (
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, color: "#5F6368", fontSize: "0.8125rem" }}>
-                      <CircularProgress size={12} /> Agen sedang bekerja…
+                      <CircularProgress size={12} /> {file.progress || "Agen sedang bekerja…"}
                     </Box>
                   )}
                   <div ref={chatEnd} />
                 </Box>
-                {file.status === "needs_input" && (
-                  <Box sx={{ p: 1.5, borderTop: "1px solid #E0E3E7", display: "flex", gap: 1, alignItems: "flex-end" }}>
-                    <TextField
-                      fullWidth
-                      multiline
-                      maxRows={6}
-                      autoFocus
-                      placeholder="Tulis jawaban…"
-                      value={reply}
-                      onChange={(e) => setReply(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          sendReply();
-                        }
-                      }}
-                      sx={{ "& .MuiOutlinedInput-root": { borderRadius: "20px" } }}
-                    />
-                    <IconButton color="primary" onClick={sendReply} disabled={sending || !reply.trim()} aria-label="Kirim">
-                      {sending ? <CircularProgress size={18} /> : <SendRounded />}
-                    </IconButton>
-                  </Box>
-                )}
-                {file.status === "failed" && (
-                  <Box sx={{ p: 1.5, borderTop: "1px solid #E0E3E7" }}>
+                <Box sx={{ p: 1.5, borderTop: "1px solid #E0E3E7", display: "flex", flexDirection: "column", gap: 1 }}>
+                  {file.status === "failed" && (
                     <Button fullWidth variant="outlined" startIcon={<ReplayRounded />} onClick={retry} sx={{ borderRadius: "9999px" }}>
                       Coba lagi
                     </Button>
-                  </Box>
-                )}
+                  )}
+                  <Button
+                    fullWidth
+                    variant={file.status === "needs_input" ? "contained" : "outlined"}
+                    disableElevation
+                    startIcon={<ChatBubbleOutlineRounded />}
+                    onClick={() => onOpenChat(file.id)}
+                    sx={{ borderRadius: "9999px" }}
+                  >
+                    {file.status === "needs_input" ? "Jawab di Chat" : "Lanjutkan di Chat"}
+                  </Button>
+                </Box>
               </>
             ) : (
               <Box sx={{ flex: 1 }} />

@@ -6,3 +6,5 @@ export const driveContentUrl = (fileId: string, download = false) =>
   `/api/drive/files/${encodeURIComponent(fileId)}/content${download ? "?download=1" : ""}`;
 export const driveViewUrl = (googleFileId: string) =>
   `https://drive.google.com/file/d/${encodeURIComponent(googleFileId)}/view`;
+export const driveFolderUrl = (googleFolderId: string) =>
+  `https://drive.google.com/drive/folders/${encodeURIComponent(googleFolderId)}`;
