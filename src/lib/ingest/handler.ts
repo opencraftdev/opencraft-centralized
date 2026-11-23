@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ZodType } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authenticateAgent } from "@/lib/ingest/auth";
-import type { AgentRow } from "@/lib/monitor/types";
+import type { AgentRow } from "@/lib/documents/types";
 
 // Boilerplate shared by every /api/ingest/* route:
 //   1. parse JSON body
