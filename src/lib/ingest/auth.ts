@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AgentRow } from "@/lib/monitor/types";
+import type { AgentRow } from "@/lib/documents/types";
 
 // Per-agent API-key authentication for the ingestion API.
 //

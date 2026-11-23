@@ -10,7 +10,6 @@ const nextConfig: NextConfig = {
     ? {}
     : { outputFileTracingRoot: resolve(process.cwd(), "..") }),
 
-  serverExternalPackages: ["sharp", "fabric", "@remotion/renderer"],
 
   webpack: (config) => {
     config.resolve.extensionAlias = {
