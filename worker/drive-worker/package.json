@@ -1,0 +1,11 @@
+{
+  "name": "drive-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun worker.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.0"
+  }
+}

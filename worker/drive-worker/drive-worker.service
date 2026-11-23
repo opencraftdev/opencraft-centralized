@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenCraft drive-worker (drive_files -> cc-gateway opencraft-document)
+After=network-online.target cc-gateway@opencraft-document.service
+Wants=cc-gateway@opencraft-document.service
+
+[Service]
+WorkingDirectory=%h/drive-worker
+EnvironmentFile=%h/drive-worker/.env
+ExecStart=%h/.local/bin/bun worker.ts
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
