@@ -3,27 +3,28 @@
 import { useEffect, useRef } from "react";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
-import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
-import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
+import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import type { SkillSummary } from "@/features/skills/api";
 import { Composer, draftKey, splitSkill, type ComposerHandle } from "./Composer";
+import { SidebarIcon } from "./ChatList";
 import { COLUMN } from "./Thread";
 
-// An empty new chat (docs/CHAT.md → "UI"): a greeting, the composer, and the enabled skills as suggestion chips.
+// An empty new chat (docs/CHAT.md → "UI"), like Gemini's start screen: a big centred greeting, the composer, and
+// the enabled skills as suggestion rows under it (click → the composer gets "/name ").
 
 export const NEW_DRAFT = "new";
 
 export function NewChat({
   skills,
   prefillSkill,
-  onBack,
+  onOpenList,
   onSend,
 }: {
   skills: SkillSummary[];
   prefillSkill: string | null; // /chat?skill=<name>
-  onBack?: () => void;
+  onOpenList?: () => void; // the chat list is hidden (drawer on a phone, collapsed on desktop)
   onSend: (text: string) => Promise<boolean>;
 }) {
   const composer = useRef<ComposerHandle>(null);
@@ -42,84 +43,77 @@ export function NewChat({
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      {onBack && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, pl: 0.5, minHeight: 56, borderBottom: "1px solid #E0E3E7", flexShrink: 0 }}>
-          <IconButton onClick={onBack} aria-label="Kembali ke daftar chat">
-            <ArrowBackRounded />
-          </IconButton>
-          <Typography sx={{ fontSize: "1rem", fontWeight: 500 }}>Chat baru</Typography>
-        </Box>
-      )}
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", px: { xs: 1.5, sm: 3 }, py: 3 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 1, minHeight: 56, flexShrink: 0 }}>
+        {onOpenList && (
+          <Tooltip title="Daftar chat">
+            <IconButton onClick={onOpenList} aria-label="Buka daftar chat" sx={{ color: "#444746" }}>
+              <SidebarIcon />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", px: { xs: 1.5, sm: 3 }, pb: 3 }}>
         {/* margin auto centres the block vertically yet lets it scroll when the keyboard leaves little room */}
-        <Box sx={{ my: "auto", width: "100%", maxWidth: COLUMN, mx: "auto" }}>
-          <Box sx={{ textAlign: "center", mb: 3 }}>
-            <Box
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: "50%",
-                mx: "auto",
-                mb: 1.5,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                bgcolor: "#D3E3FD",
-                color: "#0B57D0",
-              }}
-            >
-              <ChatBubbleOutlineRounded sx={{ fontSize: 22 }} />
-            </Box>
-            <Typography component="h1" sx={{ fontSize: { xs: "1.375rem", sm: "1.625rem" }, color: "#1F1F1F" }}>
-              Mau dikerjakan apa hari ini?
-            </Typography>
-          </Box>
+        <Box sx={{ my: "auto", width: "100%", maxWidth: COLUMN, mx: "auto", pb: { xs: 2, sm: 8 } }}>
+          <Typography
+            component="h1"
+            sx={{
+              textAlign: "center",
+              fontSize: { xs: "1.75rem", sm: "2.25rem" },
+              fontWeight: 400,
+              lineHeight: 1.25,
+              letterSpacing: "-0.01em",
+              color: "#1F1F1F",
+              mb: { xs: 3, sm: 4 },
+            }}
+          >
+            Mulai dari mana?
+          </Typography>
           <Composer
             ref={composer}
             draftId={NEW_DRAFT}
             skills={skills}
-            placeholder="Tanya atau minta apa saja…"
+            placeholder="Ketik / untuk skill dan lainnya"
             autoFocus
+            menuBelow
             onSend={onSend}
           />
           {skills.length > 0 && (
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center", mt: 2 }}>
+            <Box component="ul" aria-label="Saran skill" sx={{ listStyle: "none", m: 0, mt: 2.5, px: { xs: 0, sm: 2.5 }, display: "flex", flexDirection: "column", gap: 0.5 }}>
               {skills.map((s) => (
-                <Box
-                  key={s.name}
-                  component="button"
-                  type="button"
-                  title={s.description}
-                  onClick={() => composer.current?.setValue(`/${s.name} `)}
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 0.75,
-                    maxWidth: "100%",
-                    height: 34,
-                    px: 1.75,
-                    borderRadius: "9999px",
-                    border: "1px solid #C4C7C5",
-                    bgcolor: "#fff",
-                    color: "#444746",
-                    fontFamily: "inherit",
-                    fontSize: "0.875rem",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    "&:hover": { bgcolor: "#F0F4F9" },
-                  }}
-                >
-                  <AutoAwesomeRounded sx={{ fontSize: 16, color: "#8E5CF5", flexShrink: 0 }} />
-                  <Box component="span" sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {s.title}
+                <li key={s.name}>
+                  <Box
+                    component="button"
+                    type="button"
+                    title={s.description}
+                    onClick={() => composer.current?.setValue(`/${s.name} `)}
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 1.5,
+                      maxWidth: "100%",
+                      height: 44,
+                      px: 1.5,
+                      border: "none",
+                      borderRadius: "9999px",
+                      bgcolor: "transparent",
+                      color: "#1F1F1F",
+                      fontFamily: "inherit",
+                      fontSize: "1rem",
+                      cursor: "pointer",
+                      "&:hover": { bgcolor: "#F0F4F9" },
+                      "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
+                    }}
+                  >
+                    <AutoAwesomeOutlined sx={{ fontSize: 20, color: "#444746", flexShrink: 0 }} />
+                    <Box component="span" sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {s.title}
+                    </Box>
                   </Box>
-                </Box>
+                </li>
               ))}
             </Box>
           )}
-          <Typography sx={{ display: { xs: "none", sm: "block" }, fontSize: "0.6875rem", color: "#5F6368", textAlign: "center", mt: 2 }}>
-            Enter untuk kirim · Shift+Enter untuk baris baru
-          </Typography>
         </Box>
       </Box>
     </Box>

@@ -3,21 +3,25 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import Box from "@mui/material/Box";
+import ClickAwayListener from "@mui/material/ClickAwayListener";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import ArrowUpwardRounded from "@mui/icons-material/ArrowUpwardRounded";
+import AddRounded from "@mui/icons-material/AddRounded";
+import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
+import SendRounded from "@mui/icons-material/SendRounded";
 import StopRounded from "@mui/icons-material/StopRounded";
 import type { SkillSummary } from "@/features/skills/api";
 
 // The message box (docs/CHAT.md → "UI" → Composer): auto-grow, Enter sends / Shift+Enter new line (never while an IME
 // composes), a draft per chat in localStorage. "/" at the start opens the skill menu (filter as you type, ↑↓ Enter/Tab,
 // Esc closes); a chosen skill shows as a chip in front of the text and is sent as "/name " + text. While a run goes,
-// Stop shows and Enter still sends (the server queues the message).
+// Stop shows and Enter still sends (the server queues the message). Looks like Gemini's prompt box (light): a #F0F4F9
+// pill with "+" (skill list) on the left, the send button appearing once there is text, Stop while a run goes.
 
 // ── storage (every access guarded: private mode, blocked storage) ──
 function readDraft(key: string): string {
@@ -67,8 +71,8 @@ export function SkillChip({ skill, onRemove }: { skill: SkillSummary; onRemove?:
         pl: 1,
         pr: onRemove ? 0.25 : 1.25,
         borderRadius: "9999px",
-        bgcolor: "#EADDFF",
-        color: "#4F378B",
+        bgcolor: "#D3E3FD",
+        color: "#041E49",
         fontSize: "0.8125rem",
         fontWeight: 500,
         flexShrink: 0,
@@ -83,7 +87,7 @@ export function SkillChip({ skill, onRemove }: { skill: SkillSummary; onRemove?:
           size="small"
           aria-label={`Lepas skill ${skill.title}`}
           onClick={onRemove}
-          sx={{ width: 22, height: 22, color: "inherit", "&:hover": { bgcolor: "rgba(79,55,139,0.12)" } }}
+          sx={{ width: 22, height: 22, color: "inherit", "&:hover": { bgcolor: "rgba(4,30,73,0.1)" } }}
         >
           <CloseRounded sx={{ fontSize: 14 }} />
         </IconButton>
@@ -95,11 +99,13 @@ export function SkillChip({ skill, onRemove }: { skill: SkillSummary; onRemove?:
 function SkillMenu({
   hits,
   active,
+  below,
   onPick,
   onHover,
 }: {
   hits: SkillSummary[];
   active: number;
+  below?: boolean; // open under the box (new chat: the box sits mid-screen) instead of above it
   onPick: (s: SkillSummary) => void;
   onHover: (i: number) => void;
 }) {
@@ -116,12 +122,23 @@ function SkillMenu({
   }, [active, hits]);
 
   return (
-    <Box sx={{ px: 1, pt: 1, borderBottom: "1px solid #E0E3E7", pb: 0.5 }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, pb: 0.5 }}>
-        <Typography sx={{ display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.75rem", fontWeight: 600, color: "#444746" }}>
-          <AutoAwesomeRounded sx={{ fontSize: 14, color: "#8E5CF5" }} /> Skill
-        </Typography>
-        <Typography sx={{ display: { xs: "none", sm: "block" }, fontSize: "0.6875rem", color: "#9AA0A6" }}>
+    <Box
+      sx={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        ...(below ? { top: "calc(100% + 8px)" } : { bottom: "calc(100% + 8px)" }),
+        zIndex: 5,
+        bgcolor: "#fff",
+        borderRadius: "16px",
+        boxShadow: "0 1px 2px rgba(0,0,0,.3), 0 2px 6px 2px rgba(0,0,0,.15)",
+        p: 1,
+        cursor: "default",
+      }}
+    >
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1.5, pt: 0.5, pb: 1 }}>
+        <Typography sx={{ fontSize: "0.875rem", fontWeight: 500, color: "#444746" }}>Skill</Typography>
+        <Typography sx={{ display: { xs: "none", sm: "block" }, fontSize: "0.75rem", color: "#5E5E5E" }}>
           ↑↓ pilih · Enter pakai · Esc tutup
         </Typography>
       </Box>
@@ -148,32 +165,33 @@ function SkillMenu({
               sx={{
                 width: "100%",
                 display: "flex",
-                flexDirection: "column",
-                alignItems: "stretch",
-                gap: 0.125,
-                px: 1,
-                py: 0.75,
+                alignItems: "flex-start",
+                gap: 1.5,
+                px: 1.5,
+                py: 1,
                 border: "none",
-                borderRadius: "10px",
-                bgcolor: i === active ? "#E9EEF6" : "transparent",
+                borderRadius: "12px",
+                bgcolor: i === active ? "#F0F4F9" : "transparent",
                 fontFamily: "inherit",
                 textAlign: "left",
                 cursor: "pointer",
               }}
             >
+              <AutoAwesomeOutlined sx={{ fontSize: 20, color: "#444746", mt: 0.25, flexShrink: 0 }} />
+              <Box component="span" sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0, flex: 1 }}>
               <Box component="span" sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
-                <Box component="span" sx={{ fontSize: "0.875rem", fontWeight: 500, color: "#1F1F1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <Box component="span" sx={{ fontSize: "0.9375rem", fontWeight: 500, color: "#1F1F1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {s.title}
                 </Box>
-                <Box component="span" sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.75rem", color: "#5F6368", flexShrink: 0 }}>
+                <Box component="span" sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.75rem", color: "#5E5E5E", flexShrink: 0 }}>
                   /{s.name}
                 </Box>
               </Box>
               <Box
                 component="span"
                 sx={{
-                  fontSize: "0.75rem",
-                  color: "#5F6368",
+                  fontSize: "0.8125rem",
+                  color: "#444746",
                   lineHeight: 1.45,
                   display: "-webkit-box",
                   WebkitLineClamp: 2,
@@ -183,12 +201,13 @@ function SkillMenu({
               >
                 {s.description}
               </Box>
+              </Box>
             </Box>
           </li>
         ))}
       </Box>
-      <Box sx={{ px: 1, pt: 0.5 }}>
-        <Typography component={Link} href="/skills" sx={{ fontSize: "0.75rem", color: "#0B57D0", textDecoration: "none", "&:hover": { textDecoration: "underline" } }}>
+      <Box sx={{ px: 1.5, pt: 1, pb: 0.5, borderTop: "1px solid #E3E3E3", mt: 0.5 }}>
+        <Typography component={Link} href="/skills" sx={{ fontSize: "0.8125rem", fontWeight: 500, color: "#0B57D0", textDecoration: "none", "&:hover": { textDecoration: "underline" } }}>
           Kelola skill
         </Typography>
       </Box>
@@ -212,10 +231,11 @@ export const Composer = forwardRef<
     running?: boolean; // a run is in progress: Stop shows; sends still go (server queue)
     stopping?: boolean;
     autoFocus?: boolean;
+    menuBelow?: boolean; // the skill menu opens under the box
     onSend: (text: string) => Promise<boolean>;
     onStop?: () => void;
   }
->(function Composer({ draftId, skills, placeholder, running, stopping, autoFocus, onSend, onStop }, ref) {
+>(function Composer({ draftId, skills, placeholder, running, stopping, autoFocus, menuBelow, onSend, onStop }, ref) {
   const [skill, setSkill] = useState<SkillSummary | null>(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -259,14 +279,17 @@ export const Composer = forwardRef<
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => apply(readDraft(draftKey(draftId)), false), [draftId]);
 
-  const hits = useMemo(
+  const [plus, setPlus] = useState(false); // the "+" button opened the skill list
+  const slashHits = useMemo(
     () => (skill || closedFor === text ? null : matchSkills(skills, text)),
     [skill, closedFor, text, skills],
   );
+  const hits = slashHits?.length ? slashHits : plus && skills.length ? skills : null;
   const menuOpen = Boolean(hits?.length);
-  useEffect(() => setActive(0), [text]);
+  useEffect(() => setActive(0), [text, plus]);
 
   const change = (v: string) => {
+    setPlus(false);
     // "/name " typed out in full: the skill becomes the chip
     if (!skill) {
       const m = /^\/([a-z0-9][a-z0-9-]*)\s([\s\S]*)$/.exec(v);
@@ -276,8 +299,14 @@ export const Composer = forwardRef<
     save(skill, v);
   };
   const pick = (s: SkillSummary) => {
-    save(s, "");
+    // from "/…": the typed filter goes; from "+": the text typed so far stays
+    save(s, text.startsWith("/") ? "" : text);
+    setPlus(false);
     input.current?.focus();
+  };
+  const closeMenu = () => {
+    setPlus(false);
+    setClosedFor(text);
   };
 
   const canSend = (text.trim().length > 0 || Boolean(skill)) && !sending;
@@ -309,7 +338,7 @@ export const Composer = forwardRef<
       }
       if (e.key === "Escape") {
         e.preventDefault();
-        setClosedFor(text);
+        closeMenu();
         return;
       }
     }
@@ -324,61 +353,93 @@ export const Composer = forwardRef<
     }
   };
 
+  const roundBtn = { width: 40, height: 40, flexShrink: 0 } as const;
+
   return (
-    <Box
-      onClick={(e) => {
-        if (e.target === e.currentTarget) input.current?.focus();
-      }}
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        borderRadius: "24px",
-        border: "1px solid #C4C7C5",
-        bgcolor: "#fff",
-        cursor: "text",
-        overflow: "hidden",
-        transition: "border-color .15s",
-        "&:focus-within": { borderColor: "#0B57D0" },
-      }}
-    >
-      {menuOpen && hits && <SkillMenu hits={hits} active={active} onPick={pick} onHover={setActive} />}
-      {skill && (
-        <Box sx={{ px: 1.5, pt: 1.25, display: "flex" }}>
-          <SkillChip
-            skill={skill}
-            onRemove={() => {
-              save(null, text);
-              input.current?.focus();
+    <ClickAwayListener onClickAway={() => menuOpen && closeMenu()}>
+      <Box
+        onClick={(e) => {
+          if (e.target === e.currentTarget) input.current?.focus();
+        }}
+        sx={{
+          position: "relative",
+          display: "flex",
+          alignItems: "flex-end",
+          gap: 0.5,
+          minHeight: 64,
+          px: 1,
+          py: 1,
+          borderRadius: "32px",
+          bgcolor: "#F0F4F9",
+          cursor: "text",
+          transition: "box-shadow .15s, background-color .15s",
+          "&:focus-within": { bgcolor: "#EDF2FA", boxShadow: "0 1px 3px rgba(60,64,67,.12)" },
+        }}
+      >
+        {menuOpen && hits && <SkillMenu hits={hits} active={active} below={menuBelow} onPick={pick} onHover={setActive} />}
+        <Tooltip title={plus ? "" : "Pakai skill"}>
+          <span>
+            <IconButton
+              aria-label="Pakai skill"
+              aria-haspopup="listbox"
+              aria-expanded={plus}
+              disabled={!skills.length}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                if (plus) closeMenu();
+                else {
+                  setClosedFor(null);
+                  setPlus(true);
+                  input.current?.focus();
+                }
+              }}
+              sx={{ ...roundBtn, color: "#444746", "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } }}
+            >
+              <AddRounded sx={{ fontSize: 26 }} />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Box sx={{ flex: 1, minWidth: 0, alignSelf: "center", display: "flex", flexDirection: "column" }}>
+          {skill && (
+            <Box sx={{ pt: 0.5, pb: 0.25, display: "flex" }}>
+              <SkillChip
+                skill={skill}
+                onRemove={() => {
+                  save(null, text);
+                  input.current?.focus();
+                }}
+              />
+            </Box>
+          )}
+          <InputBase
+            multiline
+            minRows={1}
+            maxRows={10}
+            autoFocus={autoFocus}
+            inputRef={input}
+            value={text}
+            onChange={(e) => change(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={
+              skill ? `Tulis permintaan untuk ${skill.title}…` : running ? "Tulis pesan berikutnya…" : placeholder
+            }
+            sx={{
+              px: 0.5,
+              py: "8px", // one line = 40px, the height of the round buttons beside it
+              fontSize: "1rem",
+              lineHeight: 1.5,
+              color: "#1F1F1F",
+              "& textarea::placeholder": { color: "#444746", opacity: 1 },
+            }}
+            inputProps={{
+              "aria-label": "Tulis pesan",
+              role: "combobox",
+              "aria-expanded": menuOpen,
+              "aria-autocomplete": "list",
+              enterKeyHint: "send",
             }}
           />
         </Box>
-      )}
-      <InputBase
-        multiline
-        minRows={1}
-        maxRows={10}
-        autoFocus={autoFocus}
-        inputRef={input}
-        value={text}
-        onChange={(e) => change(e.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder={
-          skill ? `Tulis permintaan untuk ${skill.title}…` : running ? "Tulis pesan berikutnya — dikirim setelah jawaban selesai" : placeholder
-        }
-        sx={{ px: 2.25, pt: skill ? 0.75 : 1.5, pb: 0.5, fontSize: "0.9375rem", lineHeight: 1.5 }}
-        inputProps={{
-          "aria-label": "Tulis pesan",
-          role: "combobox",
-          "aria-expanded": menuOpen,
-          "aria-autocomplete": "list",
-          enterKeyHint: "send",
-        }}
-      />
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 1, pb: 1 }}>
-        <Typography sx={{ flex: 1, minWidth: 0, pl: 1.25, fontSize: "0.6875rem", color: "#9AA0A6", display: { xs: "none", sm: "block" } }}>
-          {skills.length ? "Ketik / untuk memakai skill" : ""}
-        </Typography>
-        <Box sx={{ flex: 1, display: { xs: "block", sm: "none" } }} />
         {running && (
           <Tooltip title="Hentikan">
             <span>
@@ -387,20 +448,19 @@ export const Composer = forwardRef<
                 disabled={stopping}
                 aria-label="Hentikan"
                 sx={{
-                  width: 36,
-                  height: 36,
-                  bgcolor: "#1F1F1F",
-                  color: "#fff",
-                  "&:hover": { bgcolor: "#444746" },
-                  "&.Mui-disabled": { bgcolor: "#E3E3E3", color: "#9AA0A6" },
+                  ...roundBtn,
+                  bgcolor: "#D3E3FD",
+                  color: "#041E49",
+                  "&:hover": { bgcolor: "#C2D7FA" },
+                  "&.Mui-disabled": { bgcolor: "#E3E3E3", color: "#5E5E5E" },
                 }}
               >
-                {stopping ? <CircularProgress size={16} color="inherit" /> : <StopRounded sx={{ fontSize: 20 }} />}
+                {stopping ? <CircularProgress size={16} color="inherit" /> : <StopRounded sx={{ fontSize: 22 }} />}
               </IconButton>
             </span>
           </Tooltip>
         )}
-        {(!running || canSend) && (
+        {(canSend || sending) && (
           <Tooltip title="Kirim (Enter)">
             <span>
               <IconButton
@@ -408,20 +468,19 @@ export const Composer = forwardRef<
                 disabled={!canSend}
                 aria-label="Kirim"
                 sx={{
-                  width: 36,
-                  height: 36,
+                  ...roundBtn,
                   bgcolor: "#0B57D0",
                   color: "#fff",
                   "&:hover": { bgcolor: "#0842A0" },
-                  "&.Mui-disabled": { bgcolor: "#E3E3E3", color: "#9AA0A6" },
+                  "&.Mui-disabled": { bgcolor: "#0B57D0", color: "#fff", opacity: 0.6 },
                 }}
               >
-                {sending ? <CircularProgress size={16} color="inherit" /> : <ArrowUpwardRounded sx={{ fontSize: 20 }} />}
+                {sending ? <CircularProgress size={16} color="inherit" /> : <SendRounded sx={{ fontSize: 20, ml: 0.25 }} />}
               </IconButton>
             </span>
           </Tooltip>
         )}
       </Box>
-    </Box>
+    </ClickAwayListener>
   );
 });
