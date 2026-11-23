@@ -1,31 +1,34 @@
 "use client";
 
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
-import InputBase from "@mui/material/InputBase";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
-import ArrowUpwardRounded from "@mui/icons-material/ArrowUpwardRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
+import CheckRounded from "@mui/icons-material/CheckRounded";
+import ContentCopyRounded from "@mui/icons-material/ContentCopyRounded";
 import DownloadRounded from "@mui/icons-material/DownloadRounded";
 import ErrorOutlineRounded from "@mui/icons-material/ErrorOutlineRounded";
 import OpenInNewRounded from "@mui/icons-material/OpenInNewRounded";
 import ReplayRounded from "@mui/icons-material/ReplayRounded";
+import StopCircleOutlined from "@mui/icons-material/StopCircleOutlined";
 import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
-import type { DriveDocType, DriveFile, DriveMessage } from "@/lib/drive/types";
+import type { DriveDocType, DriveFile, DriveMessage, DriveStep } from "@/lib/drive/types";
 import { driveContentUrl, driveViewUrl } from "@/lib/drive/links";
 import { toastError } from "@/components/ui/Toast";
-import { createGenerateJob, DOC_TYPE_LABEL, replyToJob, retryJob } from "../api";
+import { createGenerateJob, DOC_TYPE_LABEL, fetchFile, replyToJob, retryJob, stopJob } from "../api";
 import { formatBytes, formatDateTime, formatRelative } from "../format";
 import { fileIcon, isBusy, StatusBadge } from "./DriveItems";
+import { ChatMarkdown } from "./ChatMarkdown";
+import { FoldedSteps, LiveSteps } from "./ChatSteps";
+import { Composer, QueuedMessages, useSendQueue, type ComposerHandle } from "./ChatComposer";
 
-// Chat tab for creating documents (docs/DRIVE.md → "Chat tab for creating documents").
+// Chat tab for creating documents (docs/DRIVE.md → "Chat tab for creating documents" and "Chat v2").
 // One conversation = one drive_files row with source='generated'.
 
 export const NEW_CHAT = "new";
@@ -43,42 +46,13 @@ const PLACEHOLDER: Record<DriveDocType, string> = {
   other: "Ceritakan dokumen yang dibutuhkan…",
 };
 const NARROW_PX = 720;
+const LIVE_POLL_MS = 1500; // run_steps / stream_text are written at most every ~1.5 s
+const COLUMN = 760;
 
 const lastActivity = (f: DriveFile) => {
   const m = f.messages?.length ? f.messages[f.messages.length - 1].at : null;
   return m && m > f.created_at ? m : f.created_at;
 };
-
-// ── tiny markdown-ish renderer: paragraphs/line breaks, "- " / "* " / "1. " bullets, **bold** ──
-function inline(text: string) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-    part.startsWith("**") && part.endsWith("**") && part.length > 4 ? <b key={i}>{part.slice(2, -2)}</b> : <Fragment key={i}>{part}</Fragment>,
-  );
-}
-function RichText({ text }: { text: string }) {
-  const lines = text.replace(/\r\n/g, "\n").trim().split("\n");
-  return (
-    <>
-      {lines.map((line, i) => {
-        const bullet = line.match(/^\s*(?:[-*•]|(\d+)[.)])\s+(.*)$/);
-        if (bullet) {
-          return (
-            <Box key={i} sx={{ display: "flex", gap: 1, pl: 0.5 }}>
-              <Box component="span" sx={{ flexShrink: 0, minWidth: bullet[1] ? 18 : 8, color: "#5F6368" }}>
-                {bullet[1] ? `${bullet[1]}.` : "•"}
-              </Box>
-              <Box component="span" sx={{ minWidth: 0 }}>
-                {inline(bullet[2])}
-              </Box>
-            </Box>
-          );
-        }
-        if (!line.trim()) return <Box key={i} sx={{ height: "0.6em" }} />;
-        return <Box key={i}>{inline(line)}</Box>;
-      })}
-    </>
-  );
-}
 
 function useNarrow<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -91,87 +65,6 @@ function useNarrow<T extends HTMLElement>() {
     return () => ro.disconnect();
   }, []);
   return { ref, narrow };
-}
-
-// ── composer ─────────────────────────────────────────────────
-function Composer({
-  placeholder,
-  disabled,
-  disabledHint,
-  autoFocus,
-  onSend,
-}: {
-  placeholder: string;
-  disabled?: boolean;
-  disabledHint?: string;
-  autoFocus?: boolean;
-  onSend: (text: string) => Promise<boolean>;
-}) {
-  const [text, setText] = useState("");
-  const [sending, setSending] = useState(false);
-  const blocked = disabled || sending;
-  const send = async () => {
-    if (!text.trim() || blocked) return;
-    setSending(true);
-    try {
-      if (await onSend(text.trim())) setText("");
-    } finally {
-      setSending(false);
-    }
-  };
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "flex-end",
-        gap: 1,
-        pl: 2,
-        pr: 0.75,
-        py: 0.75,
-        borderRadius: "24px",
-        bgcolor: disabled ? "#F1F3F4" : "#F0F4F9",
-        border: "1px solid transparent",
-        "&:focus-within": { bgcolor: "#fff", borderColor: "#C4C7C5" },
-      }}
-    >
-      <InputBase
-        multiline
-        maxRows={8}
-        autoFocus={autoFocus}
-        value={text}
-        disabled={disabled}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            send();
-          }
-        }}
-        placeholder={disabled ? disabledHint : placeholder}
-        sx={{ flex: 1, py: 0.75, fontSize: "0.9375rem", lineHeight: 1.5 }}
-        inputProps={{ "aria-label": "Tulis pesan" }}
-      />
-      <Tooltip title="Kirim (Enter)">
-        <span>
-          <IconButton
-            onClick={send}
-            disabled={blocked || !text.trim()}
-            aria-label="Kirim"
-            sx={{
-              width: 40,
-              height: 40,
-              bgcolor: "#0B57D0",
-              color: "#fff",
-              "&:hover": { bgcolor: "#0842A0" },
-              "&.Mui-disabled": { bgcolor: "#E3E3E3", color: "#9AA0A6" },
-            }}
-          >
-            {sending ? <CircularProgress size={18} color="inherit" /> : <ArrowUpwardRounded />}
-          </IconButton>
-        </span>
-      </Tooltip>
-    </Box>
-  );
 }
 
 // ── conversation list ────────────────────────────────────────
@@ -277,32 +170,85 @@ function ConversationList({
   );
 }
 
-// ── message bubbles ──────────────────────────────────────────
-function Bubble({ m }: { m: DriveMessage }) {
-  const user = m.role === "user";
+// ── messages ─────────────────────────────────────────────────
+function UserBubble({ m }: { m: DriveMessage }) {
   return (
-    <Box sx={{ display: "flex", justifyContent: user ? "flex-end" : "flex-start", gap: 1 }}>
-      {!user && <AgentAvatar />}
-      <Box sx={{ maxWidth: "min(78%, 640px)", minWidth: 0 }}>
-        <Box
-          sx={{
-            bgcolor: user ? "#0B57D0" : "#F0F4F9",
-            color: user ? "#fff" : "#1F1F1F",
-            borderRadius: user ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-            px: 1.75,
-            py: 1.1,
-            fontSize: "0.9375rem",
-            lineHeight: 1.55,
-            wordBreak: "break-word",
-            whiteSpace: user ? "pre-wrap" : "normal",
-          }}
-        >
-          {user ? m.text : <RichText text={m.text} />}
+    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+      <Box
+        sx={{
+          maxWidth: "min(85%, 600px)",
+          bgcolor: "#E9EEF6",
+          color: "#1F1F1F",
+          borderRadius: "20px 20px 6px 20px",
+          px: 2,
+          py: 1.25,
+          fontSize: "0.9375rem",
+          lineHeight: 1.55,
+          whiteSpace: "pre-wrap",
+          overflowWrap: "anywhere",
+        }}
+      >
+        {m.text}
+      </Box>
+      <Typography suppressHydrationWarning sx={{ fontSize: "0.6875rem", color: "#5F6368", mt: 0.5, px: 0.5 }}>
+        {formatDateTime(m.at)}
+      </Typography>
+    </Box>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(t);
+  }, [copied]);
+  return (
+    <Tooltip title={copied ? "Tersalin" : "Salin"}>
+      <IconButton
+        size="small"
+        aria-label={copied ? "Tersalin" : "Salin jawaban"}
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+          } catch {
+            toastError("Gagal menyalin.");
+          }
+        }}
+        sx={{ color: "#5F6368", width: 28, height: 28 }}
+      >
+        {copied ? <CheckRounded sx={{ fontSize: 16, color: "#146C2E" }} /> : <ContentCopyRounded sx={{ fontSize: 15 }} />}
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+function StoppedNote() {
+  return (
+    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: "#5F6368", fontSize: "0.8125rem" }}>
+      <StopCircleOutlined sx={{ fontSize: 16 }} />
+      Dihentikan
+    </Box>
+  );
+}
+
+// An answer: plain Markdown in the column (no bubble), then its actions (folded steps, copy, time).
+function AssistantMessage({ m }: { m: DriveMessage }) {
+  const text = m.text?.trim() ?? "";
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      {text && <ChatMarkdown text={text} />}
+      {m.stopped && (
+        <Box sx={{ mt: text ? 1 : 0 }}>
+          <StoppedNote />
         </Box>
-        <Typography
-          suppressHydrationWarning
-          sx={{ fontSize: "0.6875rem", color: "#5F6368", mt: 0.5, px: 0.5, textAlign: user ? "right" : "left" }}
-        >
+      )}
+      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.5, mt: 0.75, ml: -0.5 }}>
+        <FoldedSteps steps={m.steps} durationMs={m.duration_ms} />
+        {text && <CopyButton text={text} />}
+        <Typography suppressHydrationWarning sx={{ fontSize: "0.6875rem", color: "#9AA0A6", px: 0.5 }}>
           {formatDateTime(m.at)}
         </Typography>
       </Box>
@@ -310,55 +256,26 @@ function Bubble({ m }: { m: DriveMessage }) {
   );
 }
 
-function AgentAvatar() {
+// The run in progress: live steps + elapsed time, then the reply streamed so far.
+function LiveAnswer({ file }: { file: DriveFile }) {
+  const queued = file.status === "queued";
+  const steps: DriveStep[] = useMemo(() => {
+    const list: DriveStep[] = file.run_steps?.length
+      ? file.run_steps
+      : file.progress
+        ? [{ label: file.progress, at: file.started_at ?? "" }]
+        : [];
+    return file.cancel_requested_at ? [...list, { label: "Menghentikan…", at: file.cancel_requested_at }] : list;
+  }, [file.run_steps, file.progress, file.started_at, file.cancel_requested_at]);
+  const text = queued ? "" : file.stream_text?.trim() ?? "";
   return (
-    <Box
-      sx={{
-        width: 30,
-        height: 30,
-        borderRadius: "50%",
-        flexShrink: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(135deg, #8E5CF5, #0B57D0)",
-        color: "#fff",
-        mt: 0.25,
-      }}
-    >
-      <AutoAwesomeRounded sx={{ fontSize: 16 }} />
-    </Box>
-  );
-}
-
-function Typing({ file }: { file: DriveFile }) {
-  const text = file.progress || (file.status === "queued" ? "Menunggu giliran di antrean…" : "Agen sedang menyusun dokumen…");
-  return (
-    <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
-      <AgentAvatar />
-      <Box>
-        <Box
-          sx={{
-            display: "inline-flex",
-            gap: 0.6,
-            alignItems: "center",
-            bgcolor: "#F0F4F9",
-            borderRadius: "18px 18px 18px 4px",
-            px: 2,
-            py: 1.5,
-            "@keyframes chatDot": { "0%, 80%, 100%": { opacity: 0.25, transform: "translateY(0)" }, "40%": { opacity: 1, transform: "translateY(-3px)" } },
-          }}
-          aria-label="Agen sedang mengetik"
-        >
-          {[0, 1, 2].map((i) => (
-            <Box
-              key={i}
-              sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: "#5F6368", animation: `chatDot 1.2s ${i * 0.16}s infinite ease-in-out` }}
-            />
-          ))}
+    <Box sx={{ minWidth: 0 }}>
+      <LiveSteps steps={steps} queued={queued && !file.cancel_requested_at} startedAt={file.started_at} />
+      {text && (
+        <Box sx={{ mt: 1.5 }}>
+          <ChatMarkdown text={text} />
         </Box>
-        <Typography sx={{ fontSize: "0.75rem", color: "#0B57D0", mt: 0.5, px: 0.5 }}>{text}</Typography>
-      </Box>
+      )}
     </Box>
   );
 }
@@ -367,44 +284,34 @@ function FileCard({ file, onPreview }: { file: DriveFile; onPreview: () => void 
   const { Icon, color } = fileIcon(file);
   const gid = file.google_file_id;
   return (
-    <Box sx={{ display: "flex", gap: 1 }}>
-      <Box sx={{ width: 30, flexShrink: 0 }} />
-      <Box sx={{ width: "min(420px, 100%)", border: "1px solid #E0E3E7", borderRadius: "14px", overflow: "hidden", bgcolor: "#fff" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1.5 }}>
-          <Box sx={{ width: 40, height: 40, borderRadius: "10px", bgcolor: "#F0F4F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Icon sx={{ fontSize: 24, color }} />
-          </Box>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography sx={{ fontSize: "0.875rem", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {file.name}
-            </Typography>
-            <Typography sx={{ fontSize: "0.75rem", color: "#5F6368" }}>
-              {[file.doc_number, file.size_bytes != null ? formatBytes(file.size_bytes) : null].filter(Boolean).join(" · ") || "Dokumen siap"}
-            </Typography>
-          </Box>
+    <Box sx={{ width: "min(440px, 100%)", border: "1px solid #E0E3E7", borderRadius: "14px", overflow: "hidden", bgcolor: "#fff" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1.5 }}>
+        <Box sx={{ width: 40, height: 40, borderRadius: "10px", bgcolor: "#F0F4F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon sx={{ fontSize: 24, color }} />
         </Box>
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, px: 1, pb: 1 }}>
-          <Button size="small" startIcon={<VisibilityOutlined />} onClick={onPreview} sx={{ borderRadius: "9999px" }}>
-            Pratinjau
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography sx={{ fontSize: "0.875rem", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {file.name}
+          </Typography>
+          <Typography sx={{ fontSize: "0.75rem", color: "#5F6368" }}>
+            {[file.doc_number, file.size_bytes != null ? formatBytes(file.size_bytes) : null].filter(Boolean).join(" · ") || "Dokumen siap"}
+          </Typography>
+        </Box>
+      </Box>
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, px: 1, pb: 1 }}>
+        <Button size="small" startIcon={<VisibilityOutlined />} onClick={onPreview} sx={{ borderRadius: "9999px" }}>
+          Pratinjau
+        </Button>
+        {gid && (
+          <Button size="small" startIcon={<OpenInNewRounded />} href={driveViewUrl(gid)} target="_blank" rel="noopener noreferrer" sx={{ borderRadius: "9999px" }}>
+            Buka di Google Drive
           </Button>
-          {gid && (
-            <Button
-              size="small"
-              startIcon={<OpenInNewRounded />}
-              href={driveViewUrl(gid)}
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{ borderRadius: "9999px" }}
-            >
-              Buka di Google Drive
-            </Button>
-          )}
-          {gid && (
-            <Button size="small" startIcon={<DownloadRounded />} href={driveContentUrl(file.id, true)} sx={{ borderRadius: "9999px" }}>
-              Download
-            </Button>
-          )}
-        </Box>
+        )}
+        {gid && (
+          <Button size="small" startIcon={<DownloadRounded />} href={driveContentUrl(file.id, true)} sx={{ borderRadius: "9999px" }}>
+            Download
+          </Button>
+        )}
       </Box>
     </Box>
   );
@@ -412,7 +319,7 @@ function FileCard({ file, onPreview }: { file: DriveFile; onPreview: () => void 
 
 // ── thread ───────────────────────────────────────────────────
 function Thread({
-  file,
+  file: listed,
   onBack,
   onPreview,
   onChanged,
@@ -422,7 +329,36 @@ function Thread({
   onPreview: (id: string) => void;
   onChanged: () => Promise<void> | void;
 }) {
+  // While a run is live this row is polled on its own (fast); the list prop refreshes slower. Newest wins.
+  const [live, setLive] = useState<DriveFile | null>(null);
+  const file = live && live.id === listed.id && live.updated_at >= listed.updated_at ? live : listed;
   const busy = isBusy(file);
+
+  const reload = useCallback(async () => {
+    try {
+      const row = await fetchFile(listed.id);
+      if (row) setLive(row);
+      return row;
+    } catch {
+      return null; // transient; the next tick retries
+    }
+  }, [listed.id]);
+
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
+  useEffect(() => {
+    if (!busy) return;
+    let alive = true;
+    const t = setInterval(async () => {
+      const row = await reload();
+      if (alive && row && !isBusy(row)) void onChangedRef.current(); // run ended: refresh the list too
+    }, LIVE_POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [busy, reload]);
+
   const messages = useMemo(() => {
     const list = [...(file.messages ?? [])];
     // Older worker versions may set agent_message without appending it to messages.
@@ -432,37 +368,106 @@ function Thread({
     }
     return list;
   }, [file.messages, file.status, file.agent_message, file.updated_at]);
+  const lastMsg = messages[messages.length - 1];
+  const endedStopped = !busy && lastMsg?.role === "assistant" && Boolean(lastMsg.stopped);
 
-  const scroller = useRef<HTMLDivElement>(null);
-  const pinned = useRef(true);
+  // ── send / queue / stop ──
+  const queue = useSendQueue(file.id);
+  const composer = useRef<ComposerHandle>(null);
+  const [sending, setSending] = useState(false);
+  const [stopping, setStopping] = useState(false);
   useEffect(() => {
-    pinned.current = true;
-  }, [file.id]);
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (el && pinned.current) el.scrollTop = el.scrollHeight;
-  }, [file.id, messages.length, file.status, file.progress]);
+    if (!busy) setStopping(false);
+  }, [busy]);
+
+  const pinned = useRef(true);
+  const submit = useCallback(
+    async (text: string) => {
+      setSending(true);
+      try {
+        await replyToJob(file, text);
+        pinned.current = true;
+        await reload();
+        await onChangedRef.current();
+        return true;
+      } catch (e) {
+        toastError((e as Error).message);
+        return false;
+      } finally {
+        setSending(false);
+      }
+    },
+    [file, reload],
+  );
+
+  // Waiting messages go out as one message (the worker resumes with the last user message only).
+  const sendQueued = useCallback(
+    async (extra?: string) => {
+      const items = queue.take();
+      const text = [...items.map((q) => q.text), ...(extra ? [extra] : [])].join("\n\n").trim();
+      if (!text) return true;
+      const ok = await submit(text);
+      if (!ok) queue.restore(items);
+      return ok;
+    },
+    [queue, submit],
+  );
 
   const send = async (text: string) => {
-    try {
-      await replyToJob(file, text);
+    if (busy) {
+      queue.add(text);
       pinned.current = true;
-      await onChanged();
       return true;
+    }
+    return sendQueued(text);
+  };
+
+  // A run that ends ready / needs_input sends the waiting messages; failed / stopped keeps them ("Kirim sekarang").
+  const wasBusy = useRef(busy);
+  useEffect(() => {
+    const ended = wasBusy.current && !busy;
+    wasBusy.current = busy;
+    if (ended && !endedStopped && (file.status === "ready" || file.status === "needs_input") && queue.items.length) {
+      void sendQueued();
+    }
+  }, [busy, endedStopped, file.status, queue.items.length, sendQueued]);
+  const paused =
+    busy || !queue.items.length
+      ? null
+      : file.status === "failed"
+        ? "Jawaban gagal — pesan belum dikirim"
+        : endedStopped
+          ? "Dihentikan — pesan belum dikirim"
+          : "Pesan belum dikirim";
+
+  const stop = async () => {
+    setStopping(true);
+    try {
+      await stopJob(file);
+      await reload();
+      await onChangedRef.current();
     } catch (e) {
+      setStopping(false);
       toastError((e as Error).message);
-      return false;
     }
   };
   const retry = async () => {
     try {
       await retryJob(file);
       pinned.current = true;
-      await onChanged();
+      await reload();
+      await onChangedRef.current();
     } catch (e) {
       toastError((e as Error).message);
     }
   };
+
+  // ── scroll: stay at the bottom while pinned ──
+  const scroller = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (el && pinned.current) el.scrollTop = el.scrollHeight;
+  }, [file.id, messages.length, file.status, file.stream_text, file.run_steps?.length, queue.items.length]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
@@ -490,43 +495,52 @@ function Thread({
           const el = e.currentTarget;
           pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         }}
-        sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: { xs: 1.5, sm: 3 }, py: 2.5 }}
+        sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: { xs: 2, sm: 3 }, py: 3 }}
       >
-        <Box sx={{ maxWidth: 820, mx: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
-          {messages.map((m, i) => (
-            <Bubble key={`${i}-${m.at}`} m={m} />
-          ))}
-          {busy && <Typing file={file} />}
+        <Box sx={{ maxWidth: COLUMN, mx: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
+          {messages.map((m, i) =>
+            m.role === "user" ? <UserBubble key={`${i}-${m.at}`} m={m} /> : <AssistantMessage key={`${i}-${m.at}`} m={m} />,
+          )}
+          {busy && <LiveAnswer file={file} />}
           {file.status === "ready" && <FileCard file={file} onPreview={() => onPreview(file.id)} />}
           {file.status === "failed" && (
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <Box sx={{ width: 30, flexShrink: 0 }} />
-              <Box sx={{ border: "1px solid #F4C7C3", bgcolor: "#FCE8E6", borderRadius: "14px", p: 1.5, maxWidth: 520 }}>
-                <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start", color: "#B3261E" }}>
-                  <ErrorOutlineRounded sx={{ fontSize: 20, mt: 0.1 }} />
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontSize: "0.875rem", fontWeight: 500 }}>Gagal membuat dokumen</Typography>
-                    <Typography sx={{ fontSize: "0.8125rem", color: "#601410", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                      {file.error_msg || "Terjadi kesalahan."}
-                    </Typography>
-                  </Box>
+            <Box sx={{ border: "1px solid #F4C7C3", bgcolor: "#FCE8E6", borderRadius: "14px", p: 1.5, maxWidth: 520 }}>
+              <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start", color: "#B3261E" }}>
+                <ErrorOutlineRounded sx={{ fontSize: 20, mt: 0.1 }} />
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: "0.875rem", fontWeight: 500 }}>Gagal membuat dokumen</Typography>
+                  <Typography sx={{ fontSize: "0.8125rem", color: "#601410", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                    {file.error_msg || "Terjadi kesalahan."}
+                  </Typography>
                 </Box>
-                <Button size="small" variant="contained" disableElevation startIcon={<ReplayRounded />} onClick={retry} sx={{ borderRadius: "9999px", mt: 1.25, ml: 3.5 }}>
-                  Coba lagi
-                </Button>
               </Box>
+              <Button size="small" variant="contained" disableElevation startIcon={<ReplayRounded />} onClick={retry} sx={{ borderRadius: "9999px", mt: 1.25, ml: 3.5 }}>
+                Coba lagi
+              </Button>
             </Box>
           )}
         </Box>
       </Box>
 
       <Box sx={{ px: { xs: 1.5, sm: 3 }, pb: 2, pt: 1, flexShrink: 0 }}>
-        <Box sx={{ maxWidth: 820, mx: "auto" }}>
-          {file.status === "needs_input" && (
+        <Box sx={{ maxWidth: COLUMN, mx: "auto" }}>
+          <QueuedMessages
+            items={queue.items}
+            paused={paused}
+            sending={sending}
+            onUpdate={queue.update}
+            onRemove={(id) => {
+              queue.remove(id);
+              composer.current?.focus();
+            }}
+            onSendNow={() => void sendQueued()}
+          />
+          {file.status === "needs_input" && !queue.items.length && (
             <Typography sx={{ fontSize: "0.75rem", color: "#7A4F01", mb: 0.75, px: 1 }}>Agen menunggu jawaban Anda.</Typography>
           )}
           <Composer
-            key={file.id}
+            ref={composer}
+            chatId={file.id}
             placeholder={
               file.status === "ready"
                 ? "Minta revisi, mis. “ganti harga paket jadi Rp5 jt”…"
@@ -534,13 +548,35 @@ function Thread({
                   ? "Tulis jawaban…"
                   : "Tulis pesan…"
             }
-            disabled={busy}
-            disabledHint="Tunggu agen selesai…"
+            running={busy}
+            stopping={stopping || Boolean(file.cancel_requested_at)}
             autoFocus={file.status === "needs_input"}
             onSend={send}
+            onStop={() => void stop()}
           />
         </Box>
       </Box>
+    </Box>
+  );
+}
+
+function AgentAvatar() {
+  return (
+    <Box
+      sx={{
+        width: 30,
+        height: 30,
+        borderRadius: "50%",
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #8E5CF5, #0B57D0)",
+        color: "#fff",
+        mt: 0.25,
+      }}
+    >
+      <AutoAwesomeRounded sx={{ fontSize: 16 }} />
     </Box>
   );
 }
@@ -612,7 +648,7 @@ function NewChat({
       </Box>
       <Box sx={{ px: { xs: 1.5, sm: 3 }, pb: 2, pt: 1 }}>
         <Box sx={{ maxWidth: 820, mx: "auto" }}>
-          <Composer placeholder={PLACEHOLDER[docType]} autoFocus onSend={(text) => onCreate(docType, text)} />
+          <Composer chatId={NEW_CHAT} placeholder={PLACEHOLDER[docType]} autoFocus onSend={(text) => onCreate(docType, text)} />
           <Typography sx={{ fontSize: "0.6875rem", color: "#5F6368", textAlign: "center", mt: 0.75 }}>
             Enter untuk kirim · Shift+Enter untuk baris baru
           </Typography>
@@ -679,7 +715,7 @@ export function DriveChat({
   ) : null;
 
   return (
-    <Box ref={ref} sx={{ flex: 1, minHeight: 0, display: "flex", position: "relative" }}>
+    <Box ref={ref} sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", position: "relative" }}>
       {(!narrow || !showThread) && (
         <Box sx={{ width: narrow ? "100%" : 320, flexShrink: 0, borderRight: narrow ? "none" : "1px solid #E0E3E7", minHeight: 0 }}>
           <ConversationList items={items} activeId={activeId} now={now} onSelect={(id) => onSelect(id)} onNew={() => onSelect(NEW_CHAT)} />

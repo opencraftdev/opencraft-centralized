@@ -4,10 +4,19 @@ export type DriveFileStatus = "queued" | "generating" | "needs_input" | "ready" 
 export type DriveFileSource = "generated" | "upload" | "agent" | "google"; // google = created directly in Google Drive (sync)
 export type DriveDocType = "sph" | "mou" | "deck" | "other";
 
+// One step of an agent run: the short Indonesian progress line and when it started (migration 024).
+export interface DriveStep {
+  label: string;
+  at: string;
+}
+
 export interface DriveMessage {
   role: "user" | "assistant";
-  text: string;
+  text: string; // Markdown for assistant messages
   at: string;
+  steps?: DriveStep[]; // assistant: the run's steps (moved from run_steps when the run ended)
+  duration_ms?: number; // assistant: how long the run took
+  stopped?: boolean; // assistant: the user stopped the run
 }
 
 export interface DriveFolder {
@@ -40,6 +49,11 @@ export interface DriveFile {
   doc_number: string | null;
   error_msg: string | null;
   progress: string | null; // live step text while the agent works (migration 023)
+  run_steps: DriveStep[] | null; // steps of the run in progress (migration 024, worker-written)
+  stream_text: string | null; // reply streamed so far, RESULT line cut off (migration 024, worker-written)
+  cancel_requested_at: string | null; // set by the UI "Stop" (migration 024)
+  started_at: string | null; // worker: when the current/last run was claimed
+  finished_at: string | null; // worker: when the last run ended
   starred: boolean;
   trashed_at: string | null;
   created_by: string | null;

@@ -21,7 +21,8 @@ const POLL_MS = Number(process.env.POLL_MS ?? 5000);
 const RUN_TIMEOUT_MS = Number(process.env.RUN_TIMEOUT_MS ?? 960_000); // gateway run_timeout_secs=900 + slack
 const STALE_MINUTES = Number(process.env.STALE_MINUTES ?? 20);
 const SYNC_MS = Number(process.env.SYNC_MS ?? 30_000); // Google → dashboard sync interval; 0 = off
-const SYNC_REQUEST_POLL_MS = 2500; // how often drive_sync_state.sync_requested_at ("Sinkronkan sekarang") is checked
+const SYNC_REQUEST_POLL_MS = 2500;
+const CANCEL_POLL_MS = 2000; // how often drive_files.cancel_requested_at ("Stop") is checked during a run // how often drive_sync_state.sync_requested_at ("Sinkronkan sekarang") is checked
 
 const db = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -34,7 +35,8 @@ const gsync = createDriveSync({
   log: (...a) => log(...a),
 });
 
-type Msg = { role: "user" | "assistant"; text: string; at: string };
+type Step = { label: string; at: string };
+type Msg = { role: "user" | "assistant"; text: string; at: string; steps?: Step[]; duration_ms?: number; stopped?: boolean };
 type Row = {
   id: string;
   name: string;
@@ -47,6 +49,7 @@ type Row = {
   cost_usd: number | string | null;
   doc_number: string | null;
   metadata: Record<string, unknown> | null;
+  cancel_requested_at?: string | null;
 };
 type RunResp = { run_id?: string; text?: string; session_id?: string; cost_usd?: number; is_error?: boolean };
 type Req = { prompt: string; session_id?: string };
@@ -72,10 +75,14 @@ the user only sees your final reply and the file. Follow CLAUDE.md in this direc
 - Do not mention monitoring/telemetry warnings (e.g. missing SUPABASE_URL) in your reply; they are expected here.
 - End your reply with EXACTLY ONE final line, nothing after it, in one of these forms (single-line JSON):
 RESULT: {"status":"ready","path":"documents/sph/004_SPH-OC_2026.pdf","doc_number":"004/SPH-OC/2026","title":"SPH PT Contoh"}
-RESULT: {"status":"needs_input","question":"<pertanyaan untuk user, Bahasa Indonesia>"}
-"path" is relative to ${DOC_AGENT_DIR}. Write the reply text before the RESULT line in Bahasa Indonesia (short summary).`;
+RESULT: {"status":"needs_input","question":"<pertanyaan untuk user, Bahasa Indonesia, Markdown>"}
+"path" is relative to ${DOC_AGENT_DIR}. Write the reply text before the RESULT line in Bahasa Indonesia (short summary).
+- FORMAT: the web UI renders Markdown. Write the reply text AND the needs_input "question" in Markdown, in Bahasa Indonesia:
+  short paragraphs, a numbered list when asking several things, **bold** for key values (client, number, total),
+  a Markdown table for item lists. The RESULT line itself stays single-line JSON: put line breaks inside the
+  "question" string as \\n escapes (e.g. "Mohon lengkapi:\\n\\n1. **Nama klien**?\\n2. **Paket**?").`;
 
-const REMINDER = `\n\n(Reminder: still non-interactive from the web UI. Do not guess missing data or prices. End with exactly one line: RESULT: {"status":"ready","path":...,"doc_number":...,"title":...} or RESULT: {"status":"needs_input","question":"..."})`;
+const REMINDER = `\n\n(Reminder: still non-interactive from the web UI. Do not guess missing data or prices. Write the reply and the needs_input question in Markdown, Bahasa Indonesia (short paragraphs, numbered list for several questions, **bold** key values, a table for item lists). End with exactly one single-line JSON line (use \\n escapes inside "question"): RESULT: {"status":"ready","path":...,"doc_number":...,"title":...} or RESULT: {"status":"needs_input","question":"..."})`;
 
 // A follow-up on a row that already produced a document (it has a Google file): the user is revising
 // that document in the chat (docs/DRIVE.md → "Chat tab"). Same document, same number, unless asked otherwise.
@@ -116,9 +123,7 @@ function buildPrompt(row: Row): Req {
   return { prompt: body + "\n" + PROTOCOL };
 }
 
-// ---- live progress (drive_files.progress) from the gateway's SSE tool events ----
-const PROGRESS_MS = 2000;
-
+// ---- live progress (drive_files.progress / run_steps) from the gateway's SSE tool events ----
 // The gateway sends `input` as a one-line summary string (command / file_path / path / pattern …, truncated to
 // 60 chars, e.g. "cd /home/opencraft/document-agent && python3 scripts/doc_num"), so match loosely.
 // An object input (full tool input) is handled too.
@@ -165,39 +170,76 @@ function progressFor(name: string, input: unknown): string | null {
   }
 }
 
-// Throttled writer: at most one DB write per PROGRESS_MS, the latest line wins, writes are serialized.
-function progressWriter(id: string) {
-  let lastText: string | null | undefined;
+// Visible reply text: the SSE `text` events are whole assistant text blocks (cc-gateway runner.rs emits one
+// event per `text` content block of each assistant message, not token deltas), so blocks are joined with a
+// blank line. Any RESULT line (complete, or a trailing partial "RESULT…" fragment) is cut off.
+function visibleText(blocks: string[]): string {
+  const lines = blocks.join("\n\n").split(/\r?\n/).filter((l) => !l.includes("RESULT:"));
+  while (lines.length) {
+    const last = lines[lines.length - 1].trim().replace(/^`+/, "");
+    if (!last || "RESULT:".startsWith(last)) lines.pop();
+    else break;
+  }
+  return lines.join("\n").trim();
+}
+
+// Live state of the running job (docs/DRIVE.md → "Chat v2"): progress (newest label), run_steps (appended when the
+// label changes) and stream_text. Throttled writer: at most one DB write per LIVE_MS, the latest state wins, writes
+// are serialized and only land while the row is still `generating`.
+const LIVE_MS = 1500;
+function liveWriter(id: string) {
+  const steps: Step[] = [];
+  const blocks: string[] = [];
+  let label: string | null = null;
   let lastAt = 0;
-  let pending: string | null = null;
+  let dirty = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let chain: Promise<unknown> = Promise.resolve();
   let closed = false;
-  const write = (text: string) => {
-    lastText = text;
+  const snapshot = () => ({ progress: label, run_steps: [...steps], stream_text: visibleText(blocks) || null });
+  const write = () => {
+    dirty = false;
     lastAt = Date.now();
+    const patch = snapshot();
     chain = chain.then(() =>
-      db.from("drive_files").update({ progress: text }).eq("id", id).eq("status", "generating")
-        .then(({ error }) => error && log(`job ${id} progress: ${error.message}`)),
+      db.from("drive_files").update(patch).eq("id", id).eq("status", "generating")
+        .then(({ error }) => error && log(`job ${id} live: ${error.message}`)),
     );
   };
+  const schedule = () => {
+    if (closed) return;
+    dirty = true;
+    if (timer) return;
+    const wait = lastAt + LIVE_MS - Date.now();
+    const flush = () => {
+      timer = null;
+      if (!closed && dirty) write();
+    };
+    if (wait <= 0) flush();
+    else timer = setTimeout(flush, wait);
+  };
   return {
-    set(text: string | null) {
-      if (closed || !text) return;
-      pending = text;
-      if (timer) return;
-      const wait = lastAt + PROGRESS_MS - Date.now();
-      const flush = () => {
-        timer = null;
-        if (closed || pending == null) return;
-        const t = pending;
-        pending = null;
-        if (t !== lastText) write(t);
-      };
-      if (wait <= 0) flush();
-      else timer = setTimeout(flush, wait);
+    steps,
+    text: () => visibleText(blocks),
+    step(text: string | null) {
+      if (closed || !text || text === label) return;
+      label = text;
+      steps.push({ label: text, at: now() });
+      schedule();
     },
-    // Stop writing and wait for in-flight writes, so the final update (progress: null) lands last.
+    addText(t: string) {
+      if (closed || !t) return;
+      blocks.push(t);
+      schedule();
+    },
+    // Write the current state now (e.g. "Mengunggah ke Google Drive…" after the run), bypassing the throttle.
+    async flushNow() {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (!closed) write();
+      await chain.catch(() => {});
+    },
+    // Stop writing and wait for in-flight writes, so the final update (nulls) lands last.
     async close() {
       closed = true;
       if (timer) clearTimeout(timer);
@@ -205,6 +247,9 @@ function progressWriter(id: string) {
     },
   };
 }
+
+// Columns nulled in the same update that ends a run (ready / needs_input / failed / stopped / re-queued).
+const LIVE_CLEAR = { progress: null, run_steps: null, stream_text: null, cancel_requested_at: null };
 
 function parseResult(text: string): Result | null {
   const lines = text.split(/\r?\n/);
@@ -255,12 +300,19 @@ const httpError = (status: number, msg: string) => Object.assign(new Error(msg),
 // Errors before the run starts (401/404 session/429/…) come back as plain HTTP errors. Aborting (timeout)
 // disconnects, which stops the run in the gateway. A stream that ends without result/error is an error
 // (never re-run: the agent may already have taken a number / written files).
-async function callGateway(body: Req, onTool: (name: string, input: unknown) => void): Promise<RunResp> {
+type Hooks = {
+  onTool: (name: string, input: unknown) => void;
+  onText: (text: string) => void;
+  onInit: (init: { run_id?: string; session_id?: string }) => void;
+  signal: AbortSignal; // user "Stop"
+};
+async function callGateway(body: Req, hooks: Hooks): Promise<RunResp> {
+  const { onTool } = hooks;
   const res = await fetch(`${GATEWAY_URL}/v1/runs`, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "text/event-stream", authorization: `Bearer ${GATEWAY_KEY}` },
     body: JSON.stringify({ ...body, stream: true }),
-    signal: AbortSignal.timeout(RUN_TIMEOUT_MS),
+    signal: AbortSignal.any([AbortSignal.timeout(RUN_TIMEOUT_MS), hooks.signal]),
     timeout: false, // Bun: disable the default fetch timeout; AbortSignal handles it
   } as RequestInit);
   if (res.status === 429) {
@@ -281,12 +333,16 @@ async function callGateway(body: Req, onTool: (name: string, input: unknown) => 
     } catch {
       return null;
     }
-    if (event === "init") init = v as typeof init;
-    else if (event === "tool") onTool(String(v.name ?? ""), v.input);
-    else if (event === "text" && typeof v.text === "string") texts.push(v.text);
-    else if (event === "result") {
+    if (event === "init") {
+      init = v as typeof init;
+      hooks.onInit(init);
+    } else if (event === "tool") onTool(String(v.name ?? ""), v.input);
+    else if (event === "text" && typeof v.text === "string") {
+      texts.push(v.text);
+      hooks.onText(v.text);
+    } else if (event === "result") {
       const r = v as RunResp;
-      return { ...r, run_id: r.run_id ?? init.run_id, session_id: r.session_id ?? init.session_id, text: r.text ?? texts.join("\n") };
+      return { ...r, run_id: r.run_id ?? init.run_id, session_id: r.session_id ?? init.session_id, text: r.text ?? texts.join("\n\n") };
     } else if (event === "error") {
       const type = String(v.type ?? "");
       const msg = `gateway run error (${type || "unknown"}): ${String(v.message ?? "").slice(0, 500)}`;
@@ -345,55 +401,125 @@ async function processJob(row: Row) {
 
   let run: RunResp;
   let req = buildPrompt(row);
-  const progress = progressWriter(row.id);
-  const onTool = (name: string, input: unknown) => {
-    const line = progressFor(name, input);
-    log(`job ${row.id} tool ${name}: ${typeof input === "string" ? input : JSON.stringify(input)?.slice(0, 120)} → ${line ?? "-"}`);
-    progress.set(line);
+  const live = liveWriter(row.id);
+  const done = () => ({ steps: [...live.steps], duration_ms: Date.now() - t0 });
+
+  // Stop (docs/DRIVE.md → "Chat v2"): the user set cancel_requested_at. Never a failure: the streamed text so far
+  // becomes a `stopped` assistant message; the row goes back to ready (it has a document) or needs_input.
+  const finishStopped = async (init: { run_id?: string; session_id?: string }) => {
+    await live.close();
+    messages.push({ role: "assistant", text: live.text(), stopped: true, ...done(), at: now() });
+    const patch: Record<string, unknown> = {
+      ...LIVE_CLEAR,
+      status: row.google_file_id ? "ready" : "needs_input",
+      messages,
+      error_msg: null,
+      finished_at: now(),
+      gateway_session_id: init.session_id ?? row.gateway_session_id,
+      run_id: init.run_id ?? null,
+    };
+    if (!row.google_file_id) patch.agent_message = "Dihentikan.";
+    await update(row.id, patch);
+    log(`job ${row.id} stopped by user after ${((Date.now() - t0) / 1000).toFixed(0)}s (run ${init.run_id ?? "-"})`);
   };
-  progress.set(row.google_file_id ? "Memulai revisi…" : "Memulai…");
+
+  if (row.cancel_requested_at) {
+    await finishStopped({}); // stopped while still queued: never sent to the gateway
+    return;
+  }
+
+  let init: { run_id?: string; session_id?: string } = {};
+  const stop = new AbortController();
+  let stopped = false;
+  const stopRun = () => {
+    if (!init.run_id) return;
+    fetch(`${GATEWAY_URL}/v1/runs/${encodeURIComponent(init.run_id)}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${GATEWAY_KEY}` },
+      signal: AbortSignal.timeout(10_000),
+    })
+      .then((r) => log(`job ${row.id} DELETE run ${init.run_id} → HTTP ${r.status}`))
+      .catch((e) => log(`job ${row.id} DELETE run ${init.run_id}: ${(e as Error).message}`));
+  };
+  let checking = false;
+  const watcher = setInterval(async () => {
+    if (stopped || checking) return;
+    checking = true;
+    try {
+      const { data, error } = await db.from("drive_files").select("cancel_requested_at").eq("id", row.id).maybeSingle();
+      if (!error && data?.cancel_requested_at && !stopped) {
+        stopped = true;
+        log(`job ${row.id} stop requested`);
+        stopRun();
+        stop.abort(); // disconnecting also makes the gateway kill the run
+      }
+    } finally {
+      checking = false;
+    }
+  }, CANCEL_POLL_MS);
+
+  const hooks: Hooks = {
+    onTool: (name, input) => {
+      const line = progressFor(name, input);
+      log(`job ${row.id} tool ${name}: ${typeof input === "string" ? input : JSON.stringify(input)?.slice(0, 120)} → ${line ?? "-"}`);
+      live.step(line);
+    },
+    onText: (t) => live.addText(t),
+    onInit: (i) => {
+      init = i;
+      if (stopped) stopRun(); // stop arrived before init
+    },
+    signal: stop.signal,
+  };
+  live.step(row.google_file_id ? "Memulai revisi…" : "Memulai…");
   try {
     try {
-      run = await callGateway(req, onTool);
+      run = await callGateway(req, hooks);
     } catch (e) {
       // Session gone (gateway reset / other key) → start fresh with the full conversation replayed.
       // (404 = the gateway refused the session before running anything, so this is not a double run.)
-      if ((e as { status?: number }).status === 404 && req.session_id) {
+      if ((e as { status?: number }).status === 404 && req.session_id && !stopped) {
         log(`job ${row.id} session ${req.session_id} not found, starting a new session`);
         req = buildPrompt({ ...row, gateway_session_id: null });
-        run = await callGateway(req, onTool);
+        run = await callGateway(req, hooks);
       } else throw e;
     }
   } catch (e) {
-    await progress.close();
+    clearInterval(watcher);
+    if (stopped) {
+      await finishStopped(init);
+      return;
+    }
+    await live.close();
     if (e instanceof RetryLater) {
       log(`job ${row.id} ${e.message}; re-queuing`);
-      await update(row.id, { status: "queued", started_at: null, progress: null });
+      await update(row.id, { ...LIVE_CLEAR, status: "queued", started_at: null });
       await sleep(30_000);
       return;
     }
     const name = (e as Error).name;
     const msg = name === "TimeoutError" || name === "AbortError" ? `timeout after ${RUN_TIMEOUT_MS / 1000}s` : (e as Error).message;
     log(`job ${row.id} failed after ${((Date.now() - t0) / 1000).toFixed(0)}s: ${msg}`);
-    await update(row.id, { status: "failed", error_msg: msg, finished_at: now(), progress: null });
+    await update(row.id, { ...LIVE_CLEAR, status: "failed", error_msg: msg, finished_at: now() });
     return;
   }
-  await progress.close();
+  clearInterval(watcher); // the run finished: a late Stop is ignored (cancel_requested_at is cleared below)
 
   const text = run.text ?? "";
   const base = {
+    ...LIVE_CLEAR,
     gateway_session_id: run.session_id ?? req.session_id ?? row.gateway_session_id,
     run_id: run.run_id ?? null,
     cost_usd: +(prevCost + (run.cost_usd ?? 0)).toFixed(6),
     finished_at: now(),
-    progress: null,
   };
   const secs = ((Date.now() - t0) / 1000).toFixed(0);
   const result = run.is_error ? null : parseResult(text);
 
   try {
     if (result?.status === "needs_input") {
-      messages.push({ role: "assistant", text: result.question, at: now() });
+      await live.close();
+      messages.push({ role: "assistant", text: result.question, ...done(), at: now() });
       await update(row.id, { ...base, status: "needs_input", agent_message: result.question, messages, error_msg: null });
       log(`job ${row.id} needs_input after ${secs}s cost=$${run.cost_usd}`);
       return;
@@ -403,10 +529,12 @@ async function processJob(row: Row) {
       const name = path.basename(abs);
       const mime = MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
       const bytes = fs.readFileSync(abs);
-      await update(row.id, { progress: "Mengunggah ke Google Drive…" }).catch(() => {});
+      live.step("Mengunggah ke Google Drive…");
+      await live.flushNow();
       const up = await gdrive.uploadFile({ folderId: row.folder_id, name, mimeType: mime, bytes });
+      await live.close();
       const summary = stripResult(text) || `Dokumen siap: ${name}`;
-      messages.push({ role: "assistant", text: summary, at: now() });
+      messages.push({ role: "assistant", text: summary, ...done(), at: now() });
       const ready = {
         ...base,
         status: "ready",
@@ -443,6 +571,7 @@ async function processJob(row: Row) {
   } catch (e) {
     const msg = (e as Error).message;
     log(`job ${row.id} failed after ${secs}s: ${msg}`);
+    await live.close();
     await update(row.id, { ...base, status: "failed", error_msg: msg, agent_message: stripResult(text).slice(0, 4000) || null });
   }
 }
@@ -451,7 +580,7 @@ async function resetStale() {
   const cutoff = new Date(Date.now() - STALE_MINUTES * 60_000).toISOString();
   const { data, error } = await db
     .from("drive_files")
-    .update({ status: "failed", error_msg: `worker: stuck in generating > ${STALE_MINUTES} min`, finished_at: now(), progress: null })
+    .update({ ...LIVE_CLEAR, status: "failed", error_msg: `worker: stuck in generating > ${STALE_MINUTES} min`, finished_at: now() })
     .eq("status", "generating")
     .lt("started_at", cutoff)
     .select("id");
@@ -468,7 +597,7 @@ for (const sig of ["SIGTERM", "SIGINT"] as const)
     log(`${sig} received`);
     if (currentJob) {
       // The in-flight gateway run dies with our connection; don't leave the row stuck in "generating".
-      await update(currentJob, { status: "failed", error_msg: "worker restarted during generation, please retry", finished_at: now(), progress: null }).catch(
+      await update(currentJob, { ...LIVE_CLEAR, status: "failed", error_msg: "worker restarted during generation, please retry", finished_at: now() }).catch(
         (e) => log(`could not mark ${currentJob} failed: ${e.message}`),
       );
     }
