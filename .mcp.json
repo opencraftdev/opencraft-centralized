@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "brand-knowledge": {
-      "command": "bun",
-      "args": ["run", "mcp/brand-knowledge/src/index.ts"],
-      "env": {}
-    }
-  }
-}
