@@ -6,6 +6,7 @@ import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
+import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
 import type { SkillSummary } from "@/features/skills/api";
 import { Composer, draftKey, splitSkill, type ComposerHandle } from "./Composer";
 import { COLUMN } from "./Thread";
@@ -63,11 +64,11 @@ export function NewChat({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "linear-gradient(135deg, #8E5CF5, #0B57D0)",
-                color: "#fff",
+                bgcolor: "#D3E3FD",
+                color: "#0B57D0",
               }}
             >
-              <AutoAwesomeRounded sx={{ fontSize: 24 }} />
+              <ChatBubbleOutlineRounded sx={{ fontSize: 22 }} />
             </Box>
             <Typography component="h1" sx={{ fontSize: { xs: "1.375rem", sm: "1.625rem" }, color: "#1F1F1F" }}>
               Mau dikerjakan apa hari ini?
