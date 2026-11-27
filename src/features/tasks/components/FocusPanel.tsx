@@ -8,8 +8,8 @@ import type { TasksCtx } from "./TasksApp";
 import { DueChip, MemberAvatar, ProjectMark } from "./bits";
 import { AutoHeight } from "@/components/ui/AutoHeight";
 
-// Header of /tasks: a sentence ("Minggu ini ada 2 tugas"), the deadline tabs as plain text under it (Terlambat ·
-// Hari ini · Minggu ini · Minggu depan), and that tab's tasks as plain rows. No boxes.
+// Header of /tasks: the deadline tabs as plain text (Terlambat · Hari ini · Minggu ini · Minggu depan) and that
+// tab's tasks as plain rows. No boxes.
 
 export type DueTab = "late" | "today" | "week" | "next";
 
@@ -40,28 +40,11 @@ export function FocusPanel({ data, ctx }: { data: FocusData; ctx: TasksCtx }) {
 
   const list = data.lists[tab];
   const meta = TABS.find((t) => t.key === tab)!;
-  const hot = tab === "late" && list.length > 0;
-
-  const color = hot ? "#B3261E" : "#0B57D0";
 
   return (
     <Box sx={{ px: { xs: 2, sm: 3 }, pt: 1.5, pb: 2.5, maxWidth: 980 }}>
-      {/* "Minggu ini ada 2 tugas" */}
-      <Typography key={tab} component="p" sx={{ m: 0, fontSize: { xs: "1.375rem", sm: "1.625rem" }, lineHeight: 1.3, color: "#1F1F1F", animation: "oc-rise 300ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
-        {list.length ? (
-          <>
-            {meta.label} ada{" "}
-            <Box component="span" sx={{ color, fontWeight: 500 }}>
-              {list.length} tugas
-            </Box>
-          </>
-        ) : (
-          meta.empty.replace(/\.$/, "")
-        )}
-      </Typography>
-
       {/* Deadline tabs as plain text */}
-      <Box role="tablist" aria-label="Deadline" sx={{ display: "flex", flexWrap: "wrap", gap: { xs: 1.5, sm: 2 }, mt: 0.75, mb: 0.5 }}>
+      <Box role="tablist" aria-label="Deadline" sx={{ display: "flex", flexWrap: "wrap", gap: { xs: 1.5, sm: 2.25 }, mb: 0.5 }}>
         {TABS.map((t) => {
           const on = t.key === tab;
           const n = data.lists[t.key].length;
@@ -81,7 +64,7 @@ export function FocusPanel({ data, ctx }: { data: FocusData; ctx: TasksCtx }) {
                 py: 0.25,
                 cursor: "pointer",
                 fontFamily: "inherit",
-                fontSize: "0.8125rem",
+                fontSize: "0.875rem",
                 fontWeight: on ? 500 : 400,
                 whiteSpace: "nowrap",
                 color: on ? (late ? "#B3261E" : "#0B57D0") : late ? "#B3261E" : "#5F6368",
@@ -101,6 +84,7 @@ export function FocusPanel({ data, ctx }: { data: FocusData; ctx: TasksCtx }) {
 
       <AutoHeight>
         <Box key={tab}>
+          {list.length === 0 && <Typography sx={{ fontSize: "0.875rem", color: "#5F6368", py: 1.1, animation: "oc-rise 300ms both" }}>{meta.empty}</Typography>}
           {list.slice(0, MAX_ROWS).map((t, i) => (
             <FocusRow key={t.id} task={t} ctx={ctx} index={i} />
           ))}
