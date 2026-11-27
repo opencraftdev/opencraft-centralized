@@ -251,8 +251,20 @@ export function TaskDialog({
                       <Box component="button" type="button" onClick={() => onOpenTask(s)} sx={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", bgcolor: "transparent", fontFamily: "inherit", cursor: "pointer", py: 1, fontSize: "0.875rem", color: d ? "#5F6368" : "#1F1F1F", textDecoration: d ? "line-through" : "none" }}>
                         {s.title}
                       </Box>
-                      {!d && <DueChip due={s.due_date} done={d} compact />}
+                      {!d && (
+                        <Box sx={{ display: { xs: "none", sm: "inline-flex" } }}>
+                          <DueChip due={s.due_date} done={d} compact />
+                        </Box>
+                      )}
                       <MemberAvatar member={s.assignee_id ? ctx.memberById.get(s.assignee_id) : undefined} size={22} />
+                      <Button
+                        size="small"
+                        onClick={() => onOpenTask(s)}
+                        aria-label={`Lihat detail ${s.title}`}
+                        sx={{ ml: 0.5, px: 1.25, minWidth: 0, height: 28, borderRadius: "9999px", fontSize: "0.75rem", fontWeight: 600, color: "#0B57D0", bgcolor: "#EEF4FE", whiteSpace: "nowrap", flexShrink: 0, "&:hover": { bgcolor: "#D3E3FD" } }}
+                      >
+                        Lihat Detail
+                      </Button>
                       <IconButton
                         className="sub-del"
                         size="small"
