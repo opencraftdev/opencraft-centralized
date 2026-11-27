@@ -64,10 +64,10 @@ export const STATUSES: { value: TaskStatus; label: string; color: string; bg: st
 ];
 
 export const PRIORITIES: { value: TaskPriority; label: string; color: string }[] = [
-  { value: "low", label: "Rendah", color: "#80868B" },
-  { value: "medium", label: "Sedang", color: "#0B57D0" },
-  { value: "high", label: "Tinggi", color: "#E37400" },
-  { value: "urgent", label: "Mendesak", color: "#D93025" },
+  { value: "low", label: "Low", color: "#80868B" },
+  { value: "medium", label: "Medium", color: "#0B57D0" },
+  { value: "high", label: "High", color: "#E37400" },
+  { value: "urgent", label: "Urgent", color: "#D93025" },
 ];
 
 export const statusMeta = (s: TaskStatus) => STATUSES.find((x) => x.value === s) ?? STATUSES[0];

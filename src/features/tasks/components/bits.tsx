@@ -155,7 +155,7 @@ export function PriorityText({ priority }: { priority: TaskPriority }) {
   const m = priorityMeta(priority);
   return (
     <Box component="span" sx={{ fontSize: "0.75rem", fontWeight: 600, color: m.color, whiteSpace: "nowrap" }}>
-      {m.label}
+      Prio: {m.label}
     </Box>
   );
 }
