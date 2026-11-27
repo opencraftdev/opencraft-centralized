@@ -12,12 +12,15 @@ import Select from "@mui/material/Select";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
+import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
+import Tooltip from "@mui/material/Tooltip";
+import { driveContentUrl } from "@/lib/drive/links";
 import { toastError } from "@/components/ui/Toast";
 import { EASE_OUT, SPRING } from "@/components/ui/motion";
 import { listEntries, listMembers } from "../api";
 import { AvatarStack } from "@/features/tasks/components/bits";
 import type { Member } from "@/features/tasks/types";
-import { KIND_META, MONTHS, PIC_LABEL, formatDate, formatIDR, type EntryKind, type FinanceEntry } from "../types";
+import { KIND_META, MONTHS, formatDate, formatIDR, type EntryKind, type FinanceEntry } from "../types";
 import { EntryDialog } from "./EntryDialog";
 
 // Finance (docs/FINANCE.md), in the style of Task Management: one white sheet, plain text, no boxes.
@@ -270,7 +273,7 @@ function Ledger({
       <Box sx={{ display: "flex", gap: 2, ...headSx }}>
         <Box sx={{ width: 84, flexShrink: 0 }}>Tanggal</Box>
         <Box sx={{ flex: 1 }}>Keterangan</Box>
-        <Box sx={{ width: { xs: 64, sm: 120 }, flexShrink: 0 }}>{PIC_LABEL[kind]}</Box>
+        <Box sx={{ width: { xs: 64, sm: 120 }, flexShrink: 0 }}>PIC</Box>
         <Box sx={{ flex: 1, display: { xs: "none", md: "block" } }}>Catatan</Box>
         <Box sx={{ width: 130, textAlign: "right", flexShrink: 0 }}>Jumlah</Box>
       </Box>
@@ -310,7 +313,26 @@ function Ledger({
             <Typography className="row-title" sx={{ fontSize: "0.875rem", color: "#1F1F1F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {r.description}
             </Typography>
-            <Typography sx={{ fontSize: "0.75rem", color: "#5F6368" }}>{r.category}</Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+              <Typography sx={{ fontSize: "0.75rem", color: "#5F6368" }}>{r.category}</Typography>
+              {r.proof_file_id && (
+                <Tooltip title="Lihat bukti">
+                  <Box
+                    component="span"
+                    role="link"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(driveContentUrl(r.proof_file_id!), "_blank", "noopener");
+                    }}
+                    sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, fontSize: "0.75rem", color: "#0B57D0", "&:hover": { textDecoration: "underline" } }}
+                  >
+                    <ReceiptLongRounded sx={{ fontSize: 14 }} />
+                    Bukti
+                  </Box>
+                </Tooltip>
+              )}
+            </Box>
           </Box>
           <Box sx={{ width: { xs: 64, sm: 120 }, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
             {r.pic_ids.length > 0 ? (
@@ -323,7 +345,7 @@ function Ledger({
                 )}
               </>
             ) : (
-              <Typography sx={{ fontSize: "0.8125rem", color: "#9AA0A6" }}>—</Typography>
+              <Typography sx={{ fontSize: "0.75rem", color: "#9AA0A6", whiteSpace: "nowrap" }}>Belum ada</Typography>
             )}
           </Box>
           <Typography sx={{ flex: 1, minWidth: 0, display: { xs: "none", md: "block" }, fontSize: "0.8125rem", color: "#5F6368", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

@@ -4,7 +4,8 @@ As simple as the team's spreadsheet (one tab per month + "Rekap"), with income a
 
 - Table `finance_entries` (migration `030_finance_entries.sql`): `kind` (`income` | `expense`), `entry_date`,
   `description` (Keterangan), `category` (Kategori), `amount` (whole rupiah), `note` (Catatan), `pic_ids` (PIC: who paid / received it — task_members ids, several allowed; migration
-  `031_finance_entries_pic.sql`), `created_by`.
+  `031_finance_entries_pic.sql`), `proof_file_id` (optional proof image, a `drive_files` row; migration
+  `032_finance_proof.sql`), `created_by`.
   RLS: the whole team (`is_allowed_user()`) reads and writes.
 - Categories (`src/features/finance/types.ts`):
   - Pengeluaran: Gaji, Operasional, Software & Langganan, Marketing, Transport, Lain-lain (the spreadsheet's list)
@@ -13,10 +14,24 @@ As simple as the team's spreadsheet (one tab per month + "Rekap"), with income a
   - Header "Finance" + **Catatan baru**; under it the plain numbers Pemasukan / Pengeluaran / Saldo.
   - Toolbar: pill switch **Pengeluaran · Pemasukan · Rekap**, search, month and year selects (opens on the current
     month; `?m=YYYY-MM` opens a month).
-  - Pengeluaran / Pemasukan: rows Tanggal · Keterangan (category under it) · Dibayar oleh / Diterima oleh (avatars) · Catatan · Jumlah, then
+  - Pengeluaran / Pemasukan: rows Tanggal · Keterangan (category under it) · PIC (avatars; who paid / received) · Catatan · Jumlah, then
     "Tambah …" and the total. Click a row to edit or delete it.
     In the form the PIC is picked by tapping people (several allowed); a new row starts with the person logged in.
     Search also matches PIC names.
   - Rekap: one row per month (Pemasukan, Pengeluaran, Saldo) + "Total setahun"; click a month to open it.
 - A new entry posts a Finance notification (`income_new` / `expense_new`) linking to its month.
 - The old `finance_expenses` table (007, fixed monthly costs) is no longer shown; it is kept for history.
+- **Bukti** (optional): an image picked in the form is uploaded to Google Drive, dashboard folder **"Finance"**
+  (`drive_files.metadata.kind = 'finance_proof'`). Rows with proof show "Bukti" under the category (opens the image).
+
+## From the chat (skill `finance`)
+
+- Skill `skills/finance/SKILL.md` (also in the `skills` table) + CLI `~/opencraft-chat/tools/finance` on the chat
+  server (wrapper → `bun finance.ts`, source `worker/chat-tools/finance.ts`, credentials in
+  `~/opencraft-chat/tools/.env`). Commands: `context`, `list [--month --year --kind --pic --search]`, `recap [--year]`,
+  `add`, `update`, `delete`; JSON in/out; PIC names resolved against `task_members` (unknown/ambiguous = error),
+  categories validated, amounts whole rupiah, "today" in Asia/Jakarta. Only touches `finance_entries`.
+- Proof from the chat: pictures attached in the composer become `IMG:` lines in the message (docs/CHAT.md →
+  "Pictures from the user"); the agent passes that `file_id` as `proof`.
+- Deploy the CLI: `scp worker/chat-tools/finance.ts opencraft:opencraft-chat/tools/finance.ts` (no restart).
+- Writes use the service key: notifications show the actor as AI, `created_by` is null.

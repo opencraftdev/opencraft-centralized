@@ -12,11 +12,13 @@ export interface FinanceEntry {
   note: string;
   /** Who paid (expense) / received (income): task_members ids, several allowed. */
   pic_ids: string[];
+  /** Optional proof image (drive_files id). */
+  proof_file_id: string | null;
   created_by: string | null;
   created_at: string;
 }
 
-export type EntryInput = Pick<FinanceEntry, "kind" | "entry_date" | "description" | "category" | "amount" | "note" | "pic_ids">;
+export type EntryInput = Pick<FinanceEntry, "kind" | "entry_date" | "description" | "category" | "amount" | "note" | "pic_ids" | "proof_file_id">;
 
 // Categories from the team's spreadsheet ("Kategori" dropdown); income has its own list.
 export const CATEGORIES: Record<EntryKind, string[]> = {

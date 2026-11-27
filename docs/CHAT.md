@@ -54,6 +54,15 @@ missing), default folder **"Chat"**; creates a `drive_files` row (`source='chat'
 'ready'`, `doc_number`, `doc_type` from the folder SPH/MoU/Deck). The same `chat_path` attached again in the same chat
 replaces that row's Google file (revision keeps the row). Only paths under `/home/opencraft/` are accepted.
 
+### Pictures from the user
+
+The composer has an image button (also paste): pictures upload right away to Google Drive (dashboard folder **"Chat"**,
+`drive_files.metadata.kind = 'chat_image'`) and are added at the end of the message text, one line each:
+`IMG: {"file_id":"<drive_files id>","name":"struk.jpg"}` (`src/features/chat/images.tsx`). The bubble shows them as
+thumbnails above the text. The agent sees the lines but not the picture content (server `CLAUDE.md` → "Pictures from
+the user"); skills may use the `file_id` (e.g. `finance` proof). A message with only pictures gets the text
+"Gambar terlampir.".
+
 ### Skills sync
 
 The worker mirrors enabled `skills` into `~/opencraft-chat/.claude/skills/<name>/SKILL.md`

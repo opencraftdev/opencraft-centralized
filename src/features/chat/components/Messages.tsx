@@ -27,6 +27,7 @@ import type { Chat, ChatAttachment, ChatMessage, ChatStep } from "../types";
 import type { Member } from "@/features/tasks/types";
 import { MemberAvatar } from "@/features/tasks/components/bits";
 import { QuoteBlock, splitQuote } from "./Quote";
+import { ImageThumbs, splitImages } from "../images";
 import { ChatMarkdown } from "./Markdown";
 import { FoldedSteps, LiveSteps } from "./Steps";
 import { SkillChip, splitSkill } from "./Composer";
@@ -81,6 +82,7 @@ export function UserBubble({
   skills: SkillSummary[];
   author?: { name: string; member?: Member }; // shown in a shared chat
 }) {
+  const { text, images } = splitImages(m.content);
   return (
     <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", "&:hover .msg-time": { opacity: 1 } }}>
       {author && (
@@ -89,8 +91,13 @@ export function UserBubble({
           <MemberAvatar member={author.member} size={20} />
         </Box>
       )}
+      {images.length > 0 && (
+        <Box sx={{ maxWidth: "min(85%, 600px)", mb: 0.75 }}>
+          <ImageThumbs images={images} />
+        </Box>
+      )}
       <Box sx={{ maxWidth: "min(85%, 600px)", bgcolor: "#E9EEF6", color: "#1F1F1F", borderRadius: "24px 4px 24px 24px", px: 2, py: 1.5, ...textSx }}>
-        <UserText content={m.content} skills={skills} />
+        <UserText content={text} skills={skills} />
       </Box>
       <Typography className="msg-time" suppressHydrationWarning sx={timeSx}>
         {formatDateTime(m.created_at)}

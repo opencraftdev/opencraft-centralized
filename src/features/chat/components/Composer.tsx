@@ -12,6 +12,10 @@ import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
+import ImageRounded from "@mui/icons-material/ImageRounded";
+import { toastError } from "@/components/ui/Toast";
+import { driveContentUrl } from "@/lib/drive/links";
+import { uploadChatImage, withImages, type ChatImage } from "../images";
 import SendRounded from "@mui/icons-material/SendRounded";
 import StopRounded from "@mui/icons-material/StopRounded";
 import type { SkillSummary } from "@/features/skills/api";
@@ -241,6 +245,23 @@ export const Composer = forwardRef<
   const [active, setActive] = useState(0);
   const [closedFor, setClosedFor] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  // Pictures attached to the next message (uploaded right away; `id` null while uploading).
+  const [images, setImages] = useState<{ key: string; name: string; image: ChatImage | null }[]>([]);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const addImages = (files: File[]) => {
+    for (const file of files.filter((f) => f.type.startsWith("image/"))) {
+      const key = `${Date.now()}-${Math.random()}`;
+      setImages((l) => [...l, { key, name: file.name, image: null }]);
+      uploadChatImage(file).then(
+        (image) => setImages((l) => l.map((x) => (x.key === key ? { ...x, image } : x))),
+        (e: Error) => {
+          toastError(`Gagal mengunggah gambar: ${e.message}`);
+          setImages((l) => l.filter((x) => x.key !== key));
+        },
+      );
+    }
+  };
+  const uploading = images.some((x) => !x.image);
   const skillsRef = useRef(skills);
   skillsRef.current = skills;
 
@@ -308,13 +329,19 @@ export const Composer = forwardRef<
     setClosedFor(text);
   };
 
-  const canSend = (text.trim().length > 0 || Boolean(skill)) && !sending;
+  const canSend = (text.trim().length > 0 || Boolean(skill) || images.length > 0) && !sending && !uploading;
   const send = async () => {
     if (!canSend) return;
-    const full = (skill ? `/${skill.name} ${text}` : text).trim();
+    const full = withImages(
+      (skill ? `/${skill.name} ${text}` : text).trim(),
+      images.flatMap((x) => (x.image ? [x.image] : [])),
+    );
     setSending(true);
     try {
-      if (await onSend(full)) save(null, "");
+      if (await onSend(full)) {
+        save(null, "");
+        setImages([]);
+      }
     } finally {
       setSending(false);
       input.current?.focus();
@@ -398,7 +425,51 @@ export const Composer = forwardRef<
             </IconButton>
           </span>
         </Tooltip>
+        <Tooltip title="Lampirkan gambar">
+          <IconButton
+            aria-label="Lampirkan gambar"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => fileInput.current?.click()}
+            sx={{ ...roundBtn, ml: -0.5, color: "#444746", "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } }}
+          >
+            <ImageRounded sx={{ fontSize: 22 }} />
+          </IconButton>
+        </Tooltip>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            addImages(Array.from(e.target.files ?? []));
+            e.target.value = "";
+          }}
+        />
         <Box sx={{ flex: 1, minWidth: 0, alignSelf: "center", display: "flex", flexDirection: "column" }}>
+          {images.length > 0 && (
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.5, pb: 0.5 }}>
+              {images.map((x) => (
+                <Box key={x.key} sx={{ position: "relative", width: 56, height: 56, borderRadius: "12px", overflow: "hidden", bgcolor: "#E3E3E3", flexShrink: 0 }} title={x.name}>
+                  {x.image ? (
+                    <Box component="img" src={driveContentUrl(x.image.file_id)} alt={x.name} sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  ) : (
+                    <Box sx={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <CircularProgress size={18} />
+                    </Box>
+                  )}
+                  <IconButton
+                    size="small"
+                    aria-label={`Hapus ${x.name}`}
+                    onClick={() => setImages((l) => l.filter((y) => y.key !== x.key))}
+                    sx={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, bgcolor: "rgba(0,0,0,.55)", color: "#fff", "&:hover": { bgcolor: "rgba(0,0,0,.7)" } }}
+                  >
+                    <CloseRounded sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </Box>
+              ))}
+            </Box>
+          )}
           {skill && (
             <Box sx={{ pt: 0.5, pb: 0.25, display: "flex" }}>
               <SkillChip
@@ -419,6 +490,13 @@ export const Composer = forwardRef<
             value={text}
             onChange={(e) => change(e.target.value)}
             onKeyDown={onKeyDown}
+            onPaste={(e) => {
+              const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/"));
+              if (files.length) {
+                e.preventDefault();
+                addImages(files);
+              }
+            }}
             placeholder={
               skill ? `Tulis permintaan untuk ${skill.title}…` : running ? "Tulis pesan berikutnya…" : placeholder
             }

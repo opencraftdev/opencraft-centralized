@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -12,13 +12,15 @@ import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
 import CheckRounded from "@mui/icons-material/CheckRounded";
+import AddPhotoAlternateRounded from "@mui/icons-material/AddPhotoAlternateRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
 import { useAccount } from "@/features/accounts/account";
 import { MemberAvatar } from "@/features/tasks/components/bits";
 import type { Member } from "@/features/tasks/types";
-import { createEntry, deleteEntry, updateEntry } from "../api";
+import { createEntry, deleteEntry, updateEntry, uploadProof } from "../api";
+import { driveContentUrl } from "@/lib/drive/links";
 import { CATEGORIES, KIND_META, PIC_LABEL, formatIDR, type EntryKind, type FinanceEntry } from "../types";
 
 // Add / edit one row of the book: Tanggal · Keterangan · Kategori · Jumlah · Catatan (like the spreadsheet).
@@ -47,6 +49,22 @@ export function EntryDialog({
   // New rows: the PIC defaults to the person logged in.
   const [pics, setPics] = useState<string[]>(entry?.pic_ids ?? (me ? [me.id] : []));
   const togglePic = (id: string) => setPics((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const [proof, setProof] = useState<string | null>(entry?.proof_file_id ?? null);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const pickProof = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return toastError("Bukti harus berupa gambar.");
+    setUploading(true);
+    try {
+      setProof(await uploadProof(file));
+    } catch (e) {
+      toastError((e as Error).message);
+    } finally {
+      setUploading(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  };
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -59,7 +77,7 @@ export function EntryDialog({
   const save = async () => {
     setSaving(true);
     try {
-      const input = { kind, entry_date: date, description: description.trim(), category: categoryValue, amount: amountNum, note: note.trim(), pic_ids: pics };
+      const input = { kind, entry_date: date, description: description.trim(), category: categoryValue, amount: amountNum, note: note.trim(), pic_ids: pics, proof_file_id: proof };
       if (entry) await updateEntry(entry.id, input);
       else await createEntry(input);
       toastSuccess(entry ? "Tersimpan" : `${KIND_META[kind].label} ditambahkan`);
@@ -140,7 +158,7 @@ export function EntryDialog({
         />
         <Box>
           <Typography sx={{ fontSize: "0.75rem", color: "#5F6368", mb: 0.75 }}>
-            {PIC_LABEL[kind]} <Box component="span" sx={{ color: "#9AA0A6" }}>(bisa lebih dari satu)</Box>
+            PIC · {PIC_LABEL[kind].toLowerCase()} <Box component="span" sx={{ color: "#9AA0A6" }}>(bisa lebih dari satu)</Box>
           </Typography>
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
             {members.map((m) => {
@@ -185,6 +203,42 @@ export function EntryDialog({
             {members.length === 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#9AA0A6" }}>Memuat anggota…</Typography>}
           </Box>
         </Box>
+        <Box>
+          <Typography sx={{ fontSize: "0.75rem", color: "#5F6368", mb: 0.75 }}>
+            Bukti <Box component="span" sx={{ color: "#9AA0A6" }}>(opsional, gambar struk / transfer)</Box>
+          </Typography>
+          <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => void pickProof(e.target.files?.[0])} />
+          {proof ? (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Box
+                component="a"
+                href={driveContentUrl(proof)}
+                target="_blank"
+                rel="noreferrer"
+                sx={{ width: 72, height: 72, borderRadius: "12px", border: "1px solid #E0E3E7", overflow: "hidden", flexShrink: 0, bgcolor: "#F0F4F9" }}
+              >
+                <Box component="img" src={driveContentUrl(proof)} alt="Bukti" sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              </Box>
+              <Button size="small" disabled={uploading} onClick={() => fileInput.current?.click()} sx={{ borderRadius: "9999px" }}>
+                {uploading ? <CircularProgress size={14} /> : "Ganti"}
+              </Button>
+              <Button size="small" disabled={uploading} onClick={() => setProof(null)} sx={{ borderRadius: "9999px", color: "#B3261E" }}>
+                Hapus
+              </Button>
+            </Box>
+          ) : (
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={uploading}
+              startIcon={uploading ? <CircularProgress size={14} /> : <AddPhotoAlternateRounded />}
+              onClick={() => fileInput.current?.click()}
+              sx={{ borderRadius: "9999px", borderColor: "#C4C7C5", color: "#444746" }}
+            >
+              {uploading ? "Mengunggah…" : "Upload gambar"}
+            </Button>
+          )}
+        </Box>
         <TextField label="Catatan" size="small" multiline minRows={1} maxRows={4} value={note} onChange={(e) => setNote(e.target.value)} />
       </Box>
 
@@ -198,7 +252,7 @@ export function EntryDialog({
         <Button onClick={onClose} disabled={saving} sx={{ borderRadius: "9999px" }}>
           Batal
         </Button>
-        <Button variant="contained" disableElevation disabled={!valid || saving} onClick={() => void save()} sx={{ borderRadius: "9999px" }}>
+        <Button variant="contained" disableElevation disabled={!valid || saving || uploading} onClick={() => void save()} sx={{ borderRadius: "9999px" }}>
           {saving ? <CircularProgress size={16} color="inherit" /> : entry ? "Simpan" : "Tambah"}
         </Button>
       </Box>
