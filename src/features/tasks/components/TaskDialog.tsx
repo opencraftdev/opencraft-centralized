@@ -45,6 +45,7 @@ import { PROJECT_COLORS } from "./TeamDialog";
 import { AttachmentGrid, AttachPicker, DropZone, PendingFiles } from "./Attachments";
 import { commentIdOf, listAttachments, removeAttachment, uploadAttachments } from "../attachments";
 import { SwapIn } from "@/components/ui/AutoHeight";
+import { DatePill } from "./DatePicker";
 import { CommentBody, MentionInput, type MentionInputHandle } from "./Mentions";
 import { ProjectMark } from "./bits";
 import { PreviewDialog } from "@/features/drive/components/PreviewDialog";
@@ -522,12 +523,12 @@ export function TaskDialog({
                   {!form.is_milestone && (
                     <>
                       <Box component="span" sx={dateLabelSx}>Start Date</Box>
-                      <DatePill label="Start Date" value={form.start_date} max={form.due_date} onChange={(v) => set("start_date", v)} />
+                      <DatePill label="Start Date" value={form.start_date} max={form.due_date} other={form.due_date} onChange={(v) => set("start_date", v)} />
                       <ArrowForwardRounded sx={{ fontSize: 16, color: "#80868B", mx: 0.25 }} />
                     </>
                   )}
                   <Box component="span" sx={dateLabelSx}>End Date</Box>
-                  <DatePill label="End Date" value={form.due_date} min={form.is_milestone ? null : form.start_date} onChange={(v) => set("due_date", v)} strong error={!!dateError} />
+                  <DatePill label="End Date" value={form.due_date} min={form.is_milestone ? null : form.start_date} other={form.is_milestone ? null : form.start_date} onChange={(v) => set("due_date", v)} strong error={!!dateError} />
                 </PropRow>
                 {dateError && <Typography sx={{ fontSize: "0.75rem", color: "#B3261E", pl: "120px", mt: -0.5 }}>{dateError}</Typography>}
 
@@ -1003,37 +1004,6 @@ function BriefText({ text, onEdit, render }: { text: string; onEdit: () => void;
   );
 }
 
-/** A native date input styled as a pill. */
-function DatePill({ label, value, min, max, onChange, strong, error }: { label: string; value: string | null; min?: string | null; max?: string | null; onChange: (v: string | null) => void; strong?: boolean; error?: boolean }) {
-  return (
-    <Box
-      component="input"
-      type="date"
-      aria-label={label}
-      title={label}
-      value={value ?? ""}
-      min={min ?? undefined}
-      max={max ?? undefined}
-      onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value || null)}
-      sx={{
-        height: 30,
-        px: 1.25,
-        border: "1px solid",
-        borderColor: error ? "#B3261E" : strong && value ? "#FEF0DB" : "#E0E3E7",
-        bgcolor: strong && value ? "#FEF0DB" : "#fff",
-        color: strong && value ? "#B06000" : value ? "#1F1F1F" : "#80868B",
-        borderRadius: "9999px",
-        fontFamily: "inherit",
-        fontSize: "0.8125rem",
-        fontWeight: strong ? 500 : 400,
-        outline: "none",
-        cursor: "pointer",
-        "&:focus-visible": { boxShadow: "0 0 0 2px #A8C7FA" },
-        "&::-webkit-calendar-picker-indicator": { opacity: 0.55, cursor: "pointer", ml: 0.5 },
-      }}
-    />
-  );
-}
 
 // A reply is stored in the comment body itself: "[[reply:<comment id>]]" on the first line (no schema change).
 const REPLY_RE = /^\[\[reply:([0-9a-f-]{36})\]\]\n?/;
