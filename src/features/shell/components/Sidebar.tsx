@@ -17,6 +17,7 @@ import FeedbackOutlined from "@mui/icons-material/FeedbackOutlined";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import AccountBalanceWalletOutlined from "@mui/icons-material/AccountBalanceWalletOutlined";
 import TravelExploreOutlined from "@mui/icons-material/TravelExploreOutlined";
+import TaskAltRounded from "@mui/icons-material/TaskAltRounded";
 import { NavLinkLoading } from "./loading-context";
 
 const SIDEBAR_WIDTH = 280;
@@ -28,6 +29,7 @@ const primaryItems: NavItem[] = [
   { href: "/chat", label: "Chat", icon: <ChatBubbleOutlineRounded /> },
   { href: "/skills", label: "Skills", icon: <AutoAwesomeOutlined /> },
   { href: "/documents", label: "Document", icon: <DescriptionOutlined /> },
+  { href: "/tasks", label: "Task Management", icon: <TaskAltRounded /> },
   { href: "/finance", label: "Finance", icon: <AccountBalanceWalletOutlined /> },
   { href: "/scrapers", label: "Scrapers", icon: <TravelExploreOutlined /> },
 ];
