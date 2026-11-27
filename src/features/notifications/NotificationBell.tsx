@@ -11,10 +11,17 @@ import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/material/styles";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
+import InputBase from "@mui/material/InputBase";
+import SendRounded from "@mui/icons-material/SendRounded";
 import { formatRelative } from "@/features/drive/format";
+import { driveContentUrl } from "@/lib/drive/links";
+import { toastError, toastSuccess } from "@/components/ui/Toast";
+import { addComment, updateTask } from "@/features/tasks/api";
 import {
   AREA_LABEL,
+  addReadId,
   getLastRead,
+  getReadIds,
   listNotifications,
   notifIcon,
   setLastRead,
@@ -60,6 +67,10 @@ export function NotificationBell() {
   const [now, setNow] = useState(() => Date.now());
   const [bump, setBump] = useState(0); // replays the badge pop when the count goes up
   const prevUnread = useRef(0);
+  const [expanded, setExpanded] = useState<string | null>(null); // item showing its quick actions
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [reply, setReply] = useState("");
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
 
   const refresh = useCallback(async () => {
     setItems(await listNotifications());
@@ -68,6 +79,7 @@ export function NotificationBell() {
 
   useEffect(() => {
     setLastReadState(getLastRead());
+    setReadIds(getReadIds());
     void refresh();
     let t: ReturnType<typeof setTimeout> | null = null;
     const unsub = subscribeNotifications(() => {
@@ -103,6 +115,63 @@ export function NotificationBell() {
   const go = (n: AppNotification) => {
     setOpen(false);
     if (n.link) router.push(n.link);
+  };
+  const markRead = (n: AppNotification) => {
+    setReadIds(addReadId(n.id));
+    setExpanded(null);
+  };
+  const sendReply = async (n: AppNotification) => {
+    const text = reply.trim();
+    if (!text || !n.ref_id) return;
+    try {
+      await addComment(n.ref_id, text);
+      setReply("");
+      setReplyTo(null);
+      markRead(n);
+      toastSuccess("Balasan terkirim.");
+    } catch (e) {
+      toastError((e as Error).message);
+    }
+  };
+  const finishTask = async (n: AppNotification) => {
+    if (!n.ref_id) return;
+    try {
+      await updateTask(n.ref_id, { status: "done" });
+      markRead(n);
+      toastSuccess("Tugas ditandai selesai.");
+    } catch (e) {
+      toastError((e as Error).message);
+    }
+  };
+
+  /** Quick actions per kind (option 5): act right in the sheet, or open the page. */
+  const actions = (n: AppNotification): { label: string; primary?: boolean; run: () => void }[] => {
+    const open = { label: "Buka", run: () => go(n) };
+    const read = { label: "Tandai dibaca", run: () => markRead(n) };
+    switch (n.kind) {
+      case "task_comment":
+        return [{ label: "Balas", primary: true, run: () => { setReplyTo(n.id); setReply(""); } }, read, open];
+      case "task_assigned":
+      case "task_created":
+      case "task_updated":
+        return [{ label: "Buka tugas", primary: true, run: () => go(n) }, { label: "Tandai selesai", run: () => void finishTask(n) }, read];
+      case "task_status":
+      case "task_attachment":
+        return [{ label: "Buka tugas", primary: true, run: () => go(n) }, read];
+      case "lead_new":
+        return [{ label: n.count > 1 ? `Lihat ${n.count} lead` : "Lihat lead", primary: true, run: () => go(n) }, read];
+      case "expense_new":
+      case "expense_updated":
+        return [{ label: "Lihat di Finance", primary: true, run: () => go(n) }, { label: "Oke", run: () => markRead(n) }];
+      case "doc_new":
+      case "doc_ready":
+        return [
+          { label: "Unduh", primary: true, run: () => { if (n.ref_id) window.open(driveContentUrl(n.ref_id, true), "_blank", "noopener"); markRead(n); } },
+          open,
+        ];
+      default:
+        return [{ label: "Oke", primary: true, run: () => markRead(n) }];
+    }
   };
 
   if (items === null) return null; // not set up yet (migration 028) or offline
@@ -187,14 +256,25 @@ export function NotificationBell() {
             </Typography>
           ) : (
             shown.map((n, i) => {
-              const isNew = !!seenAtOpen && n.updated_at > seenAtOpen;
+              const isNew = !!seenAtOpen && n.updated_at > seenAtOpen && !readIds.has(n.id);
               const ic = notifIcon(n);
               return (
                 <Box
                   key={n.id}
-                  component="button"
-                  type="button"
-                  onClick={() => go(n)}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={expanded === n.id}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest("[data-qa]")) return;
+                    setExpanded((x) => (x === n.id ? null : n.id));
+                    setReplyTo(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+                      e.preventDefault();
+                      setExpanded((x) => (x === n.id ? null : n.id));
+                    }
+                  }}
                   sx={{
                     position: "relative",
                     display: "flex",
@@ -207,7 +287,8 @@ export function NotificationBell() {
                     bgcolor: "transparent",
                     px: 2.5,
                     py: 1.5,
-                    cursor: n.link ? "pointer" : "default",
+                    cursor: "pointer",
+                    "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
                     fontFamily: "inherit",
                     animation: `${rise} 320ms cubic-bezier(0.22,1,0.36,1) ${Math.min(i, 10) * 30}ms both${isNew ? `, ${flash} 2.4s ease-out 300ms both` : ""}`,
                     "&:hover": { bgcolor: "#F8FAFD" },
@@ -225,6 +306,62 @@ export function NotificationBell() {
                     <Typography suppressHydrationWarning sx={{ fontSize: "0.75rem", color: "#5F6368", mt: 0.25 }}>
                       {AREA_LABEL[n.area]} · {formatRelative(n.updated_at, now)}
                     </Typography>
+                    {expanded === n.id && (
+                      <Box data-qa sx={{ mt: 1, animation: `${rise} 240ms cubic-bezier(0.22,1,0.36,1) both`, cursor: "default" }}>
+                        {replyTo === n.id ? (
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, border: "1px solid #C4C7C5", borderRadius: "9999px", pl: 1.5, pr: 0.5 }}>
+                            <InputBase
+                              autoFocus
+                              fullWidth
+                              value={reply}
+                              onChange={(e) => setReply(e.target.value)}
+                              onKeyDown={(e) => {
+                                e.stopPropagation();
+                                if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                                  e.preventDefault();
+                                  void sendReply(n);
+                                }
+                                if (e.key === "Escape") setReplyTo(null);
+                              }}
+                              placeholder="Tulis balasan…"
+                              sx={{ fontSize: "0.8125rem", py: 0.5 }}
+                              inputProps={{ "aria-label": "Balas komentar" }}
+                            />
+                            <IconButton size="small" aria-label="Kirim balasan" disabled={!reply.trim()} onClick={() => void sendReply(n)} sx={{ color: "#0B57D0" }}>
+                              <SendRounded sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Box>
+                        ) : (
+                          <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+                            {actions(n).map((a) => (
+                              <Box
+                                key={a.label}
+                                component="button"
+                                type="button"
+                                onClick={a.run}
+                                sx={{
+                                  border: a.primary ? "none" : "1px solid #C4C7C5",
+                                  bgcolor: a.primary ? "#0B57D0" : "#fff",
+                                  color: a.primary ? "#fff" : "#444746",
+                                  borderRadius: "9999px",
+                                  px: 1.5,
+                                  height: 30,
+                                  fontSize: "0.8125rem",
+                                  fontWeight: 600,
+                                  fontFamily: "inherit",
+                                  cursor: "pointer",
+                                  transition: "transform 160ms cubic-bezier(0.22,1,0.36,1), background-color 150ms",
+                                  "&:hover": { bgcolor: a.primary ? "#0A4DBA" : "#F0F4F9" },
+                                  "&:active": { transform: "scale(0.97)" },
+                                }}
+                              >
+                                {a.label}
+                              </Box>
+                            ))}
+                          </Box>
+                        )}
+                      </Box>
+                    )}
                   </Box>
                 </Box>
               );

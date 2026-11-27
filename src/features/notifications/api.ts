@@ -91,3 +91,24 @@ export function notifIcon(n: AppNotification): { emoji: string; tint: string } {
       return { emoji: "🔔", tint: "#F1F3F4" };
   }
 }
+
+// Per-item "read" (quick action "Tandai dibaca"), per browser.
+const LS_IDS = "notif.readIds";
+export function getReadIds(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(LS_IDS) ?? "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+export function addReadId(id: string): Set<string> {
+  const ids = getReadIds();
+  ids.add(id);
+  const list = [...ids].slice(-300);
+  try {
+    localStorage.setItem(LS_IDS, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+  return new Set(list);
+}

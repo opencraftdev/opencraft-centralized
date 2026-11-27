@@ -25,4 +25,8 @@ hidden). Safe to run more than once.
 - `src/features/notifications/NotificationBell.tsx`, next to the avatar. "Read" is per browser (localStorage
   `notif.lastReadAt`) because the team may share one login. The red badge pops in and pulses while something is
   unread; the list opens as a sheet from the right (filters: Semua / Task / Finance / Scrapers / Document); items
-  that were new flash blue once. Clicking an item goes to its `link`; `/tasks?task=<id>` opens the task dialog.
+  that were new flash blue once. `/tasks?task=<id>` opens the task dialog.
+- Clicking an item shows quick actions in place (option 5): comment → Balas (inline reply, posted as a task comment) /
+  Tandai dibaca / Buka; task assigned/created/updated → Buka tugas / Tandai selesai / Tandai dibaca; status /
+  attachment → Buka tugas; leads → Lihat N lead; expense → Lihat di Finance / Oke; document → Unduh / Buka.
+  "Tandai dibaca" is per item, per browser (localStorage `notif.readIds`).
