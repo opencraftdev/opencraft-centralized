@@ -22,8 +22,9 @@ import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
 import DescriptionRounded from "@mui/icons-material/DescriptionRounded";
 import SmartToyRounded from "@mui/icons-material/SmartToyRounded";
+import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
 import { formatRelative } from "@/features/drive/format";
-import { personFor, usePeople } from "@/features/accounts/account";
+import { personFor, useAccount, usePeople } from "@/features/accounts/account";
 import { MemberAvatar } from "@/features/tasks/components/bits";
 import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
 import type { Member } from "@/features/tasks/types";
@@ -137,15 +138,31 @@ function actorOf(n: AppNotification, people: Member[]): { name: string; member: 
   return { name: "Sistem", member: null };
 }
 
+/** The comment text with "@MyName" highlighted. */
+function highlightMe(text: string, name: string): React.ReactNode {
+  if (!name) return text;
+  const parts = text.split(new RegExp(`(@${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "i"));
+  return parts.map((p, i) =>
+    i % 2 ? (
+      <Box key={i} component="span" sx={{ px: 0.5, borderRadius: "4px", bgcolor: "#EBD5F5", color: "#6A1B9A", fontWeight: 600 }}>
+        {p}
+      </Box>
+    ) : (
+      p
+    ),
+  );
+}
+
 export function NotificationBell() {
   const router = useRouter();
   const people = usePeople();
+  const { email: myEmail, me } = useAccount();
   const [items, setItems] = useState<AppNotification[] | null>(null);
   const [lastRead, setLastReadState] = useState<string>(() => new Date().toISOString());
   const [clearedAt, setClearedState] = useState<string>(() => new Date(0).toISOString());
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  const [tab, setTab] = useState<"all" | "unread">("all");
+  const [tab, setTab] = useState<"all" | "unread" | "mention">("all");
   const [limit, setLimit] = useState(PAGE);
   const [confirmClear, setConfirmClear] = useState(false);
   const [bump, setBump] = useState(0);
@@ -178,6 +195,17 @@ export function NotificationBell() {
 
   const visible = useMemo(() => (items ?? []).filter((n) => n.updated_at > clearedAt), [items, clearedAt]);
   const isUnread = useCallback((n: AppNotification) => n.updated_at > lastRead && !readIds.has(n.id), [lastRead, readIds]);
+  // "@Raka" in a comment (the trigger turns mention tokens into "@Name") when I am Raka, written by someone else.
+  const mentionsMe = useCallback(
+    (n: AppNotification) => {
+      const name = me?.name?.trim();
+      if (!name || n.kind !== "task_comment" || (n.actor && n.actor === myEmail)) return false;
+      const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`@${esc}(?![\\p{L}\\p{N}])`, "iu").test(n.body);
+    },
+    [me?.name, myEmail],
+  );
+  const mentionCount = useMemo(() => visible.filter((n) => mentionsMe(n) && isUnread(n)).length, [visible, mentionsMe, isUnread]);
   const unread = useMemo(() => visible.filter(isUnread).length, [visible, isUnread]);
   useEffect(() => {
     if (unread > prevUnread.current) setBump((b) => b + 1);
@@ -186,7 +214,7 @@ export function NotificationBell() {
 
   if (items === null) return null; // not set up yet (migration 028) or offline
 
-  const shown = visible.filter((n) => tab === "all" || isUnread(n));
+  const shown = visible.filter((n) => (tab === "all" ? true : tab === "unread" ? isUnread(n) : mentionsMe(n)));
   const markAll = () => {
     const stamp = new Date().toISOString();
     setLastRead(stamp);
@@ -274,7 +302,7 @@ export function NotificationBell() {
             </Button>
           </Box>
           <Box sx={{ display: "flex", gap: 0.5, px: 1.5, pb: 1 }}>
-            {(["all", "unread"] as const).map((k) => (
+            {(["all", "unread", "mention"] as const).map((k) => (
               <Box
                 key={k}
                 component="button"
@@ -295,7 +323,17 @@ export function NotificationBell() {
                   "&:hover": { bgcolor: tab === k ? "#D3E3FD" : "#F0F4F9" },
                 }}
               >
-                {k === "all" ? "Semua" : `Belum dibaca${unread ? ` ${unread}` : ""}`}
+                {k === "all" ? "Semua" : k === "unread" ? `Belum dibaca${unread ? ` ${unread}` : ""}` : (
+                  <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.4 }}>
+                    <AlternateEmailRounded sx={{ fontSize: 14 }} />
+                    Disebut
+                    {mentionCount > 0 && (
+                      <Box component="span" sx={{ minWidth: 16, height: 16, px: 0.5, borderRadius: "8px", bgcolor: "#7B1FA2", color: "#fff", fontSize: "0.625rem", fontWeight: 700, display: "inline-grid", placeItems: "center" }}>
+                        {mentionCount}
+                      </Box>
+                    )}
+                  </Box>
+                )}
               </Box>
             ))}
           </Box>
@@ -303,13 +341,14 @@ export function NotificationBell() {
           <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", borderTop: "1px solid #EEF1F4" }}>
             {shown.length === 0 ? (
               <Typography sx={{ textAlign: "center", color: "#5F6368", fontSize: "0.8125rem", py: 5, px: 2 }}>
-                {tab === "unread" ? "Semua sudah dibaca 🎉" : "Belum ada notifikasi."}
+                {tab === "unread" ? "Semua sudah dibaca 🎉" : tab === "mention" ? "Belum ada yang menyebut kamu." : "Belum ada notifikasi."}
               </Typography>
             ) : (
               shown.slice(0, limit).map((n, i) => {
                 const who = actorOf(n, people);
-                const d = describe(n);
-                const k = kindBadge(n);
+                const tagged = mentionsMe(n);
+                const d = tagged ? { ...describe(n), verb: "menyebut kamu di" } : describe(n);
+                const k = tagged ? { Icon: AlternateEmailRounded, bg: "#7B1FA2" } : kindBadge(n);
                 const fresh = isUnread(n);
                 return (
                   <Box
@@ -323,14 +362,16 @@ export function NotificationBell() {
                       width: "100%",
                       textAlign: "left",
                       border: "none",
-                      bgcolor: "transparent",
                       fontFamily: "inherit",
                       cursor: "pointer",
                       px: 2,
                       py: 1.25,
+                      position: "relative",
+                      bgcolor: tagged && fresh ? "#F6EEFB" : "transparent",
+                      boxShadow: tagged ? "inset 3px 0 0 #7B1FA2" : "none",
                       transition: "background-color 150ms",
                       animation: `oc-rise 260ms cubic-bezier(0.22, 1, 0.36, 1) ${Math.min(i, 8) * 25}ms both`,
-                      "&:hover": { bgcolor: "#F8FAFD" },
+                      "&:hover": { bgcolor: tagged ? "#F1E4F8" : "#F8FAFD" },
                       "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
                     }}
                   >
@@ -351,14 +392,23 @@ export function NotificationBell() {
                         <b style={{ fontWeight: 500 }}>{who.name}</b> {d.verb} <b style={{ fontWeight: 500 }}>{d.obj}</b>
                         {n.count > 1 && n.kind !== "lead_new" && <span style={{ color: "#5F6368" }}> · {n.count}×</span>}
                       </Typography>
-                      {d.sub && (
+                      {d.sub && tagged ? (
+                        <Box sx={{ mt: 0.5, px: 1.25, py: 0.75, borderRadius: "4px 12px 12px 12px", bgcolor: "#fff", border: "1px solid #E7D3F1", fontSize: "0.78rem", color: "#1F1F1F", lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>
+                          {highlightMe(d.sub.replace(/^“|”$/g, ""), me?.name ?? "")}
+                        </Box>
+                      ) : d.sub && (
                         <Typography sx={{ fontSize: "0.78rem", color: "#5F6368", mt: 0.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>{d.sub}</Typography>
                       )}
-                      <Typography suppressHydrationWarning sx={{ fontSize: "0.7188rem", color: "#80868B", mt: 0.25 }}>
+                      <Typography suppressHydrationWarning sx={{ fontSize: "0.7188rem", color: "#80868B", mt: 0.4, display: "flex", alignItems: "center", gap: 0.75 }}>
+                        {tagged && (
+                          <Box component="span" sx={{ px: 0.75, height: 18, borderRadius: "9999px", bgcolor: "#7B1FA2", color: "#fff", fontSize: "0.625rem", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 0.25 }}>
+                            <AlternateEmailRounded sx={{ fontSize: 11 }} /> Kamu disebut
+                          </Box>
+                        )}
                         {formatRelative(n.updated_at)} · {AREA_LABEL[n.area]}
                       </Typography>
                     </Box>
-                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: fresh ? "#0B57D0" : "transparent", flexShrink: 0, mt: 0.75 }} />
+                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: fresh ? (tagged ? "#7B1FA2" : "#0B57D0") : "transparent", flexShrink: 0, mt: 0.75 }} />
                   </Box>
                 );
               })
