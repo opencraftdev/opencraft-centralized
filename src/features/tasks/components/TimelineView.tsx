@@ -13,7 +13,7 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import type { Project, Task } from "../types";
 import { addDays, diffDays, fmtRange, fmtShort, startOfWeek, todayISO } from "../dates";
 import type { TasksCtx } from "./TasksApp";
-import { AvatarStack, textOn } from "./bits";
+import { AvatarStack, ProjectMark, textOn } from "./bits";
 
 // Timeline: weeks across, top-level tasks grouped by project down, like the "Timeline IoT" plan.
 // Bar = start → deadline. Diamond = milestone. Striped = "kalau perlu".
@@ -104,6 +104,7 @@ export function TimelineView({ ctx }: { ctx: TasksCtx }) {
                         {g.project.label}
                       </Box>
                     )}
+                    {(g.project?.emoji || g.project?.logo_file_id) && <ProjectMark project={g.project ?? undefined} size={18} />}
                     <Typography sx={{ fontSize: "1rem", fontWeight: 600, color: "#1F1F1F" }}>{g.project?.name ?? "Tanpa project"}</Typography>
                   </Box>
                   <Box sx={{ flex: 1, position: "relative" }}>{grid}</Box>
@@ -245,7 +246,6 @@ function Legend() {
   return (
     <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
       {item(<Box sx={{ width: 22, height: 10, borderRadius: 5, bgcolor: "#0B57D0" }} />, "Jadwal")}
-      {item(<Box sx={{ width: 22, height: 10, borderRadius: 5, backgroundImage: "repeating-linear-gradient(135deg,#0B57D02E 0 4px,#0B57D012 4px 8px)" }} />, "Kalau perlu")}
       {item(<Box sx={{ width: 9, height: 9, transform: "rotate(45deg)", bgcolor: "#1F1F1F" }} />, "Milestone")}
       {item(<Box sx={{ width: 22, height: 10, borderRadius: 5, border: "2px solid #B3261E" }} />, "Terlambat")}
     </Box>

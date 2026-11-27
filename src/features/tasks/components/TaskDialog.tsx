@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
@@ -16,6 +16,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import DeleteRounded from "@mui/icons-material/DeleteRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
+import TuneRounded from "@mui/icons-material/TuneRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import SendRounded from "@mui/icons-material/SendRounded";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
@@ -29,6 +30,8 @@ import { PROJECT_COLORS } from "./TeamDialog";
 import { AttachmentGrid, AttachPicker, DropZone, PendingFiles } from "./Attachments";
 import { commentIdOf, listAttachments, removeAttachment, uploadAttachments } from "../attachments";
 import { Linkify } from "@/components/ui/Linkify";
+import { CommentBody, MentionInput, type MentionInputHandle } from "./Mentions";
+import { ProjectMark } from "./bits";
 import { PreviewDialog } from "@/features/drive/components/PreviewDialog";
 import type { DriveFile } from "@/lib/drive/types";
 
@@ -87,6 +90,7 @@ export function TaskDialog({
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
   const [preview, setPreview] = useState<DriveFile | null>(null);
   const [editingNote, setEditingNote] = useState(false);
+  const mention = useRef<MentionInputHandle>(null);
 
   // The live copy (realtime / checkbox changes) of the task being edited.
   const live = task ? ctx.all.find((x) => x.id === task.id) ?? task : null;
@@ -215,11 +219,12 @@ export function TaskDialog({
   };
 
   const sendComment = async () => {
-    const text = comment.trim();
+    const text = (mention.current?.serialize() ?? comment).trim();
     const picked = pending;
     if ((!text && picked.length === 0) || !live || uploading) return;
     setComment("");
     setPending([]);
+    mention.current?.reset();
     try {
       const id = await addComment(live.id, text || "Lampiran");
       setComments(await listComments(live.id));
@@ -348,20 +353,40 @@ export function TaskDialog({
                         </Box>
                       )}
                       <MemberAvatar member={s.assignee_id ? ctx.memberById.get(s.assignee_id) : undefined} size={22} />
-                      <Button
-                        size="small"
+                      <Box
+                        component="button"
+                        type="button"
                         onClick={() => onOpenTask(s)}
                         aria-label={`Lihat detail ${s.title}`}
-                        sx={{ ml: 0.5, px: 1.25, minWidth: 0, height: 28, borderRadius: "9999px", fontSize: "0.75rem", fontWeight: 600, color: "#0B57D0", bgcolor: "#EEF4FE", whiteSpace: "nowrap", flexShrink: 0, "&:hover": { bgcolor: "#D3E3FD" } }}
+                        sx={{
+                          ml: 1,
+                          p: 0,
+                          border: "none",
+                          bgcolor: "transparent",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          fontSize: "0.8125rem",
+                          fontWeight: 600,
+                          color: "#0B57D0",
+                          whiteSpace: "nowrap",
+                          flexShrink: 0,
+                          // underline that draws in from the left on hover
+                          backgroundImage: "linear-gradient(currentColor, currentColor)",
+                          backgroundRepeat: "no-repeat",
+                          backgroundPosition: "0 100%",
+                          backgroundSize: "0% 1.5px",
+                          transition: "background-size 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+                          "&:hover, &:focus-visible": { backgroundSize: "100% 1.5px" },
+                        }}
                       >
                         Lihat Detail
-                      </Button>
+                      </Box>
                       <IconButton
                         className="sub-del"
                         size="small"
                         aria-label={`Hapus ${s.title}`}
                         onClick={() => deleteTask(s.id).then(onChanged).catch((e) => toastError((e as Error).message))}
-                        sx={{ opacity: { xs: 1, sm: 0 }, color: "#5F6368" }}
+                        sx={{ color: "#5F6368", "&:hover": { color: "#B3261E", bgcolor: "#FCE8E6" } }}
                       >
                         <DeleteRounded sx={{ fontSize: 18 }} />
                       </IconButton>
@@ -411,7 +436,7 @@ export function TaskDialog({
                     </Box>
                     {!(c.body === "Lampiran" && files.some((f) => commentIdOf(f) === c.id)) && (
                       <Typography sx={{ fontSize: "0.875rem", color: "#1F1F1F", whiteSpace: "pre-wrap", overflowWrap: "anywhere", mt: 0.25 }}>
-                        <Linkify text={c.body} />
+                        <CommentBody text={c.body} ctx={ctx} onOpenTask={onOpenTask} />
                       </Typography>
                     )}
                     {files.some((f) => commentIdOf(f) === c.id) && (
@@ -426,20 +451,14 @@ export function TaskDialog({
                 <PendingFiles files={pending} onRemove={(i) => setPending((p) => p.filter((_, j) => j !== i))} />
                 <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.5, pl: 0.5, pr: 0.5, py: 0.5 }}>
                   <AttachPicker variant="icon" onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
-                  <InputBase
-                    fullWidth
-                    multiline
-                    maxRows={6}
+                  <MentionInput
+                    ref={mention}
                     value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                        e.preventDefault();
-                        void sendComment();
-                      }
-                    }}
-                    placeholder="Tulis update atau pertanyaan…"
-                    sx={{ fontSize: "0.875rem", py: 0.75 }}
+                    onChange={setComment}
+                    onSubmit={() => void sendComment()}
+                    ctx={ctx}
+                    currentTaskId={live.id}
+                    placeholder="Tulis update… ketik @ untuk tag orang, tugas, atau project"
                   />
                   <IconButton aria-label="Kirim komentar" onClick={() => void sendComment()} disabled={(!comment.trim() && pending.length === 0) || !!uploading} sx={{ color: "#0B57D0" }}>
                     <SendRounded sx={{ fontSize: 20 }} />
@@ -580,20 +599,25 @@ export function TaskDialog({
                 </IconButton>
               </Box>
             ) : (
-            <Select fullWidth size="small" displayEmpty value={form.project_id ?? ""} onChange={(e) => (e.target.value === "__new" ? setNewProject("") : set("project_id", e.target.value || null))} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
+            <Select fullWidth size="small" displayEmpty value={form.project_id ?? ""} onChange={(e) => (e.target.value === "__new" ? setNewProject("") : e.target.value === "__manage" ? ctx.openTeam("projects") : set("project_id", e.target.value || null))} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
               <MenuItem value="">
                 <em>Tanpa project</em>
               </MenuItem>
               {ctx.projects.filter((p) => p.status !== "parked" || p.id === form.project_id).map((p) => (
                 <MenuItem key={p.id} value={p.id}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: "3px", bgcolor: p.color }} />
+                    <Box sx={{ width: 18, display: "grid", placeItems: "center" }}>
+                      <ProjectMark project={p} size={16} />
+                    </Box>
                     {p.name}
                   </Box>
                 </MenuItem>
               ))}
               <MenuItem value="__new" sx={{ color: "#0B57D0", borderTop: "1px solid #EEF1F4" }}>
                 <AddRounded sx={{ fontSize: 18, mr: 1 }} /> Tambah project baru…
+              </MenuItem>
+              <MenuItem value="__manage" sx={{ color: "#444746" }}>
+                <TuneRounded sx={{ fontSize: 18, mr: 1 }} /> Atur ikon, warna & logo…
               </MenuItem>
             </Select>
             )}
@@ -623,10 +647,6 @@ export function TaskDialog({
                 </MenuItem>
               ))}
             </Select>
-          </Box>
-          <Box sx={{ border: "1px solid #E0E3E7", borderRadius: "12px", px: 1.5, py: 0.5 }}>
-            <Toggle label="Milestone (satu hari)" hint="Mis. rapat/diskusi penting" checked={form.is_milestone} onChange={(v) => set("is_milestone", v)} />
-            <Toggle label="Kalau perlu" hint="Opsional, belum pasti dikerjakan" checked={form.is_optional} onChange={(v) => set("is_optional", v)} />
           </Box>
         </Box>
       </Box>
@@ -662,17 +682,6 @@ export function TaskDialog({
   );
 }
 
-function Toggle({ label, hint, checked, onChange }: { label: string; hint: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <Box component="label" sx={{ display: "flex", alignItems: "center", gap: 1, cursor: "pointer", py: 0.5 }}>
-      <Box sx={{ flex: 1 }}>
-        <Typography sx={{ fontSize: "0.8125rem", color: "#1F1F1F" }}>{label}</Typography>
-        <Typography sx={{ fontSize: "0.6875rem", color: "#5F6368" }}>{hint}</Typography>
-      </Box>
-      <Switch size="small" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-    </Box>
-  );
-}
 
 function authorName(email: string | null, ctx: TasksCtx): string {
   if (!email) return "Seseorang";

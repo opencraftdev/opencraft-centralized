@@ -14,6 +14,7 @@ export interface Member {
   goal: string;
   sort: number;
   active: boolean;
+  photo_file_id?: string | null; // profile photo (drive_files id), migration 027
 }
 
 export interface Project {
@@ -23,6 +24,8 @@ export interface Project {
   color: string;
   status: ProjectStatus;
   sort: number;
+  emoji?: string; // migration 027
+  logo_file_id?: string | null; // custom logo (drive_files id), migration 027
 }
 
 export interface Task {

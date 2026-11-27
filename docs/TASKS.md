@@ -48,3 +48,15 @@ only creates what is missing and seeds the plan from 22 November 2026 only while
   drop to queue files; they upload after the comment is posted (a files-only comment is stored with body "Lampiran").
 - URLs in notes ("Catatan") and comments become links (`src/components/ui/Linkify.tsx`, new tab). Notes show as text
   with links; "Ubah" or a click switches to editing.
+
+## Project icons, profile photos, mentions (migration 027)
+
+- `task_projects.emoji` (Apple emoji, shown with the system emoji font) and `task_projects.logo_file_id` (custom logo,
+  a drive_files image; logo wins over emoji). Colour: presets, native picker or hex. Managed in "Tim & project"
+  (also reachable from the task dialog's Project menu → "Atur ikon, warna & logo…"). Upload warns when the image is
+  not square or smaller than 500×500 px (logo) / 400×400 px (photo); max 5 MB.
+- `task_members.photo_file_id`: profile photo shown in every avatar.
+- Comments: "@" opens a picker of people, tasks and projects; stored as `@[Label](member|task|project:<uuid>)` and
+  shown as chips (task chips open the task). No notifications yet.
+- Board card: project pill (colour + icon) and deadline on top, progress bar, avatars and priority as coloured text.
+- The "Milestone" and "Kalau perlu" switches were removed from the task dialog (existing values still render).

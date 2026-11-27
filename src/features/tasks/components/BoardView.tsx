@@ -6,13 +6,11 @@ import Box from "@mui/material/Box";
 import InputBase from "@mui/material/InputBase";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
-import DiamondRounded from "@mui/icons-material/DiamondRounded";
-import ChecklistRounded from "@mui/icons-material/ChecklistRounded";
 import type { Task, TaskStatus } from "../types";
 import { STATUSES } from "../types";
 import { EASE_OUT, SPRING } from "@/components/ui/motion";
 import type { TasksCtx } from "./TasksApp";
-import { AvatarStack, DueChip, PriorityFlag, ProgressBar, ProjectTag } from "./bits";
+import { AvatarStack, DueChip, PriorityText, ProgressBar, ProjectTag } from "./bits";
 
 // Board: one column per status, top-level tasks as cards. Drag a card to another column to change its status.
 
@@ -124,32 +122,21 @@ function Card({ task: t, ctx, dragging, onDragStart, onDragEnd }: { task: Task; 
         "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: 1 },
       }}
     >
+      {/* Project pill · deadline */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
         <ProjectTag project={t.project_id ? ctx.projectById.get(t.project_id) : undefined} />
         <Box sx={{ flex: 1 }} />
-        {t.is_milestone && <DiamondRounded sx={{ fontSize: 16, color: "#444746" }} titleAccess="Milestone" />}
-        <PriorityFlag priority={t.priority} />
+        <DueChip due={t.due_date} done={isDone} compact />
       </Box>
       <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500, color: isDone ? "#5F6368" : "#1F1F1F", textDecoration: isDone ? "line-through" : "none", lineHeight: 1.35 }}>
         {t.title}
-        {t.is_optional && (
-          <Box component="span" sx={{ ml: 0.75, px: 0.75, py: "1px", borderRadius: "6px", bgcolor: "#F1F3F4", color: "#5F6368", fontSize: "0.6875rem", fontWeight: 500, verticalAlign: "middle", textDecoration: "none", display: "inline-block" }}>
-            kalau perlu
-          </Box>
-        )}
       </Typography>
-      {subs.length > 0 && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-          <ChecklistRounded sx={{ fontSize: 16, color: "#5F6368" }} />
-          <Box sx={{ flex: 1 }}>
-            <ProgressBar done={done} total={subs.length} />
-          </Box>
-        </Box>
-      )}
+      {subs.length > 0 && <ProgressBar done={done} total={subs.length} />}
+      {/* People · priority */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         <AvatarStack ids={[t.assignee_id, ...t.helper_ids]} members={ctx.memberById} size={24} />
         <Box sx={{ flex: 1 }} />
-        <DueChip due={t.due_date} done={isDone} compact />
+        <PriorityText priority={t.priority} />
       </Box>
     </Box>
   );
