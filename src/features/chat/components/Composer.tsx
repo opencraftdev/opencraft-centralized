@@ -367,7 +367,7 @@ export const Composer = forwardRef<
           gap: 0.5,
           minHeight: 64,
           px: 1,
-          py: 1,
+          py: 1.5, // 64 = 12 + 40 + 12: the 40px buttons sit centred while the box is one line
           borderRadius: "32px",
           bgcolor: "#F0F4F9",
           cursor: "text",
@@ -377,7 +377,7 @@ export const Composer = forwardRef<
       >
         {menuOpen && hits && <SkillMenu hits={hits} active={active} below={menuBelow} onPick={pick} onHover={setActive} />}
         <Tooltip title={plus ? "" : "Pakai skill"}>
-          <span>
+          <span style={{ display: "inline-flex" }}>
             <IconButton
               aria-label="Pakai skill"
               aria-haspopup="listbox"
@@ -441,7 +441,7 @@ export const Composer = forwardRef<
         </Box>
         {running && (
           <Tooltip title="Hentikan">
-            <span>
+            <span style={{ display: "inline-flex" }}>
               <IconButton
                 onClick={onStop}
                 disabled={stopping}
@@ -461,7 +461,7 @@ export const Composer = forwardRef<
         )}
         {(canSend || sending) && (
           <Tooltip title="Kirim (Enter)">
-            <span>
+            <span style={{ display: "inline-flex" }}>
               <IconButton
                 onClick={() => void send()}
                 disabled={!canSend}

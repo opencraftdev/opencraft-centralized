@@ -58,7 +58,6 @@ export function Thread({
   skills,
   onOpenList,
   onNew,
-  historyOpen,
   onChanged,
   onAction,
   people,
@@ -66,9 +65,8 @@ export function Thread({
   chatId: string;
   listed: ChatListItem | null; // this chat's row in the (polled) list
   skills: SkillSummary[];
-  onOpenList: (anchor: HTMLElement) => void; // the "Riwayat chat" button: list as a popover (drawer on a phone)
+  onOpenList?: () => void; // the list is hidden (collapsed panel, or a phone's drawer): show History/+ buttons
   onNew: () => void;
-  historyOpen?: boolean;
   onChanged: () => void; // refresh the list
   onAction: (action: ChatAction, chat: ChatListItem) => void;
   people: Member[]; // team members with a login (names + photos)
@@ -258,9 +256,9 @@ export function Thread({
 
   return (
     <Box sx={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      <ChatNavButtons onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: { xs: 1, sm: 7 }, pr: 1, minHeight: 56, flexShrink: 0 }}>
-        <ChatNavButtons inline onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
+      {onOpenList && <ChatNavButtons onHistory={onOpenList} onNew={onNew} />}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: { xs: onOpenList ? 1 : 2, sm: onOpenList ? 7 : 2.5 }, pr: 1, minHeight: 56, flexShrink: 0 }}>
+        {onOpenList && <ChatNavButtons inline onHistory={onOpenList} onNew={onNew} />}
         <Typography
           component="h1"
           sx={{ flex: 1, minWidth: 0, pl: 1, fontSize: "1rem", fontWeight: 400, color: "#1F1F1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}

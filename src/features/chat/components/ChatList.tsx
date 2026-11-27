@@ -161,7 +161,9 @@ export function ChatNavButtons({
   );
 }
 
-const iconBtn = { color: "#444746", width: 40, height: 40, "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } } as const;
+const HOVER = "#ECEFF3"; // row hover on the soft list background
+
+const iconBtn = { color: "#444746", width: 36, height: 36, "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } } as const;
 
 export function ChatList({
   chats,
@@ -205,9 +207,9 @@ export function ChatList({
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, bgcolor: popover ? "#fff" : "#F0F4F9" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 2, pr: 1, pt: 1, pb: popover ? 0.5 : 1, minHeight: popover ? 48 : 56 }}>
-        <Typography component="h2" sx={{ flex: 1, fontSize: popover ? "1rem" : "1.25rem", fontWeight: popover ? 500 : 400, color: "#1F1F1F", letterSpacing: 0 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, background: popover ? "#fff" : "linear-gradient(180deg, #F3F5F8 0%, #FAFBFC 45%, #FFFFFF 100%)" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 2, pr: 0.75, pt: 0.75, pb: 0.5, minHeight: 48 }}>
+        <Typography component="h2" sx={{ flex: 1, fontSize: "1rem", fontWeight: 500, color: "#1F1F1F", letterSpacing: 0 }}>
           {popover ? "Riwayat chat" : "Chat"}
         </Typography>
         {!popover && (
@@ -273,18 +275,18 @@ export function ChatList({
             display: "flex",
             alignItems: "center",
             gap: 1.5,
-            height: 44,
-            px: 1.5,
+            height: 38,
+            px: 1.25,
             border: "none",
             borderRadius: "9999px",
             bgcolor: newActive ? "#D3E3FD" : "transparent",
             color: newActive ? "#041E49" : "#1F1F1F",
             fontFamily: "inherit",
-            fontSize: "0.875rem",
+            fontSize: "0.8125rem",
             fontWeight: 500,
             textAlign: "left",
             cursor: "pointer",
-            "&:hover": { bgcolor: newActive ? "#D3E3FD" : "rgba(68,71,70,0.08)" },
+            "&:hover": { bgcolor: newActive ? "#D3E3FD" : HOVER },
             "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
           }}
         >
@@ -293,7 +295,7 @@ export function ChatList({
         </Box>
       </Box>
 
-      <Typography sx={{ px: 2.5, pt: popover ? 1 : 2.5, pb: 1, fontSize: "0.875rem", fontWeight: 500, color: "#444746" }}>
+      <Typography sx={{ px: 2.25, pt: popover ? 1 : 2, pb: 0.75, fontSize: "0.75rem", fontWeight: 500, color: "#5F6368" }}>
         {query.trim() ? "Hasil pencarian" : "Terbaru"}
       </Typography>
 
@@ -317,10 +319,11 @@ export function ChatList({
                   position: "relative",
                   display: "flex",
                   alignItems: "center",
-                  height: 40,
+                  height: 34,
                   borderRadius: "9999px",
-                  bgcolor: active ? "#D3E3FD" : menuOn ? "rgba(68,71,70,0.08)" : "transparent",
-                  "&:hover": { bgcolor: active ? "#D3E3FD" : "rgba(68,71,70,0.08)" },
+                  bgcolor: active ? "#D3E3FD" : menuOn ? HOVER : "transparent",
+                  transition: "background-color 150ms",
+                  "&:hover": { bgcolor: active ? "#D3E3FD" : HOVER },
                   "& .row-more": { display: { xs: "inline-flex", md: active || menuOn ? "inline-flex" : "none" } },
                   "&:hover .row-more, &:focus-within .row-more": { display: "inline-flex" },
                   "&:hover .row-dot, &:focus-within .row-dot": { display: { md: "none" } },
@@ -357,7 +360,7 @@ export function ChatList({
                     sx={{
                       flex: 1,
                       minWidth: 0,
-                      fontSize: "0.875rem",
+                      fontSize: "0.8125rem",
                       fontWeight: active ? 500 : 400,
                       color: active ? "#041E49" : "#1F1F1F",
                       whiteSpace: "nowrap",

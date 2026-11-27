@@ -20,14 +20,12 @@ export function NewChat({
   prefillSkill,
   onOpenList,
   onNew,
-  historyOpen,
   onSend,
 }: {
   skills: SkillSummary[];
   prefillSkill: string | null; // /chat?skill=<name>
-  onOpenList: (anchor: HTMLElement) => void; // the "Riwayat chat" button: list as a popover (drawer on a phone)
+  onOpenList?: () => void; // the list is hidden (collapsed panel, or a phone's drawer): show History/+ buttons
   onNew: () => void;
-  historyOpen?: boolean;
   onSend: (text: string) => Promise<boolean>;
 }) {
   const composer = useRef<ComposerHandle>(null);
@@ -46,9 +44,9 @@ export function NewChat({
 
   return (
     <Box sx={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      <ChatNavButtons onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
-      <Box sx={{ display: { xs: "flex", sm: "none" }, alignItems: "center", px: 1, minHeight: 56, flexShrink: 0 }}>
-        <ChatNavButtons inline onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
+      {onOpenList && <ChatNavButtons onHistory={onOpenList} onNew={onNew} />}
+      <Box sx={{ display: { xs: onOpenList ? "flex" : "none", sm: "none" }, alignItems: "center", px: 1, minHeight: 56, flexShrink: 0 }}>
+        {onOpenList && <ChatNavButtons inline onHistory={onOpenList} onNew={onNew} />}
       </Box>
       {/* Middle: greeting + a looping example conversation showing how to use the chat */}
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", px: { xs: 1.5, sm: 3 } }}>
