@@ -46,6 +46,7 @@ export interface TasksCtx {
   open: (t: Task) => void;
   create: (defaults: Partial<TaskInput>) => void;
   patch: (t: Task, p: Partial<TaskInput>) => void;
+  openTeam: (tab?: "members" | "projects") => void;
 }
 
 const VIEWS: { value: View; label: string; icon: React.ReactNode }[] = [
@@ -80,7 +81,7 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [hideDone, setHideDone] = useState(false);
   const [dialog, setDialog] = useState<{ task: Task | null; defaults?: Partial<TaskInput> } | null>(null);
-  const [teamOpen, setTeamOpen] = useState(false);
+  const [teamOpen, setTeamOpen] = useState<false | "members" | "projects">(false);
 
   // Restore view + person filter; default person = the member whose email is the login.
   useEffect(() => {
@@ -174,6 +175,7 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
     open: (t) => setDialog({ task: t }),
     create: (defaults) => setDialog({ task: null, defaults }),
     patch,
+    openTeam: (tab = "members") => setTeamOpen(tab),
   };
 
   // Summary numbers (top-level and subtasks alike, respecting the person/project filter but not "hide done").
@@ -241,7 +243,7 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
             </Typography>
           </Box>
           <Box sx={{ display: "flex", gap: 1, flexShrink: 0 }}>
-            <Button variant="outlined" startIcon={<GroupsRounded />} onClick={() => setTeamOpen(true)} sx={{ borderRadius: "9999px", borderColor: "#C4C7C5", color: "#444746" }}>
+            <Button variant="outlined" startIcon={<GroupsRounded />} onClick={() => setTeamOpen("members")} sx={{ borderRadius: "9999px", borderColor: "#C4C7C5", color: "#444746" }}>
               Tim & project
             </Button>
             <Button variant="contained" disableElevation startIcon={<AddRounded />} onClick={() => ctx.create({})} sx={{ borderRadius: "9999px" }}>
@@ -358,7 +360,7 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
         onClose={() => setDialog(null)}
         onChanged={() => void refresh()}
       />
-      <TeamDialog open={teamOpen} members={data.members} projects={data.projects} onClose={() => setTeamOpen(false)} onChanged={() => void refresh()} />
+      <TeamDialog open={teamOpen !== false} initialTab={teamOpen || "members"} members={data.members} projects={data.projects} onClose={() => setTeamOpen(false)} onChanged={() => void refresh()} />
     </Box>
   );
 }

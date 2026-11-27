@@ -68,3 +68,27 @@ export async function uploadAttachments(
 export const removeAttachment = (fileId: string) => trashItem("file", fileId);
 
 export const MAX_ATTACHMENT_MB = 500;
+
+/** Uploads one image (project logo, profile photo) to the same folder; returns its drive_files id. */
+export async function uploadImage(file: File, metadata: Record<string, unknown>): Promise<string> {
+  const folderId = await attachmentsFolder();
+  const { data } = await sb().auth.getUser();
+  return uploadFile(file, folderId, data.user?.id ?? "", metadata);
+}
+
+/** Pixel size of an image file (SVG without size → null). */
+export function imageSize(file: File): Promise<{ w: number; h: number } | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      resolve(img.naturalWidth ? { w: img.naturalWidth, h: img.naturalHeight } : null);
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+      resolve(null);
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  });
+}
