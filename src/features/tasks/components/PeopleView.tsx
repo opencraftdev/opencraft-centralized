@@ -12,14 +12,25 @@ import { DueChip, MemberAvatar, ProgressBar, textOn } from "./bits";
 
 // Per orang: one card per team member with their own checklist (like "Tugas per orang" in the plan PDF).
 // Shows the "leaf" tasks a person is PIC of — subtasks, and tasks without subtasks — grouped by period.
+// Wide screens: every card side by side in one row (no horizontal scroll) and as tall as the screen, each card
+// scrolling its own list; compact type so it still reads well.
 
 export function PeopleView({ ctx, memberFilter }: { ctx: TasksCtx; memberFilter: string }) {
   const people = ctx.members.filter((m) => m.active && (memberFilter === "all" || m.id === memberFilter));
   const leaves = ctx.all.filter((t) => !(ctx.childrenOf.get(t.id)?.length));
   const unassigned = leaves.filter((t) => !t.assignee_id && ctx.visible(t));
+  const cols = people.length + (memberFilter === "all" && unassigned.length > 0 ? 1 : 0);
 
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 2 }, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(auto-fill, minmax(280px, 1fr))" }, alignItems: "start" }}>
+    <Box
+      sx={{
+        p: { xs: 1.5, sm: 2 },
+        display: "grid",
+        gap: { xs: 1.25, lg: 1 },
+        gridTemplateColumns: { xs: "1fr", sm: "repeat(auto-fill, minmax(240px, 1fr))", lg: `repeat(${Math.max(cols, 1)}, minmax(0, 1fr))` },
+        alignItems: "start",
+      }}
+    >
       {people.map((m, i) => (
         <PersonCard key={m.id} index={i} member={m} tasks={leaves.filter((t) => t.assignee_id === m.id && ctx.visible(t))} all={leaves.filter((t) => t.assignee_id === m.id)} ctx={ctx} />
       ))}
@@ -47,26 +58,26 @@ function PersonCard({ member, tasks, all, ctx, index = 0 }: { member: Member | n
   const ordered = [...groups.values()].sort((x, y) => x.key.localeCompare(y.key));
 
   return (
-    <Box sx={{ border: "1px solid #E0E3E7", borderRadius: "16px", display: "flex", flexDirection: "column", bgcolor: "#fff", overflow: "hidden", animation: `oc-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) ${index * 50}ms both` }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 2, pt: 2, pb: 1.25 }}>
-        <MemberAvatar member={member ?? undefined} size={40} />
+    <Box sx={{ border: "1px solid #E0E3E7", borderRadius: "14px", display: "flex", flexDirection: "column", bgcolor: "#fff", overflow: "hidden", maxHeight: { lg: "calc(100vh - 96px)" }, minWidth: 0, animation: `oc-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) ${index * 50}ms both` }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, px: 1.5, pt: 1.5, pb: 1, flexShrink: 0 }}>
+        <MemberAvatar member={member ?? undefined} size={34} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography sx={{ fontSize: "0.6875rem", fontWeight: 600, letterSpacing: ".06em", color: "#5F6368", textTransform: "uppercase" }}>{member?.role || (member ? "Anggota" : "Belum ada PIC")}</Typography>
-          <Typography sx={{ fontSize: "1.125rem", fontWeight: 600, color: "#1F1F1F", lineHeight: 1.25 }}>{member?.name ?? "Belum di-assign"}</Typography>
+          <Typography noWrap sx={{ fontSize: "0.625rem", fontWeight: 600, letterSpacing: ".06em", color: "#5F6368", textTransform: "uppercase" }}>{member?.role || (member ? "Anggota" : "Belum ada PIC")}</Typography>
+          <Typography noWrap sx={{ fontSize: "1rem", fontWeight: 600, color: "#1F1F1F", lineHeight: 1.25 }}>{member?.name ?? "Belum di-assign"}</Typography>
         </Box>
         {overdue > 0 && (
           <Box sx={{ px: 1, height: 22, display: "flex", alignItems: "center", borderRadius: "9999px", bgcolor: "#FCE8E6", color: "#B3261E", fontSize: "0.6875rem", fontWeight: 600 }}>{overdue} terlambat</Box>
         )}
       </Box>
-      <Box sx={{ px: 2, pb: 1 }}>
+      <Box sx={{ px: 1.5, pb: 0.75, flexShrink: 0 }}>
         <ProgressBar done={done} total={all.length} />
       </Box>
 
-      <Box sx={{ px: 1, pb: 1, flex: 1 }}>
+      <Box sx={{ px: 0.75, pb: 1, flex: 1, minHeight: 0, overflowY: { lg: "auto" }, scrollbarWidth: "thin" }}>
         {ordered.length === 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368", px: 1, py: 2 }}>Tidak ada tugas.</Typography>}
         {ordered.map((g) => (
-          <Box key={g.key} sx={{ mt: 1 }}>
-            <Typography sx={{ fontSize: "0.6875rem", fontWeight: 600, letterSpacing: ".06em", color: "#5F6368", textTransform: "uppercase", px: 1, mb: 0.25 }}>{g.label}</Typography>
+          <Box key={g.key} sx={{ mt: 0.75 }}>
+            <Typography sx={{ fontSize: "0.625rem", fontWeight: 600, letterSpacing: ".06em", color: "#5F6368", textTransform: "uppercase", px: 0.75, mb: 0.125 }}>{g.label}</Typography>
             {g.items
               .sort((a, b) => a.sort - b.sort)
               .map((t) => {
@@ -80,13 +91,13 @@ function PersonCard({ member, tasks, all, ctx, index = 0 }: { member: Member | n
                       checked={isDone}
                       onChange={(e) => ctx.patch(t, { status: e.target.checked ? "done" : "todo" })}
                       slotProps={{ input: { "aria-label": `Selesai: ${t.title}` } }}
-                      sx={{ p: 0.75 }}
+                      sx={{ p: 0.5, "& svg": { fontSize: 18 } }}
                     />
-                    <Box component="button" type="button" onClick={() => ctx.open(t)} sx={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", bgcolor: "transparent", fontFamily: "inherit", cursor: "pointer", py: 0.75, pr: 1 }}>
-                      <Typography sx={{ fontSize: "0.8125rem", color: isDone ? "#5F6368" : "#1F1F1F", textDecoration: isDone ? "line-through" : "none", lineHeight: 1.4 }}>{t.title}</Typography>
+                    <Box component="button" type="button" onClick={() => ctx.open(t)} sx={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", bgcolor: "transparent", fontFamily: "inherit", cursor: "pointer", py: 0.5, pr: 0.75 }}>
+                      <Typography sx={{ fontSize: "0.78rem", color: isDone ? "#5F6368" : "#1F1F1F", textDecoration: isDone ? "line-through" : "none", lineHeight: 1.35 }}>{t.title}</Typography>
                       {(parent || tone === "overdue" || tone === "soon") && (
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.25, flexWrap: "wrap" }}>
-                          {parent && <Typography sx={{ fontSize: "0.6875rem", color: "#5F6368" }}>{parent.title}</Typography>}
+                          {parent && <Typography sx={{ fontSize: "0.6563rem", color: "#5F6368" }}>{parent.title}</Typography>}
                           {(tone === "overdue" || tone === "soon") && <DueChip due={t.due_date} done={isDone} compact />}
                         </Box>
                       )}
@@ -107,7 +118,7 @@ function PersonCard({ member, tasks, all, ctx, index = 0 }: { member: Member | n
       </Box>
 
       {member?.goal && (
-        <Box sx={{ m: 1.5, mt: 0, px: 1.5, py: 1, borderRadius: "10px", bgcolor: textOn(member.color) === "#FFFFFF" ? "#EEF1F4" : `${member.color}66`, fontSize: "0.75rem", color: "#1F1F1F" }}>
+        <Box sx={{ m: 1, mt: 0, px: 1.25, py: 0.75, borderRadius: "10px", flexShrink: 0, bgcolor: textOn(member.color) === "#FFFFFF" ? "#EEF1F4" : `${member.color}66`, fontSize: "0.7188rem", color: "#1F1F1F" }}>
           <b>Hasil:</b> {member.goal}
         </Box>
       )}
