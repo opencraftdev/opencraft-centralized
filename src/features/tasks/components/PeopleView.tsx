@@ -24,7 +24,7 @@ export function PeopleView({ ctx, memberFilter }: { ctx: TasksCtx; memberFilter:
         <PersonCard key={m.id} index={i} member={m} tasks={leaves.filter((t) => t.assignee_id === m.id && ctx.visible(t))} all={leaves.filter((t) => t.assignee_id === m.id)} ctx={ctx} />
       ))}
       {memberFilter === "all" && unassigned.length > 0 && <PersonCard member={null} tasks={unassigned} all={unassigned} ctx={ctx} />}
-      {people.length === 0 && <Typography sx={{ color: "#5F6368", fontSize: "0.875rem", p: 2 }}>Belum ada anggota tim. Tambahkan lewat “Tim & proyek”.</Typography>}
+      {people.length === 0 && <Typography sx={{ color: "#5F6368", fontSize: "0.875rem", p: 2 }}>Belum ada anggota tim. Tambahkan lewat “Tim & project”.</Typography>}
     </Box>
   );
 }

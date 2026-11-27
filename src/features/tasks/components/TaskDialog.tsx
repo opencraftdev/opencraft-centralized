@@ -20,11 +20,12 @@ import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import SendRounded from "@mui/icons-material/SendRounded";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { formatRelative } from "@/features/drive/format";
-import { addComment, createTask, deleteComment, deleteTask, listComments, saveMember, updateTask } from "../api";
+import { addComment, createTask, deleteComment, deleteTask, listComments, saveMember, saveProject, updateTask } from "../api";
 import type { Task, TaskComment, TaskInput } from "../types";
 import { PRIORITIES, STATUSES } from "../types";
 import type { TasksCtx } from "./TasksApp";
 import { DueChip, MemberAvatar } from "./bits";
+import { PROJECT_COLORS } from "./TeamDialog";
 
 // Create / edit one task: details on the right, checklist (subtasks) and comments on the left.
 
@@ -75,6 +76,7 @@ export function TaskDialog({
   const [comment, setComment] = useState("");
   const [newSub, setNewSub] = useState("");
   const [newPerson, setNewPerson] = useState<string | null>(null); // typing a new member's name
+  const [newProject, setNewProject] = useState<string | null>(null); // typing a new project's name
 
   // The live copy (realtime / checkbox changes) of the task being edited.
   const live = task ? ctx.all.find((x) => x.id === task.id) ?? task : null;
@@ -87,6 +89,7 @@ export function TaskDialog({
     setComment("");
     setNewSub("");
     setNewPerson(null);
+    setNewProject(null);
     setComments([]);
     if (task) listComments(task.id).then(setComments).catch(() => setComments([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,6 +109,20 @@ export function TaskDialog({
       set("assignee_id", id);
       setNewPerson(null);
       toastSuccess(`${name} ditambahkan ke tim.`);
+      onChanged();
+    } catch (e) {
+      toastError((e as Error).message);
+    }
+  };
+
+  const addProject = async () => {
+    const name = (newProject ?? "").trim();
+    if (!name) return;
+    try {
+      const id = await saveProject({ name, color: PROJECT_COLORS[ctx.projects.length % PROJECT_COLORS.length], sort: ctx.projects.length + 1 });
+      set("project_id", id);
+      setNewProject(null);
+      toastSuccess(`Project ${name} dibuat.`);
       onChanged();
     } catch (e) {
       toastError((e as Error).message);
@@ -415,10 +432,39 @@ export function TaskDialog({
             </Select>
           </Box>
           <Box>
-            {label("Proyek")}
-            <Select fullWidth size="small" displayEmpty value={form.project_id ?? ""} onChange={(e) => set("project_id", e.target.value || null)} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
+            {label("Project")}
+            {newProject !== null ? (
+              <Box sx={{ display: "flex", gap: 0.5 }}>
+                <TextField
+                  autoFocus
+                  fullWidth
+                  size="small"
+                  placeholder="Nama project baru"
+                  value={newProject}
+                  onChange={(e) => setNewProject(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      void addProject();
+                    }
+                    if (e.key === "Escape") {
+                      e.stopPropagation();
+                      setNewProject(null);
+                    }
+                  }}
+                  sx={fieldSx}
+                />
+                <Button variant="contained" disableElevation disabled={!newProject.trim()} onClick={() => void addProject()} sx={{ borderRadius: "10px", minWidth: 0, px: 1.5 }}>
+                  Tambah
+                </Button>
+                <IconButton size="small" aria-label="Batal" onClick={() => setNewProject(null)}>
+                  <CloseRounded sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Box>
+            ) : (
+            <Select fullWidth size="small" displayEmpty value={form.project_id ?? ""} onChange={(e) => (e.target.value === "__new" ? setNewProject("") : set("project_id", e.target.value || null))} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
               <MenuItem value="">
-                <em>Tanpa proyek</em>
+                <em>Tanpa project</em>
               </MenuItem>
               {ctx.projects.filter((p) => p.status !== "parked" || p.id === form.project_id).map((p) => (
                 <MenuItem key={p.id} value={p.id}>
@@ -428,7 +474,11 @@ export function TaskDialog({
                   </Box>
                 </MenuItem>
               ))}
+              <MenuItem value="__new" sx={{ color: "#0B57D0", borderTop: "1px solid #EEF1F4" }}>
+                <AddRounded sx={{ fontSize: 18, mr: 1 }} /> Tambah project baru…
+              </MenuItem>
             </Select>
+            )}
           </Box>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
             {!form.is_milestone && (

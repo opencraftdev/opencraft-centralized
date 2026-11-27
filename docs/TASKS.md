@@ -7,11 +7,11 @@ only creates what is missing and seeds the plan from 22 November 2026 only while
 
 ## Data (RLS: `is_allowed_user()` — every allow-listed account reads and edits everything)
 
-- `task_members` — people tasks are assigned to, added by typing a name ("Tim & proyek", or "Tambah orang baru…"
+- `task_members` — people tasks are assigned to, added by typing a name ("Tim & project", or "Tambah orang baru…"
   in the PIC picker): `name`, `initials`, `role`, `color`, `goal` ("Hasil: …" on the person card), `active`.
   Not tied to login accounts. `email` exists for later (when it matches the login, the person filter defaults to
   that member) but the UI doesn't ask for it yet.
-- `task_projects` — `name`, `label` (e.g. "V1", "Supporting"), `color`, `status` `active|parked|done` (parked =
+- `task_projects` (shown as "Project"; also created from "Tambah project baru…" in the task dialog) — `name`, `label` (e.g. "V1", "Supporting"), `color`, `status` `active|parked|done` (parked =
   hidden from pickers and the project filter).
 - `tasks` — `title`, `description`, `status` `todo|in_progress|review|done`, `priority` `low|medium|high|urgent`,
   `assignee_id` (PIC), `helper_ids` ("dibantu"), `start_date`, `due_date` (deadline), `is_milestone` (one-day event),
@@ -35,4 +35,4 @@ only creates what is missing and seeds the plan from 22 November 2026 only while
   chips, progress, and the member's `goal`.
 - Task dialog — title, notes, checklist (add / tick / delete / open item), comments; status, PIC, helpers, project,
   start, deadline, priority, milestone, "kalau perlu". Delete asks to confirm (cascades to checklist items).
-- "Tim & proyek" dialog — add/edit members and projects.
+- "Tim & project" dialog — add/edit members and projects.

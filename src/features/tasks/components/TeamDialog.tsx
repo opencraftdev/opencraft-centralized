@@ -18,10 +18,10 @@ import { saveMember, saveProject } from "../api";
 import type { Member, Project, ProjectStatus } from "../types";
 import { MemberAvatar } from "./bits";
 
-// "Tim & proyek": add/edit the people tasks are assigned to, and the projects tasks are grouped in.
+// "Tim & project": add/edit the people tasks are assigned to, and the projects tasks are grouped in.
 
 const MEMBER_COLORS = ["#1B2533", "#D9F2A6", "#A8C7FA", "#C4EEF2", "#FFD8E4", "#FFE8C2", "#E8DEF8", "#C4EED0"];
-const PROJECT_COLORS = ["#C0453A", "#0B57D0", "#1B2533", "#146C2E", "#5B6B1F", "#0F5257", "#8E4B00", "#6750A4", "#80868B"];
+export const PROJECT_COLORS = ["#C0453A", "#0B57D0", "#1B2533", "#146C2E", "#5B6B1F", "#0F5257", "#8E4B00", "#6750A4", "#80868B"];
 
 export function TeamDialog({ open, members, projects, onClose, onChanged }: { open: boolean; members: Member[]; projects: Project[]; onClose: () => void; onChanged: () => void }) {
   const mobile = useMediaQuery("(max-width:700px)");
@@ -46,14 +46,14 @@ export function TeamDialog({ open, members, projects, onClose, onChanged }: { op
   return (
     <Dialog open={open} onClose={onClose} fullScreen={mobile} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: mobile ? 0 : "20px" } } }}>
       <Box sx={{ display: "flex", alignItems: "center", px: 3, pt: 2 }}>
-        <Typography sx={{ fontSize: "1.25rem", flex: 1 }}>Tim & proyek</Typography>
+        <Typography sx={{ fontSize: "1.25rem", flex: 1 }}>Tim & project</Typography>
         <IconButton onClick={onClose} aria-label="Tutup">
           <CloseRounded />
         </IconButton>
       </Box>
       <Box sx={{ display: "flex", gap: 1, px: 3, py: 1.5 }}>
         {tabBtn("members", "Anggota tim")}
-        {tabBtn("projects", "Proyek")}
+        {tabBtn("projects", "Project")}
       </Box>
       <Box sx={{ px: 3, pb: 3, overflowY: "auto" }}>
         {tab === "members" ? (
@@ -98,7 +98,7 @@ export function TeamDialog({ open, members, projects, onClose, onChanged }: { op
               <ProjectForm initial={null} onDone={(saved) => { setEditing(null); if (saved) onChanged(); }} />
             ) : (
               <Button startIcon={<AddRounded />} onClick={() => setEditing("new")} sx={{ mt: 1, borderRadius: "9999px" }}>
-                Tambah proyek
+                Tambah project
               </Button>
             )}
           </>
@@ -211,11 +211,11 @@ function ProjectForm({ initial, onDone }: { initial: Project | null; onDone: (sa
   const [f, setF] = useState({ name: initial?.name ?? "", label: initial?.label ?? "", color: initial?.color ?? PROJECT_COLORS[1], status: initial?.status ?? ("active" as ProjectStatus) });
   const [saving, setSaving] = useState(false);
   const save = async () => {
-    if (!f.name.trim()) return toastError("Nama proyek wajib diisi.");
+    if (!f.name.trim()) return toastError("Nama project wajib diisi.");
     setSaving(true);
     try {
       await saveProject({ id: initial?.id, name: f.name.trim(), label: f.label.trim(), color: f.color, status: f.status });
-      toastSuccess("Proyek disimpan.");
+      toastSuccess("Project disimpan.");
       onDone(true);
     } catch (e) {
       toastError((e as Error).message);
@@ -226,7 +226,7 @@ function ProjectForm({ initial, onDone }: { initial: Project | null; onDone: (sa
   return (
     <FormBox onCancel={() => onDone(false)} onSave={() => void save()} saving={saving}>
       <Box sx={{ display: "flex", gap: 1 }}>
-        <TextField size="small" label="Nama proyek" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} sx={{ ...fieldSx, flex: 1 }} autoFocus />
+        <TextField size="small" label="Nama project" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} sx={{ ...fieldSx, flex: 1 }} autoFocus />
         <TextField size="small" label="Label" placeholder="V1" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} sx={{ ...fieldSx, width: 130 }} />
       </Box>
       <Select size="small" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value as ProjectStatus })} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
