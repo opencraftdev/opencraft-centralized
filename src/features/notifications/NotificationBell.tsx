@@ -4,36 +4,46 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
+import Popover from "@mui/material/Popover";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/material/styles";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
-import CloseRounded from "@mui/icons-material/CloseRounded";
-import InputBase from "@mui/material/InputBase";
-import SendRounded from "@mui/icons-material/SendRounded";
-import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
+import AddRounded from "@mui/icons-material/AddRounded";
+import EditRounded from "@mui/icons-material/EditRounded";
+import ChatBubbleRounded from "@mui/icons-material/ChatBubbleRounded";
+import DeleteRounded from "@mui/icons-material/DeleteRounded";
+import CheckRounded from "@mui/icons-material/CheckRounded";
+import SyncRounded from "@mui/icons-material/SyncRounded";
+import PersonRounded from "@mui/icons-material/PersonRounded";
+import AttachFileRounded from "@mui/icons-material/AttachFileRounded";
+import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
+import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
+import DescriptionRounded from "@mui/icons-material/DescriptionRounded";
+import SmartToyRounded from "@mui/icons-material/SmartToyRounded";
 import { formatRelative } from "@/features/drive/format";
-import { driveContentUrl } from "@/lib/drive/links";
-import { toastError, toastSuccess } from "@/components/ui/Toast";
-import { AutoHeight } from "@/components/ui/AutoHeight";
-import { addComment, updateTask } from "@/features/tasks/api";
+import { personFor, usePeople } from "@/features/accounts/account";
+import { MemberAvatar } from "@/features/tasks/components/bits";
+import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
+import type { Member } from "@/features/tasks/types";
 import {
   AREA_LABEL,
   addReadId,
+  getClearedAt,
   getLastRead,
   getReadIds,
   listNotifications,
-  notifIcon,
+  setClearedAt,
   setLastRead,
   subscribeNotifications,
   type AppNotification,
-  type NotifArea,
 } from "./api";
 
-// Bell in the top bar (option 2: the badge pulses while something is unread; the list opens as a sheet from the
-// right; new items flash blue for a moment). docs/NOTIFICATIONS.md.
+// Bell in the top bar. Clicking it opens a small card under the bell (not a side sheet): each line is personal,
+// "Raka memperbarui tugas SMM OCRAFT", with the person's photo and a small badge for the kind of change.
+// Tabs Semua / Belum dibaca; "Tandai semua dibaca"; "Hapus semua" hides the list so far (per browser).
+// docs/NOTIFICATIONS.md.
 
 const halo = keyframes`
   0% { box-shadow: 0 0 0 0 rgba(217,48,37,.55); }
@@ -43,44 +53,111 @@ const halo = keyframes`
 const pop = keyframes`
   0% { transform: scale(0); } 60% { transform: scale(1.3); } 100% { transform: scale(1); }
 `;
-const flash = keyframes`
-  from { background-color: #E8F0FE; } to { background-color: transparent; }
-`;
-const rise = keyframes`
-  from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; }
-`;
 
-type Filter = "all" | NotifArea;
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: "all", label: "Semua" },
-  { key: "tasks", label: "Task" },
-  { key: "finance", label: "Finance" },
-  { key: "scrapers", label: "Scrapers" },
-  { key: "documents", label: "Document" },
-];
+const PAGE = 20;
+const STATUS_WORD: Record<string, string> = { selesai: "Done", "sedang dikerjakan": "Progress", "masuk review": "Review", "belum mulai": "To do" };
+
+/** "Raka" + "memperbarui tugas" + "SMM OCRAFT" + a sub line, from the trigger's title/body (migration 028). */
+function describe(n: AppNotification): { verb: string; obj: string; sub: string } {
+  const t = n.title;
+  const body = n.body.replace(/^\[\[reply:[0-9a-f-]+\]\]\s*/, "");
+  const after = (prefix: string) => (t.startsWith(prefix) ? t.slice(prefix.length) : null);
+  const quoted = (s: string) => /"(.*)"/.exec(s)?.[1] ?? s;
+  let m: RegExpExecArray | null;
+  switch (n.kind) {
+    case "task_created":
+      if ((m = /^Checklist baru di "(.*)": (.*)$/.exec(t))) return { verb: "menambah checklist", obj: m[2], sub: `di ${m[1]}` };
+      return { verb: "membuat tugas", obj: after("Tugas baru: ") ?? t, sub: body };
+    case "task_deleted":
+      return { verb: "menghapus tugas", obj: after("Tugas dihapus: ") ?? t, sub: body };
+    case "task_status":
+      if ((m = /^"(.*)" (.*)$/.exec(t))) {
+        if (m[2] === "selesai") return { verb: "menyelesaikan", obj: m[1], sub: body };
+        return { verb: "memindahkan", obj: m[1], sub: `ke ${STATUS_WORD[m[2]] ?? m[2]}${body ? ` · ${body}` : ""}` };
+      }
+      break;
+    case "task_assigned":
+      if ((m = /^(.*) jadi PIC "(.*)"$/.exec(t))) return { verb: `menunjuk ${m[1]} sebagai PIC`, obj: m[2], sub: body };
+      break;
+    case "task_updated":
+      return { verb: "memperbarui tugas", obj: after("Tugas diperbarui: ") ?? t, sub: body };
+    case "task_comment":
+      return { verb: "berkomentar di", obj: quoted(t), sub: body ? `“${body}”` : "" };
+    case "task_attachment":
+      return { verb: "melampirkan file di", obj: quoted(t), sub: body };
+    case "expense_new":
+      return { verb: "menambah biaya", obj: after("Biaya baru: ") ?? t, sub: body };
+    case "expense_updated":
+      return t.startsWith("Biaya dihentikan: ") ? { verb: "menghentikan biaya", obj: t.slice(18), sub: body } : { verb: "memperbarui biaya", obj: after("Biaya diperbarui: ") ?? t, sub: body };
+    case "doc_new":
+      return { verb: "mengunggah dokumen", obj: after("Dokumen baru: ") ?? t, sub: body };
+    case "doc_ready":
+      return { verb: "selesai membuat dokumen", obj: after("Dokumen selesai dibuat: ") ?? t, sub: body };
+    case "lead_new":
+      return { verb: "menemukan", obj: n.count > 1 ? `${n.count} lead baru` : "1 lead baru", sub: body };
+  }
+  return { verb: "", obj: t, sub: body };
+}
+
+/** Small badge on the photo: what kind of change. */
+function kindBadge(n: AppNotification): { Icon: typeof AddRounded; bg: string } {
+  switch (n.kind) {
+    case "task_created":
+      return { Icon: AddRounded, bg: "#0B57D0" };
+    case "task_updated":
+      return { Icon: EditRounded, bg: "#B06000" };
+    case "task_comment":
+      return { Icon: ChatBubbleRounded, bg: "#0B57D0" };
+    case "task_deleted":
+      return { Icon: DeleteRounded, bg: "#B3261E" };
+    case "task_status":
+      return n.title.endsWith("selesai") ? { Icon: CheckRounded, bg: "#146C2E" } : { Icon: SyncRounded, bg: "#5F6368" };
+    case "task_assigned":
+      return { Icon: PersonRounded, bg: "#7B1FA2" };
+    case "task_attachment":
+      return { Icon: AttachFileRounded, bg: "#5F6368" };
+    case "expense_new":
+    case "expense_updated":
+      return { Icon: PaymentsRounded, bg: "#7B1FA2" };
+    case "lead_new":
+      return { Icon: TravelExploreRounded, bg: "#00838F" };
+    default:
+      return { Icon: DescriptionRounded, bg: "#1A73E8" };
+  }
+}
+
+/** Who did it: the person, or the app itself (scrapers, document agent) when there is no actor. */
+function actorOf(n: AppNotification, people: Member[]): { name: string; member: Member | null } {
+  if (n.actor) {
+    const m = personFor(n.actor, people);
+    return { name: m.name, member: m };
+  }
+  if (n.area === "scrapers") return { name: "Scrapers", member: null };
+  if (n.area === "documents") return { name: "Agen dokumen", member: null };
+  return { name: "Sistem", member: null };
+}
 
 export function NotificationBell() {
   const router = useRouter();
+  const people = usePeople();
   const [items, setItems] = useState<AppNotification[] | null>(null);
   const [lastRead, setLastReadState] = useState<string>(() => new Date().toISOString());
-  const [open, setOpen] = useState(false);
-  const [seenAtOpen, setSeenAtOpen] = useState<string>(""); // what counted as "new" when the sheet opened
-  const [filter, setFilter] = useState<Filter>("all");
-  const [now, setNow] = useState(() => Date.now());
-  const [bump, setBump] = useState(0); // replays the badge pop when the count goes up
-  const prevUnread = useRef(0);
-  const [expanded, setExpanded] = useState<string | null>(null); // item showing its quick actions
-  const [replyTo, setReplyTo] = useState<string | null>(null);
-  const [reply, setReply] = useState("");
+  const [clearedAt, setClearedState] = useState<string>(() => new Date(0).toISOString());
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const [tab, setTab] = useState<"all" | "unread">("all");
+  const [limit, setLimit] = useState(PAGE);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [bump, setBump] = useState(0);
+  const prevUnread = useRef(0);
 
   const refresh = useCallback(async () => {
-    setItems(await listNotifications());
-    setNow(Date.now());
+    setItems(await listNotifications(60));
   }, []);
 
   useEffect(() => {
     setLastReadState(getLastRead());
+    setClearedState(getClearedAt());
     setReadIds(getReadIds());
     void refresh();
     let t: ReturnType<typeof setTimeout> | null = null;
@@ -99,82 +176,41 @@ export function NotificationBell() {
     };
   }, [refresh]);
 
-  const unread = useMemo(() => (items ?? []).filter((n) => n.updated_at > lastRead).length, [items, lastRead]);
+  const visible = useMemo(() => (items ?? []).filter((n) => n.updated_at > clearedAt), [items, clearedAt]);
+  const isUnread = useCallback((n: AppNotification) => n.updated_at > lastRead && !readIds.has(n.id), [lastRead, readIds]);
+  const unread = useMemo(() => visible.filter(isUnread).length, [visible, isUnread]);
   useEffect(() => {
     if (unread > prevUnread.current) setBump((b) => b + 1);
     prevUnread.current = unread;
   }, [unread]);
 
-  const openSheet = () => {
-    setSeenAtOpen(lastRead);
-    setOpen(true);
+  if (items === null) return null; // not set up yet (migration 028) or offline
+
+  const shown = visible.filter((n) => tab === "all" || isUnread(n));
+  const markAll = () => {
     const stamp = new Date().toISOString();
     setLastRead(stamp);
     setLastReadState(stamp);
-    void refresh();
   };
-
   const go = (n: AppNotification) => {
-    setOpen(false);
+    setReadIds(addReadId(n.id));
+    setAnchor(null);
     if (n.link) router.push(n.link);
   };
-  const markRead = (n: AppNotification) => {
-    setReadIds(addReadId(n.id));
-    setExpanded(null);
-  };
-  const sendReply = async (n: AppNotification) => {
-    const text = reply.trim();
-    if (!text || !n.ref_id) return;
-    try {
-      await addComment(n.ref_id, text);
-      setReply("");
-      setReplyTo(null);
-      markRead(n);
-      toastSuccess("Balasan terkirim.");
-    } catch (e) {
-      toastError((e as Error).message);
-    }
-  };
-  const finishTask = async (n: AppNotification) => {
-    if (!n.ref_id) return;
-    try {
-      await updateTask(n.ref_id, { status: "done" });
-      markRead(n);
-      toastSuccess("Tugas ditandai Done.");
-    } catch (e) {
-      toastError((e as Error).message);
-    }
-  };
-
-  /** Quick actions per kind (option 5), shown as text buttons. "Buka" sits on the right of every item. */
-  const actions = (n: AppNotification): { label: string; primary?: boolean; run: () => void }[] => {
-    const read = { label: "Tandai dibaca", run: () => markRead(n) };
-    switch (n.kind) {
-      case "task_comment":
-        return [{ label: "Balas", primary: true, run: () => { setReplyTo(n.id); setReply(""); } }, read];
-      case "task_assigned":
-      case "task_created":
-      case "task_updated":
-        return [{ label: "Tandai Done", primary: true, run: () => void finishTask(n) }, read];
-      case "doc_new":
-      case "doc_ready":
-        return [
-          { label: "Unduh", primary: true, run: () => { if (n.ref_id) window.open(driveContentUrl(n.ref_id, true), "_blank", "noopener"); markRead(n); } },
-          read,
-        ];
-      default:
-        return [read];
-    }
-  };
-
-  if (items === null) return null; // not set up yet (migration 028) or offline
-
-  const shown = items.filter((n) => filter === "all" || n.area === filter);
 
   return (
     <>
-      <Tooltip title="Notifikasi" open={open ? false : undefined} disableInteractive>
-        <IconButton aria-label={unread ? `Notifikasi, ${unread} belum dibaca` : "Notifikasi"} onClick={openSheet} sx={{ position: "relative", width: 44, height: 44, color: "#444746" }}>
+      <Tooltip title={anchor ? "" : "Notifikasi"} disableInteractive>
+        <IconButton
+          aria-label={unread ? `Notifikasi, ${unread} belum dibaca` : "Notifikasi"}
+          aria-haspopup="dialog"
+          onClick={(e) => {
+            setAnchor(anchor ? null : e.currentTarget);
+            setLimit(PAGE);
+            void refresh();
+          }}
+          sx={{ position: "relative", width: 44, height: 44, color: "#444746", bgcolor: anchor ? "#E3EAF5" : "transparent" }}
+        >
           <NotificationsRounded sx={{ fontSize: 24 }} />
           {unread > 0 && (
             <Box
@@ -206,190 +242,154 @@ export function NotificationBell() {
         </IconButton>
       </Tooltip>
 
-      <Drawer
-        anchor="right"
-        open={open}
-        onClose={() => setOpen(false)}
+      <Popover
+        open={Boolean(anchor)}
+        anchorEl={anchor}
+        onClose={() => setAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
         slotProps={{
-          paper: { sx: { width: { xs: "100%", sm: 400 }, borderRadius: { xs: 0, sm: "18px 0 0 18px" }, bgcolor: "#fff" } },
-          backdrop: { sx: { bgcolor: "rgba(32,33,36,.18)" } },
+          paper: {
+            sx: {
+              mt: 1.25,
+              width: "min(400px, calc(100vw - 16px))",
+              borderRadius: "18px",
+              overflow: "visible",
+              boxShadow: "0 10px 36px rgba(60,64,67,.24), 0 2px 6px rgba(60,64,67,.12)",
+              animation: "oc-pop-in 220ms cubic-bezier(0.22, 1, 0.36, 1)",
+              // little tail pointing at the bell
+              "&::before": { content: '""', position: "absolute", top: -6, right: 16, width: 14, height: 14, bgcolor: "#fff", transform: "rotate(45deg)", borderRadius: "3px 0 0 0" },
+            },
+          },
         }}
-        transitionDuration={{ enter: 360, exit: 240 }}
-        sx={{ zIndex: (t) => t.zIndex.modal + 2 }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", px: 2.5, pt: 2, pb: 1 }}>
-          <Typography component="h2" sx={{ fontSize: "1.25rem", flex: 1 }}>
-            Notifikasi
-          </Typography>
-          <IconButton aria-label="Tutup" onClick={() => setOpen(false)}>
-            <CloseRounded />
-          </IconButton>
-        </Box>
-        <Box sx={{ display: "flex", gap: 0.75, px: 2.5, pb: 1.5 }}>
-          {FILTERS.map((f) => {
-            const on = f.key === filter;
-            return (
+        <Box sx={{ position: "relative", borderRadius: "18px", overflow: "hidden", bgcolor: "#fff", display: "flex", flexDirection: "column", maxHeight: "min(620px, calc(100vh - 90px))" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 2, pr: 1, pt: 1.5, pb: 0.75 }}>
+            <Typography sx={{ flex: 1, fontSize: "1rem", fontWeight: 500 }}>Notifikasi</Typography>
+            <Button size="small" onClick={markAll} disabled={unread === 0} sx={{ borderRadius: "9999px", fontSize: "0.75rem", px: 1, minWidth: 0 }}>
+              Tandai semua dibaca
+            </Button>
+            <Button size="small" onClick={() => setConfirmClear(true)} disabled={visible.length === 0} sx={{ borderRadius: "9999px", fontSize: "0.75rem", px: 1, minWidth: 0, color: "#B3261E" }}>
+              Hapus semua
+            </Button>
+          </Box>
+          <Box sx={{ display: "flex", gap: 0.5, px: 1.5, pb: 1 }}>
+            {(["all", "unread"] as const).map((k) => (
               <Box
-                key={f.key}
+                key={k}
                 component="button"
                 type="button"
-                onClick={() => setFilter(f.key)}
-                aria-pressed={on}
-                sx={{ flex: "1 1 auto", minWidth: 0, border: "1px solid", borderColor: on ? "#0B57D0" : "#C4C7C5", bgcolor: on ? "#D3E3FD" : "transparent", color: on ? "#0B57D0" : "#444746", borderRadius: "9999px", px: 1, height: 30, fontSize: "0.8125rem", fontWeight: on ? 600 : 500, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", transition: "background-color 150ms, border-color 150ms" }}
+                onClick={() => setTab(k)}
+                sx={{
+                  border: "none",
+                  fontFamily: "inherit",
+                  fontSize: "0.8125rem",
+                  px: 1.5,
+                  py: 0.6,
+                  borderRadius: "9999px",
+                  cursor: "pointer",
+                  bgcolor: tab === k ? "#D3E3FD" : "transparent",
+                  color: tab === k ? "#041E49" : "#444746",
+                  fontWeight: tab === k ? 500 : 400,
+                  transition: "background-color 150ms",
+                  "&:hover": { bgcolor: tab === k ? "#D3E3FD" : "#F0F4F9" },
+                }}
               >
-                {f.label}
+                {k === "all" ? "Semua" : `Belum dibaca${unread ? ` ${unread}` : ""}`}
               </Box>
-            );
-          })}
-        </Box>
-        <Box sx={{ flex: 1, overflowY: "auto", borderTop: "1px solid #EEF1F4" }}>
-          {shown.length === 0 ? (
-            <Typography sx={{ color: "#5F6368", fontSize: "0.875rem", textAlign: "center", py: 6, px: 3 }}>
-              Belum ada notifikasi. Update dari Task Management, Finance, Scrapers, dan Document akan muncul di sini.
-            </Typography>
-          ) : (
-            shown.map((n, i) => {
-              const isNew = !!seenAtOpen && n.updated_at > seenAtOpen && !readIds.has(n.id);
-              const ic = notifIcon(n);
-              return (
-                <Box
-                  key={n.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={expanded === n.id}
-                  onClick={(e) => {
-                    if ((e.target as HTMLElement).closest("[data-qa]")) return;
-                    setExpanded((x) => (x === n.id ? null : n.id));
-                    setReplyTo(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
-                      e.preventDefault();
-                      setExpanded((x) => (x === n.id ? null : n.id));
-                    }
-                  }}
-                  sx={{
-                    position: "relative",
-                    display: "flex",
-                    gap: 1.5,
-                    alignItems: "flex-start",
-                    width: "100%",
-                    textAlign: "left",
-                    border: "none",
-                    borderBottom: "1px solid #F1F3F4",
-                    bgcolor: "transparent",
-                    px: 2.5,
-                    py: 1.5,
-                    cursor: "pointer",
-                    "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
-                    fontFamily: "inherit",
-                    animation: `${rise} 320ms cubic-bezier(0.22,1,0.36,1) ${Math.min(i, 10) * 30}ms both${isNew ? `, ${flash} 2.4s ease-out 300ms both` : ""}`,
-                    "&:hover": { bgcolor: "#F8FAFD" },
-                  }}
-                >
-                  {isNew && <Box component="span" sx={{ position: "absolute", left: 10, top: 26, width: 6, height: 6, borderRadius: "50%", bgcolor: "#0B57D0" }} />}
-                  <Box component="span" sx={{ width: 36, height: 36, borderRadius: "11px", bgcolor: ic.tint, display: "grid", placeItems: "center", flexShrink: 0, fontSize: 18, fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}>
-                    {ic.emoji}
-                  </Box>
-                  <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography sx={{ fontSize: "0.875rem", color: "#1F1F1F", fontWeight: isNew ? 600 : 400, lineHeight: 1.35, overflowWrap: "anywhere" }}>{n.title}</Typography>
-                    {n.body && (
-                      <Typography sx={{ fontSize: "0.8125rem", color: "#444746", mt: 0.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>{n.body.replace(/^\[\[reply:[0-9a-f-]+\]\]\s*/, "")}</Typography>
-                    )}
-                    <Typography suppressHydrationWarning sx={{ fontSize: "0.75rem", color: "#5F6368", mt: 0.25 }}>
-                      {AREA_LABEL[n.area]} · {formatRelative(n.updated_at, now)}
-                    </Typography>
-                    <AutoHeight duration={0.28}>
-                    {expanded === n.id && (
-                      <Box data-qa sx={{ mt: 0.75, pb: 0.5, animation: `${rise} 240ms cubic-bezier(0.22,1,0.36,1) both`, cursor: "default" }}>
-                        {replyTo === n.id ? (
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                            <Tooltip title="Kembali">
-                              <IconButton size="small" aria-label="Kembali" onClick={() => setReplyTo(null)} sx={{ color: "#444746", ml: -0.75 }}>
-                                <ArrowBackRounded sx={{ fontSize: 18 }} />
-                              </IconButton>
-                            </Tooltip>
-                            <Box sx={{ flex: 1, display: "flex", alignItems: "center", gap: 0.5, border: "1px solid #C4C7C5", borderRadius: "9999px", pl: 1.5, pr: 0.5, "&:focus-within": { borderColor: "#0B57D0" } }}>
-                              <InputBase
-                                autoFocus
-                                fullWidth
-                                value={reply}
-                                onChange={(e) => setReply(e.target.value)}
-                                onKeyDown={(e) => {
-                                  e.stopPropagation();
-                                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                                    e.preventDefault();
-                                    void sendReply(n);
-                                  }
-                                  if (e.key === "Escape") setReplyTo(null);
-                                }}
-                                placeholder="Tulis balasan…"
-                                sx={{ fontSize: "0.8125rem", py: 0.5 }}
-                                inputProps={{ "aria-label": "Balas komentar" }}
-                              />
-                              <IconButton size="small" aria-label="Kirim balasan" disabled={!reply.trim()} onClick={() => void sendReply(n)} sx={{ color: "#0B57D0" }}>
-                                <SendRounded sx={{ fontSize: 18 }} />
-                              </IconButton>
-                            </Box>
-                          </Box>
-                        ) : (
-                          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-                            {actions(n).map((a) => (
-                              <TextAction key={a.label} label={a.label} primary={a.primary} onClick={a.run} />
-                            ))}
-                          </Box>
-                        )}
+            ))}
+          </Box>
+
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", borderTop: "1px solid #EEF1F4" }}>
+            {shown.length === 0 ? (
+              <Typography sx={{ textAlign: "center", color: "#5F6368", fontSize: "0.8125rem", py: 5, px: 2 }}>
+                {tab === "unread" ? "Semua sudah dibaca 🎉" : "Belum ada notifikasi."}
+              </Typography>
+            ) : (
+              shown.slice(0, limit).map((n, i) => {
+                const who = actorOf(n, people);
+                const d = describe(n);
+                const k = kindBadge(n);
+                const fresh = isUnread(n);
+                return (
+                  <Box
+                    key={n.id}
+                    component="button"
+                    type="button"
+                    onClick={() => go(n)}
+                    sx={{
+                      display: "flex",
+                      gap: 1.5,
+                      width: "100%",
+                      textAlign: "left",
+                      border: "none",
+                      bgcolor: "transparent",
+                      fontFamily: "inherit",
+                      cursor: "pointer",
+                      px: 2,
+                      py: 1.25,
+                      transition: "background-color 150ms",
+                      animation: `oc-rise 260ms cubic-bezier(0.22, 1, 0.36, 1) ${Math.min(i, 8) * 25}ms both`,
+                      "&:hover": { bgcolor: "#F8FAFD" },
+                      "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
+                    }}
+                  >
+                    <Box sx={{ position: "relative", flexShrink: 0 }}>
+                      {who.member ? (
+                        <MemberAvatar member={who.member} size={36} />
+                      ) : (
+                        <Box sx={{ width: 36, height: 36, borderRadius: "50%", bgcolor: "#E8EAED", color: "#5F6368", display: "grid", placeItems: "center" }}>
+                          <SmartToyRounded sx={{ fontSize: 20 }} />
+                        </Box>
+                      )}
+                      <Box sx={{ position: "absolute", right: -3, bottom: -3, width: 18, height: 18, borderRadius: "50%", bgcolor: k.bg, color: "#fff", border: "2px solid #fff", display: "grid", placeItems: "center" }}>
+                        <k.Icon sx={{ fontSize: 10 }} />
                       </Box>
-                    )}
-                    </AutoHeight>
-                  </Box>
-                  {n.link && (
-                    <Box data-qa sx={{ alignSelf: "center", flexShrink: 0 }}>
-                      <TextAction label="Buka" primary onClick={() => go(n)} />
                     </Box>
-                  )}
-                </Box>
-              );
-            })
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontSize: "0.8438rem", lineHeight: 1.45, color: "#1F1F1F", overflowWrap: "anywhere" }}>
+                        <b style={{ fontWeight: 500 }}>{who.name}</b> {d.verb} <b style={{ fontWeight: 500 }}>{d.obj}</b>
+                        {n.count > 1 && n.kind !== "lead_new" && <span style={{ color: "#5F6368" }}> · {n.count}×</span>}
+                      </Typography>
+                      {d.sub && (
+                        <Typography sx={{ fontSize: "0.78rem", color: "#5F6368", mt: 0.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>{d.sub}</Typography>
+                      )}
+                      <Typography suppressHydrationWarning sx={{ fontSize: "0.7188rem", color: "#80868B", mt: 0.25 }}>
+                        {formatRelative(n.updated_at)} · {AREA_LABEL[n.area]}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: fresh ? "#0B57D0" : "transparent", flexShrink: 0, mt: 0.75 }} />
+                  </Box>
+                );
+              })
+            )}
+          </Box>
+
+          {shown.length > limit && (
+            <Box sx={{ borderTop: "1px solid #EEF1F4", py: 0.75, textAlign: "center" }}>
+              <Button size="small" onClick={() => setLimit((l) => l + PAGE)} sx={{ borderRadius: "9999px", fontSize: "0.8125rem" }}>
+                Lihat semua notifikasi ({shown.length})
+              </Button>
+            </Box>
           )}
         </Box>
-        <Box sx={{ px: 2.5, py: 1.25, borderTop: "1px solid #EEF1F4", display: "flex", justifyContent: "flex-end" }}>
-          <Button size="small" onClick={() => setOpen(false)} sx={{ borderRadius: "9999px" }}>
-            Tutup
-          </Button>
-        </Box>
-      </Drawer>
-    </>
-  );
-}
+      </Popover>
 
-/** Text button with an underline that draws in on hover (same as "Lihat Detail"). */
-function TextAction({ label, primary, onClick }: { label: string; primary?: boolean; onClick: () => void }) {
-  return (
-    <Box
-      component="button"
-      type="button"
-      onClick={onClick}
-      sx={{
-        p: 0,
-        border: "none",
-        bgcolor: "transparent",
-        cursor: "pointer",
-        fontFamily: "inherit",
-        fontSize: "0.8125rem",
-        fontWeight: 600,
-        color: primary ? "#0B57D0" : "#444746",
-        whiteSpace: "nowrap",
-        backgroundImage: "linear-gradient(currentColor, currentColor)",
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "0 100%",
-        backgroundSize: "0% 1.5px",
-        transition: "background-size 320ms cubic-bezier(0.22, 1, 0.36, 1)",
-        "&:hover, &:focus-visible": { backgroundSize: "100% 1.5px" },
-        "&:focus-visible": { outline: "none" },
-      }}
-    >
-      {label}
-    </Box>
+      <ConfirmDialog
+        open={confirmClear}
+        title="Hapus semua notifikasi?"
+        body="Semua notifikasi yang ada sekarang akan dihapus dari daftarmu. Notifikasi baru tetap muncul seperti biasa."
+        confirmLabel="Hapus semua"
+        onClose={() => setConfirmClear(false)}
+        onConfirm={async () => {
+          setConfirmClear(false);
+          const stamp = new Date().toISOString();
+          setClearedAt(stamp);
+          setClearedState(stamp);
+          setLastRead(stamp);
+          setLastReadState(stamp);
+        }}
+      />
+    </>
   );
 }

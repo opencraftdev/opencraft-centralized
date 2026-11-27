@@ -112,3 +112,20 @@ export function addReadId(id: string): Set<string> {
   }
   return new Set(list);
 }
+
+// "Hapus semua notifikasi": hides everything up to now from this list (per browser), new ones still show.
+const LS_CLEARED = "notif.clearedAt";
+export function getClearedAt(): string {
+  try {
+    return localStorage.getItem(LS_CLEARED) ?? new Date(0).toISOString();
+  } catch {
+    return new Date(0).toISOString();
+  }
+}
+export function setClearedAt(iso = new Date().toISOString()) {
+  try {
+    localStorage.setItem(LS_CLEARED, iso);
+  } catch {
+    /* ignore */
+  }
+}
