@@ -45,9 +45,10 @@ export function NewChat({
   }, [prefillSkill]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 1, minHeight: 56, flexShrink: 0 }}>
-        <ChatNavButtons onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
+    <Box sx={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      <ChatNavButtons onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
+      <Box sx={{ display: { xs: "flex", sm: "none" }, alignItems: "center", px: 1, minHeight: 56, flexShrink: 0 }}>
+        <ChatNavButtons inline onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
       </Box>
       {/* Middle: greeting + a looping example conversation showing how to use the chat */}
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", px: { xs: 1.5, sm: 3 } }}>

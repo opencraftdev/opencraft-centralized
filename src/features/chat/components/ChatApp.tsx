@@ -203,11 +203,11 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
         open={Boolean(historyAnchor) && !isNarrow}
         anchorEl={historyAnchor}
         onClose={() => setHistoryAnchor(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }} // beside the vertical History/+ column
         transformOrigin={{ vertical: "top", horizontal: "left" }}
         slotProps={{
           paper: {
-            sx: { mt: 0.75, width: 320, maxHeight: "min(520px, 70vh)", display: "flex", flexDirection: "column", borderRadius: "16px", overflow: "hidden", boxShadow: "0 6px 24px rgba(0,0,0,.14)" },
+            sx: { ml: 1, width: 320, maxHeight: "min(520px, 70vh)", display: "flex", flexDirection: "column", borderRadius: "16px", overflow: "hidden", boxShadow: "0 6px 24px rgba(0,0,0,.14)" },
           },
         }}
       >

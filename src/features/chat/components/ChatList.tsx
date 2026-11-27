@@ -117,11 +117,31 @@ export function SidebarIcon() {
   return <ViewSidebarRounded sx={{ fontSize: 22, transform: "scaleX(-1)" }} />;
 }
 
-/** Top-left of the chat card: Riwayat chat (opens the list) and Chat baru (+), labelled on hover. */
-export function ChatNavButtons({ onHistory, onNew, historyOpen }: { onHistory: (anchor: HTMLElement) => void; onNew: () => void; historyOpen?: boolean }) {
+/**
+ * Riwayat chat (opens the list) above Chat baru (+), labelled on hover. From sm up they stand in a column at the
+ * chat card's top left; on a phone they sit in the header row (`inline`).
+ */
+export function ChatNavButtons({
+  onHistory,
+  onNew,
+  historyOpen,
+  inline,
+}: {
+  onHistory: (anchor: HTMLElement) => void;
+  onNew: () => void;
+  historyOpen?: boolean;
+  inline?: boolean;
+}) {
+  const tip = inline ? "bottom" : "right";
   return (
-    <>
-      <Tooltip title="Riwayat chat">
+    <Box
+      sx={
+        inline
+          ? { display: { xs: "flex", sm: "none" }, alignItems: "center", gap: 0.5 }
+          : { display: { xs: "none", sm: "flex" }, flexDirection: "column", gap: 0.5, position: "absolute", top: 8, left: 8, zIndex: 2 }
+      }
+    >
+      <Tooltip title="Riwayat chat" placement={tip}>
         <IconButton
           aria-label="Riwayat chat"
           aria-haspopup="dialog"
@@ -132,12 +152,12 @@ export function ChatNavButtons({ onHistory, onNew, historyOpen }: { onHistory: (
           <HistoryRounded sx={{ fontSize: 22 }} />
         </IconButton>
       </Tooltip>
-      <Tooltip title="Chat baru">
+      <Tooltip title="Chat baru" placement={tip}>
         <IconButton aria-label="Chat baru" onClick={onNew} sx={iconBtn}>
           <AddRounded sx={{ fontSize: 24 }} />
         </IconButton>
       </Tooltip>
-    </>
+    </Box>
   );
 }
 

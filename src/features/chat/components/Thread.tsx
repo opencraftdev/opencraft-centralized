@@ -257,9 +257,10 @@ export function Thread({
   const previewFile = previewId ? files.get(previewId) ?? null : null;
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 1, pr: 1, minHeight: 56, flexShrink: 0 }}>
-        <ChatNavButtons onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
+    <Box sx={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      <ChatNavButtons onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: { xs: 1, sm: 7 }, pr: 1, minHeight: 56, flexShrink: 0 }}>
+        <ChatNavButtons inline onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
         <Typography
           component="h1"
           sx={{ flex: 1, minWidth: 0, pl: 1, fontSize: "1rem", fontWeight: 400, color: "#1F1F1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
