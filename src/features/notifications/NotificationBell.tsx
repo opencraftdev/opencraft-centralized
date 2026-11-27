@@ -294,7 +294,7 @@ export function NotificationBell() {
                   <Box sx={{ minWidth: 0, flex: 1 }}>
                     <Typography sx={{ fontSize: "0.875rem", color: "#1F1F1F", fontWeight: isNew ? 600 : 400, lineHeight: 1.35, overflowWrap: "anywhere" }}>{n.title}</Typography>
                     {n.body && (
-                      <Typography sx={{ fontSize: "0.8125rem", color: "#444746", mt: 0.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>{n.body}</Typography>
+                      <Typography sx={{ fontSize: "0.8125rem", color: "#444746", mt: 0.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>{n.body.replace(/^\[\[reply:[0-9a-f-]+\]\]\s*/, "")}</Typography>
                     )}
                     <Typography suppressHydrationWarning sx={{ fontSize: "0.75rem", color: "#5F6368", mt: 0.25 }}>
                       {AREA_LABEL[n.area]} · {formatRelative(n.updated_at, now)}

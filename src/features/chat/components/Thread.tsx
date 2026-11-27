@@ -253,6 +253,10 @@ export function Thread({
       ? { name: m.author_email === myEmail ? "Kamu" : nameOf(m.author_email, people), member: personFor(m.author_email, people) }
       : undefined;
   const previewFile = previewId ? files.get(previewId) ?? null : null;
+  // ‹ › in the preview go through every file of this chat, in message order
+  const previewSet = [...new Set(messages.flatMap((m) => (m.attachments ?? []).map((a) => a.file_id)))]
+    .map((id) => files.get(id))
+    .filter((f): f is DriveFile => Boolean(f));
 
   return (
     <Box sx={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
@@ -411,6 +415,8 @@ export function Thread({
       />
       <PreviewDialog
         file={previewFile}
+        files={previewSet}
+        onNavigate={(f) => setPreviewId(f.id)}
         onClose={() => setPreviewId(null)}
         onChanged={() => void loadFiles()}
       />

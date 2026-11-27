@@ -65,6 +65,7 @@ export interface MentionInputHandle {
   /** The text with picked "@Label"s turned into stored mention tokens. */
   serialize: () => string;
   reset: () => void;
+  focus: () => void;
 }
 
 export const MentionInput = forwardRef<MentionInputHandle, {
@@ -81,6 +82,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   const [active, setActive] = useState(0);
 
   useImperativeHandle(ref, () => ({
+    focus: () => input.current?.focus(),
     serialize: () => {
       let s = value;
       for (const o of picked) {

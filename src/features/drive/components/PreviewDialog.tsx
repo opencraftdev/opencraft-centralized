@@ -16,6 +16,8 @@ import ReplayRounded from "@mui/icons-material/ReplayRounded";
 import ChatBubbleRounded from "@mui/icons-material/ChatBubbleRounded";
 import ErrorRounded from "@mui/icons-material/ErrorRounded";
 import HelpRounded from "@mui/icons-material/HelpRounded";
+import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
+import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import type { DriveFile } from "@/lib/drive/types";
 import { toastError } from "@/components/ui/Toast";
 import { retryJob, DOC_TYPE_LABEL } from "../api";
@@ -60,16 +62,42 @@ export function PreviewDialog({
   file,
   onClose,
   onChanged,
+  files,
+  onNavigate,
 }: {
   file: DriveFile | null;
   onClose: () => void;
   onChanged: () => void;
+  /** The set this file belongs to (e.g. one comment's attachments): adds ‹ › buttons and ←/→ keys. */
+  files?: DriveFile[];
+  onNavigate?: (f: DriveFile) => void;
 }) {
   const [frameLoading, setFrameLoading] = useState(true);
 
   useEffect(() => {
     setFrameLoading(true);
   }, [file?.id, file?.google_file_id]);
+
+  const set = files && onNavigate && file ? files : null;
+  const idx = set && file ? set.findIndex((f) => f.id === file.id) : -1;
+  const prev = set && idx > 0 ? set[idx - 1] : null;
+  const next = set && idx >= 0 && idx < set.length - 1 ? set[idx + 1] : null;
+
+  // ←/→ move through the set (not while typing, or while a video/audio player has the focus)
+  useEffect(() => {
+    if (!file || !set) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|VIDEO|AUDIO)$/.test(t.tagName))) return;
+      const to = e.key === "ArrowLeft" ? prev : next;
+      if (!to) return;
+      e.preventDefault();
+      onNavigate?.(to);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [file, set, prev, next, onNavigate]);
 
   if (!file) return null;
   const { Icon, color } = fileIcon(file);
@@ -197,6 +225,11 @@ export function PreviewDialog({
           <Typography sx={{ flex: 1, minWidth: 0, fontSize: "1rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {file.name}
           </Typography>
+          {set && set.length > 1 && (
+            <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+              {idx + 1} / {set.length}
+            </Typography>
+          )}
           <StatusBadge file={file} />
           {gid && (
             <>
@@ -242,7 +275,17 @@ export function PreviewDialog({
         </Box>
 
         <Box sx={{ flex: 1, minHeight: 0, display: "flex", gap: 1.5, px: 1.5, pb: 1.5 }}>
-          <Box sx={{ flex: 1, minWidth: 0, bgcolor: "#fff", borderRadius: "12px", overflow: "hidden" }}>{body}</Box>
+          <Box sx={{ position: "relative", flex: 1, minWidth: 0, bgcolor: "#fff", borderRadius: "12px", overflow: "hidden", "&:hover .pv-nav": { opacity: 1 } }}>
+            <Box key={file.id} sx={{ height: "100%", animation: "oc-rise 260ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+              {body}
+            </Box>
+            {set && set.length > 1 && (
+              <>
+                <NavArrow side="left" disabled={!prev} onClick={() => prev && onNavigate?.(prev)} />
+                <NavArrow side="right" disabled={!next} onClick={() => next && onNavigate?.(next)} />
+              </>
+            )}
+          </Box>
 
           {/* side panel: details (hidden on small screens, where the file gets the whole width) */}
           <Box
@@ -291,5 +334,35 @@ export function PreviewDialog({
         </Box>
       </Box>
     </Dialog>
+  );
+}
+
+/** ‹ / › over the preview: previous / next file of the set. */
+function NavArrow({ side, disabled, onClick }: { side: "left" | "right"; disabled: boolean; onClick: () => void }) {
+  const label = side === "left" ? "File sebelumnya (←)" : "File berikutnya (→)";
+  return (
+    <Tooltip title={disabled ? "" : label}>
+      <span style={{ position: "absolute", top: "50%", [side]: 12, transform: "translateY(-50%)", zIndex: 2 }}>
+        <IconButton
+          className="pv-nav"
+          aria-label={label}
+          disabled={disabled}
+          onClick={onClick}
+          sx={{
+            width: 44,
+            height: 44,
+            bgcolor: "rgba(255,255,255,.92)",
+            color: "#1F1F1F",
+            boxShadow: "0 2px 10px rgba(0,0,0,.18)",
+            opacity: { xs: 1, md: 0.85 },
+            transition: "opacity 150ms, transform 150ms",
+            "&:hover": { bgcolor: "#fff", transform: "scale(1.06)" },
+            "&.Mui-disabled": { opacity: 0, pointerEvents: "none" },
+          }}
+        >
+          {side === "left" ? <ChevronLeftRounded sx={{ fontSize: 28 }} /> : <ChevronRightRounded sx={{ fontSize: 28 }} />}
+        </IconButton>
+      </span>
+    </Tooltip>
   );
 }

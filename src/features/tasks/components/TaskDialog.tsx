@@ -32,6 +32,7 @@ import VideocamRounded from "@mui/icons-material/VideocamRounded";
 import DescriptionRounded from "@mui/icons-material/DescriptionRounded";
 import AttachFileRounded from "@mui/icons-material/AttachFileRounded";
 import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
+import ReplyRounded from "@mui/icons-material/ReplyRounded";
 import { useAccount } from "@/features/accounts/account";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { formatRelative } from "@/features/drive/format";
@@ -98,6 +99,7 @@ export function TaskDialog({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [comment, setComment] = useState("");
+  const [replyTo, setReplyTo] = useState<TaskComment | null>(null); // WhatsApp-style reply to one comment
   const [newSub, setNewSub] = useState("");
   const [newPerson, setNewPerson] = useState<string | null>(null); // typing a new member's name
   const [newProject, setNewProject] = useState<string | null>(null); // typing a new project's name
@@ -105,6 +107,11 @@ export function TaskDialog({
   const [pending, setPending] = useState<File[]>([]); // picked for the next comment, not uploaded yet
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
   const [preview, setPreview] = useState<DriveFile | null>(null);
+  const [previewSet, setPreviewSet] = useState<DriveFile[]>([]); // the files ‹ › move through (brief, or one comment)
+  const openPreview = (f: DriveFile, set: DriveFile[]) => {
+    setPreviewSet(set);
+    setPreview(f);
+  };
   const [editingNote, setEditingNote] = useState(false);
   const mention = useRef<MentionInputHandle>(null);
   const { email: myEmail } = useAccount();
@@ -124,6 +131,7 @@ export function TaskDialog({
     setForm(task ? toForm(task) : { ...EMPTY, ...defaults });
     setConfirmDelete(false);
     setComment("");
+    setReplyTo(null);
     setNewSub("");
     setNewPerson(null);
     setNewProject(null);
@@ -245,11 +253,13 @@ export function TaskDialog({
     const text = (mention.current?.serialize() ?? comment).trim();
     const picked = pending;
     if ((!text && picked.length === 0) || !live || uploading) return;
+    const reply = replyTo;
     setComment("");
     setPending([]);
+    setReplyTo(null);
     mention.current?.reset();
     try {
-      const id = await addComment(live.id, text || "Lampiran");
+      const id = await addComment(live.id, withReply(text || "Lampiran", reply?.id ?? null));
       setComments(await listComments(live.id));
       onChanged();
       if (picked.length) await upload(picked, id);
@@ -573,7 +583,7 @@ export function TaskDialog({
                   )}
                   {taskFiles.length > 0 && (
                     <Box sx={{ pt: 1.25 }}>
-                      <AttachmentGrid files={taskFiles} size={72} onOpen={setPreview} onRemove={(f) => void removeFile(f)} />
+                      <AttachmentGrid files={taskFiles} size={72} onOpen={(f) => openPreview(f, taskFiles)} onRemove={(f) => void removeFile(f)} />
                     </Box>
                   )}
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, mt: 0.75, ml: -1 }}>
@@ -712,15 +722,29 @@ export function TaskDialog({
             {comments.map((c) => {
               const mine = !!myEmail && c.author_email === myEmail;
               const cfiles = files.filter((f) => commentIdOf(f) === c.id);
-              const onlyFiles = c.body === "Lampiran" && cfiles.length > 0;
+              const { replyId, text: cbody } = splitReply(c.body);
+              const quoted = replyId ? comments.find((x) => x.id === replyId) : undefined;
+              const onlyFiles = cbody === "Lampiran" && cfiles.length > 0;
               return (
-                <Box key={c.id} sx={{ display: "flex", gap: 1, flexDirection: mine ? "row-reverse" : "row", animation: "oc-rise 280ms cubic-bezier(0.22, 1, 0.36, 1) both", "&:hover .c-del": { opacity: 1 } }}>
+                <Box key={c.id} id={`cmt-${c.id}`} sx={{ display: "flex", gap: 1, flexDirection: mine ? "row-reverse" : "row", borderRadius: "12px", animation: "oc-rise 280ms cubic-bezier(0.22, 1, 0.36, 1) both", transition: "background-color 400ms", "&.flash": { bgcolor: "#E8F0FE" }, "&:hover .c-del": { opacity: 1 } }}>
                   <MemberAvatar member={memberOf(c.author_email, ctx)} size={28} />
                   <Box sx={{ maxWidth: "80%", minWidth: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexDirection: mine ? "row-reverse" : "row", mx: 0.5, mb: 0.25 }}>
                       <Typography sx={{ fontSize: "0.6875rem", color: "#80868B" }}>
                         {mine ? "Kamu" : authorName(c.author_email, ctx)} · {formatRelative(c.created_at)}
                       </Typography>
+                      <IconButton
+                        className="c-del"
+                        size="small"
+                        aria-label="Balas komentar"
+                        onClick={() => {
+                          setReplyTo(c);
+                          requestAnimationFrame(() => mention.current?.focus());
+                        }}
+                        sx={{ opacity: { xs: 1, sm: 0 }, p: 0.25, color: "#80868B", "&:hover": { color: "#0B57D0" } }}
+                      >
+                        <ReplyRounded sx={{ fontSize: 15 }} />
+                      </IconButton>
                       <IconButton
                         className="c-del"
                         size="small"
@@ -731,7 +755,7 @@ export function TaskDialog({
                         <DeleteRounded sx={{ fontSize: 14 }} />
                       </IconButton>
                     </Box>
-                    {!onlyFiles && (
+                    {(!onlyFiles || replyId) && (
                       <Box
                         sx={{
                           bgcolor: mine ? "#0B57D0" : "#fff",
@@ -747,12 +771,42 @@ export function TaskDialog({
                           "& a": { color: "inherit !important", textDecorationColor: "currentColor" },
                         }}
                       >
-                        <CommentBody text={c.body} ctx={ctx} onOpenTask={onOpenTask} />
+                        {replyId && (
+                          <Box
+                            component="button"
+                            type="button"
+                            onClick={() => flashComment(replyId)}
+                            sx={{
+                              display: "block",
+                              width: "100%",
+                              textAlign: "left",
+                              border: "none",
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              mb: onlyFiles ? 0 : 0.75,
+                              px: 1,
+                              py: 0.5,
+                              borderRadius: "8px",
+                              borderLeft: "3px solid",
+                              borderColor: mine ? "rgba(255,255,255,.7)" : "#0B57D0",
+                              bgcolor: mine ? "rgba(255,255,255,.16)" : "#F1F4F9",
+                              color: "inherit",
+                            }}
+                          >
+                            <Box sx={{ fontSize: "0.75rem", fontWeight: 600, color: mine ? "#fff" : "#0B57D0" }}>
+                              {quoted ? (quoted.author_email && quoted.author_email === myEmail ? "Kamu" : authorName(quoted.author_email, ctx)) : "Komentar"}
+                            </Box>
+                            <Box sx={{ fontSize: "0.8125rem", opacity: 0.85, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "normal" }}>
+                              {quoted ? plainComment(quoted.body) : "Komentar sudah dihapus"}
+                            </Box>
+                          </Box>
+                        )}
+                        {!onlyFiles && <CommentBody text={cbody} ctx={ctx} onOpenTask={onOpenTask} />}
                       </Box>
                     )}
                     {cfiles.length > 0 && (
                       <Box sx={{ mt: 0.75 }}>
-                        <AttachmentGrid files={cfiles} size={72} onOpen={setPreview} onRemove={(f) => void removeFile(f)} />
+                        <AttachmentGrid files={cfiles} size={72} onOpen={(f) => openPreview(f, cfiles)} onRemove={(f) => void removeFile(f)} />
                       </Box>
                     )}
                   </Box>
@@ -765,6 +819,20 @@ export function TaskDialog({
             <Box sx={{ px: 1.75, py: 1.5, borderTop: "1px solid #EEF1F4", flexShrink: 0 }}>
               <DropZone onDrop={(l) => setPending((p) => [...p, ...l])}>
                 <Box sx={{ border: "1px solid #DADCE0", borderRadius: "16px", bgcolor: "#fff", transition: "border-color 150ms, box-shadow 150ms", "&:focus-within": { borderColor: "#0B57D0", boxShadow: "0 0 0 1px #0B57D0" } }}>
+                  {replyTo && (
+                    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, m: 1, mb: 0, pl: 1.25, pr: 0.5, py: 0.75, borderRadius: "10px", bgcolor: "#F1F4F9", borderLeft: "3px solid #0B57D0", animation: "oc-rise 220ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+                      <ReplyRounded sx={{ fontSize: 16, color: "#0B57D0", mt: 0.25 }} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#0B57D0" }}>
+                          Membalas {replyTo.author_email && replyTo.author_email === myEmail ? "komentarmu" : authorName(replyTo.author_email, ctx)}
+                        </Typography>
+                        <Typography sx={{ fontSize: "0.8125rem", color: "#444746", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{plainComment(replyTo.body)}</Typography>
+                      </Box>
+                      <IconButton size="small" aria-label="Batal membalas" onClick={() => setReplyTo(null)} sx={{ p: 0.25 }}>
+                        <CloseRounded sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Box>
+                  )}
                   <PendingFiles files={pending} onRemove={(i) => setPending((p) => p.filter((_, j) => j !== i))} />
                   <Box sx={{ px: 1.5, pt: 0.5 }}>
                     <MentionInput
@@ -825,7 +893,7 @@ export function TaskDialog({
           {live ? "Simpan" : "Buat tugas"}
         </Button>
       </Box>
-      <PreviewDialog file={preview} onClose={() => setPreview(null)} onChanged={() => void reloadFiles()} />
+      <PreviewDialog file={preview} files={previewSet} onNavigate={setPreview} onClose={() => setPreview(null)} onChanged={() => void reloadFiles()} />
     </Dialog>
   );
 }
@@ -946,6 +1014,29 @@ function DatePill({ label, value, min, max, onChange, strong, error }: { label: 
       }}
     />
   );
+}
+
+// A reply is stored in the comment body itself: "[[reply:<comment id>]]" on the first line (no schema change).
+const REPLY_RE = /^\[\[reply:([0-9a-f-]{36})\]\]\n?/;
+function withReply(text: string, replyId: string | null) {
+  return replyId ? `[[reply:${replyId}]]\n${text}` : text;
+}
+function splitReply(body: string): { replyId: string | null; text: string } {
+  const m = REPLY_RE.exec(body);
+  return m ? { replyId: m[1], text: body.slice(m[0].length) } : { replyId: null, text: body };
+}
+/** Comment text for quotes: no reply marker, mentions as "@Name". */
+function plainComment(body: string) {
+  const t = splitReply(body).text.replace(/@\[([^\]]+)\]\((member|task|project):[0-9a-f-]+\)/g, "@$1");
+  return t === "Lampiran" ? "📎 Lampiran" : t;
+}
+/** Scrolls to a comment and flashes it. */
+function flashComment(id: string) {
+  const el = document.getElementById(`cmt-${id}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("flash");
+  setTimeout(() => el.classList.remove("flash"), 1200);
 }
 
 function memberOf(email: string | null, ctx: TasksCtx) {
