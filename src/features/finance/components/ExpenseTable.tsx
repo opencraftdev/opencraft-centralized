@@ -7,7 +7,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Chip from "@mui/material/Chip";
-import TableChartOutlined from "@mui/icons-material/TableChartOutlined";
+import TableChartRounded from "@mui/icons-material/TableChartRounded";
 import { CATEGORY_META, formatIDR } from "../data";
 import type { ResolvedExpense, ExpenseFrequency, ExpenseStatus } from "../types";
 
@@ -50,7 +50,7 @@ export function ExpenseTable({ expenses }: { expenses: ResolvedExpense[] }) {
     <Box sx={{ bgcolor: "#fff", borderRadius: "12px", border: "1px solid #E8EAED", overflow: "hidden" }}>
       {/* Header */}
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2, px: 3, pt: 3, pb: 2 }}>
-        <TableChartOutlined sx={{ fontSize: 26, color: "#0B57D0", mt: 0.25 }} />
+        <TableChartRounded sx={{ fontSize: 26, color: "#0B57D0", mt: 0.25 }} />
         <Box sx={{ flex: 1 }}>
           <Typography sx={{ fontSize: "1.25rem", fontWeight: 400, color: "#202124" }}>
             Expenses

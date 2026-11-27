@@ -14,7 +14,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import CloseRounded from "@mui/icons-material/CloseRounded";
-import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
+import DeleteRounded from "@mui/icons-material/DeleteRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import SendRounded from "@mui/icons-material/SendRounded";
@@ -243,7 +243,7 @@ export function TaskDialog({
                         onClick={() => deleteTask(s.id).then(onChanged).catch((e) => toastError((e as Error).message))}
                         sx={{ opacity: { xs: 1, sm: 0 }, color: "#5F6368" }}
                       >
-                        <DeleteOutlineRounded sx={{ fontSize: 18 }} />
+                        <DeleteRounded sx={{ fontSize: 18 }} />
                       </IconButton>
                     </Box>
                   );
@@ -286,7 +286,7 @@ export function TaskDialog({
                         onClick={() => deleteComment(c.id).then(() => setComments((l) => l.filter((x) => x.id !== c.id))).catch((e) => toastError((e as Error).message))}
                         sx={{ opacity: { xs: 1, sm: 0 }, p: 0.25 }}
                       >
-                        <DeleteOutlineRounded sx={{ fontSize: 16 }} />
+                        <DeleteRounded sx={{ fontSize: 16 }} />
                       </IconButton>
                     </Box>
                     <Typography sx={{ fontSize: "0.875rem", color: "#1F1F1F", whiteSpace: "pre-wrap", mt: 0.25 }}>{c.body}</Typography>
@@ -477,7 +477,7 @@ export function TaskDialog({
               </Button>
             </>
           ) : (
-            <Button size="small" color="error" startIcon={<DeleteOutlineRounded />} onClick={() => setConfirmDelete(true)} sx={{ borderRadius: "9999px" }}>
+            <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => setConfirmDelete(true)} sx={{ borderRadius: "9999px" }}>
               Hapus
             </Button>
           ))}

@@ -10,7 +10,6 @@ import InputBase from "@mui/material/InputBase";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
-import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import SendRounded from "@mui/icons-material/SendRounded";
@@ -177,7 +176,7 @@ function SkillMenu({
                 cursor: "pointer",
               }}
             >
-              <AutoAwesomeOutlined sx={{ fontSize: 20, color: "#444746", mt: 0.25, flexShrink: 0 }} />
+              <AutoAwesomeRounded sx={{ fontSize: 20, color: "#444746", mt: 0.25, flexShrink: 0 }} />
               <Box component="span" sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0, flex: 1 }}>
               <Box component="span" sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
                 <Box component="span" sx={{ fontSize: "0.9375rem", fontWeight: 500, color: "#1F1F1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import InputBase from "@mui/material/InputBase";
@@ -11,11 +12,12 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
-import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
-import ViewKanbanOutlined from "@mui/icons-material/ViewKanbanOutlined";
-import ViewTimelineOutlined from "@mui/icons-material/ViewTimelineOutlined";
-import PeopleAltOutlined from "@mui/icons-material/PeopleAltOutlined";
+import GroupsRounded from "@mui/icons-material/GroupsRounded";
+import ViewKanbanRounded from "@mui/icons-material/ViewKanbanRounded";
+import ViewTimelineRounded from "@mui/icons-material/ViewTimelineRounded";
+import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
 import { toastError } from "@/components/ui/Toast";
+import { EASE_OUT, SPRING } from "@/components/ui/motion";
 import { createTask, loadTaskData, subscribeTasks, updateTask, type TaskData } from "../api";
 import type { Member, Project, Task, TaskInput, TaskStatus } from "../types";
 import { addDays, startOfWeek, todayISO, diffDays } from "../dates";
@@ -47,9 +49,9 @@ export interface TasksCtx {
 }
 
 const VIEWS: { value: View; label: string; icon: React.ReactNode }[] = [
-  { value: "board", label: "Board", icon: <ViewKanbanOutlined sx={{ fontSize: 18 }} /> },
-  { value: "timeline", label: "Timeline", icon: <ViewTimelineOutlined sx={{ fontSize: 18 }} /> },
-  { value: "people", label: "Per orang", icon: <PeopleAltOutlined sx={{ fontSize: 18 }} /> },
+  { value: "board", label: "Board", icon: <ViewKanbanRounded sx={{ fontSize: 18 }} /> },
+  { value: "timeline", label: "Timeline", icon: <ViewTimelineRounded sx={{ fontSize: 18 }} /> },
+  { value: "people", label: "Per orang", icon: <PeopleAltRounded sx={{ fontSize: 18 }} /> },
 ];
 
 const LS_VIEW = "tasks.view";
@@ -239,7 +241,7 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
             </Typography>
           </Box>
           <Box sx={{ display: "flex", gap: 1, flexShrink: 0 }}>
-            <Button variant="outlined" startIcon={<GroupsOutlined />} onClick={() => setTeamOpen(true)} sx={{ borderRadius: "9999px", borderColor: "#C4C7C5", color: "#444746" }}>
+            <Button variant="outlined" startIcon={<GroupsRounded />} onClick={() => setTeamOpen(true)} sx={{ borderRadius: "9999px", borderColor: "#C4C7C5", color: "#444746" }}>
               Tim & proyek
             </Button>
             <Button variant="contained" disableElevation startIcon={<AddRounded />} onClick={() => ctx.create({})} sx={{ borderRadius: "9999px" }}>
@@ -282,13 +284,23 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
                     fontFamily: "inherit",
                     fontSize: "0.8125rem",
                     fontWeight: on ? 600 : 500,
-                    bgcolor: on ? "#fff" : "transparent",
+                    bgcolor: "transparent",
                     color: on ? "#0B57D0" : "#444746",
-                    boxShadow: on ? "0 1px 2px rgba(0,0,0,.12)" : "none",
+                    position: "relative",
+                    transition: "color 200ms",
                   }}
                 >
-                  {v.icon}
-                  {v.label}
+                  {on && (
+                    <motion.span
+                      layoutId="tasks-view-pill"
+                      transition={SPRING}
+                      style={{ position: "absolute", inset: 0, borderRadius: 9999, background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,.12)" }}
+                    />
+                  )}
+                  <Box component="span" sx={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 0.75 }}>
+                    {v.icon}
+                    {v.label}
+                  </Box>
                 </Box>
               );
             })}
@@ -324,11 +336,17 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
         </Box>
 
         {/* View */}
-        <Box sx={{ flex: 1, minHeight: 0 }}>
+        <motion.div
+          key={view}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: EASE_OUT }}
+          style={{ flex: 1, minHeight: 0 }}
+        >
           {view === "board" && <BoardView ctx={ctx} onQuickAdd={quickAdd} />}
           {view === "timeline" && <TimelineView ctx={ctx} />}
           {view === "people" && <PeopleView ctx={ctx} memberFilter={memberFilter} />}
-        </Box>
+        </motion.div>
       </Box>
 
       <TaskDialog

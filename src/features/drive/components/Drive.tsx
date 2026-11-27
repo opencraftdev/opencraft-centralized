@@ -16,19 +16,15 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import CircularProgress from "@mui/material/CircularProgress";
 import AddRounded from "@mui/icons-material/AddRounded";
-import CreateNewFolderOutlined from "@mui/icons-material/CreateNewFolderOutlined";
-import UploadFileOutlined from "@mui/icons-material/UploadFileOutlined";
-import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
-import HomeOutlined from "@mui/icons-material/HomeOutlined";
+import CreateNewFolderRounded from "@mui/icons-material/CreateNewFolderRounded";
+import UploadFileRounded from "@mui/icons-material/UploadFileRounded";
+import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import HomeRounded from "@mui/icons-material/HomeRounded";
-import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
-import StarBorderRounded from "@mui/icons-material/StarBorderRounded";
 import StarRounded from "@mui/icons-material/StarRounded";
-import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import DeleteRounded from "@mui/icons-material/DeleteRounded";
-import DeleteForeverOutlined from "@mui/icons-material/DeleteForeverOutlined";
-import RestoreFromTrashOutlined from "@mui/icons-material/RestoreFromTrashOutlined";
+import DeleteForeverRounded from "@mui/icons-material/DeleteForeverRounded";
+import RestoreFromTrashRounded from "@mui/icons-material/RestoreFromTrashRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
@@ -37,11 +33,11 @@ import GridViewRounded from "@mui/icons-material/GridViewRounded";
 import CheckRounded from "@mui/icons-material/CheckRounded";
 import ArrowUpwardRounded from "@mui/icons-material/ArrowUpwardRounded";
 import ArrowDownwardRounded from "@mui/icons-material/ArrowDownwardRounded";
-import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
-import FolderOpenOutlined from "@mui/icons-material/FolderOpenOutlined";
-import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
-import DriveFileRenameOutlineOutlined from "@mui/icons-material/DriveFileRenameOutlineOutlined";
-import DriveFileMoveOutlined from "@mui/icons-material/DriveFileMoveOutlined";
+import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
+import FolderOpenRounded from "@mui/icons-material/FolderOpenRounded";
+import DownloadRounded from "@mui/icons-material/DownloadRounded";
+import DriveFileRenameOutlineRounded from "@mui/icons-material/DriveFileRenameOutlineRounded";
+import DriveFileMoveRounded from "@mui/icons-material/DriveFileMoveRounded";
 import ReplayRounded from "@mui/icons-material/ReplayRounded";
 import type { DriveFile, DriveFolder } from "@/lib/drive/types";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
@@ -67,11 +63,11 @@ type View = "drive" | "recent" | "starred" | "trash";
 type SortKey = "name" | "modified";
 type Layout = "list" | "grid";
 
-const NAV: { key: View; label: string; Icon: typeof HomeOutlined; ActiveIcon: typeof HomeOutlined }[] = [
-  { key: "drive", label: "Drive Saya", Icon: HomeOutlined, ActiveIcon: HomeRounded },
-  { key: "recent", label: "Terbaru", Icon: ScheduleOutlined, ActiveIcon: ScheduleRounded },
-  { key: "starred", label: "Berbintang", Icon: StarBorderRounded, ActiveIcon: StarRounded },
-  { key: "trash", label: "Sampah", Icon: DeleteOutlineRounded, ActiveIcon: DeleteRounded },
+const NAV: { key: View; label: string; Icon: typeof HomeRounded; ActiveIcon: typeof HomeRounded }[] = [
+  { key: "drive", label: "Drive Saya", Icon: HomeRounded, ActiveIcon: HomeRounded },
+  { key: "recent", label: "Terbaru", Icon: ScheduleRounded, ActiveIcon: ScheduleRounded },
+  { key: "starred", label: "Berbintang", Icon: StarRounded, ActiveIcon: StarRounded },
+  { key: "trash", label: "Sampah", Icon: DeleteRounded, ActiveIcon: DeleteRounded },
 ];
 const VIEW_TITLE: Record<View, string> = { drive: "Drive Saya", recent: "Terbaru", starred: "Berbintang", trash: "Sampah" };
 const RECENT_LIMIT = 50;
@@ -364,7 +360,7 @@ export function Drive({
             }}
           >
             <ListItemIcon>
-              <CreateNewFolderOutlined fontSize="small" />
+              <CreateNewFolderRounded fontSize="small" />
             </ListItemIcon>
             <ListItemText>Folder baru</ListItemText>
           </MenuItem>
@@ -376,13 +372,13 @@ export function Drive({
             }}
           >
             <ListItemIcon>
-              <UploadFileOutlined fontSize="small" />
+              <UploadFileRounded fontSize="small" />
             </ListItemIcon>
             <ListItemText>Upload file</ListItemText>
           </MenuItem>
           <MenuItem component={Link} href={GENERATE_HREF} onClick={() => setNewMenu(null)}>
             <ListItemIcon>
-              <AutoAwesomeOutlined fontSize="small" sx={{ color: "#8E5CF5" }} />
+              <AutoAwesomeRounded fontSize="small" sx={{ color: "#8E5CF5" }} />
             </ListItemIcon>
             <ListItemText>Generate dokumen</ListItemText>
           </MenuItem>
@@ -634,7 +630,7 @@ export function Drive({
         >
           {empty ? (
             <Box sx={{ textAlign: "center", py: 10, color: "#5F6368" }}>
-              <FolderOpenOutlined sx={{ fontSize: 56, color: "#C4C7C5", mb: 1 }} />
+              <FolderOpenRounded sx={{ fontSize: 56, color: "#C4C7C5", mb: 1 }} />
               <Typography sx={{ fontSize: "1rem", fontWeight: 500, color: "#1F1F1F" }}>
                 {query
                   ? "Tidak ada yang cocok"
@@ -693,7 +689,7 @@ export function Drive({
                   }}
                 >
                   <ListItemIcon>
-                    <RestoreFromTrashOutlined fontSize="small" />
+                    <RestoreFromTrashRounded fontSize="small" />
                   </ListItemIcon>
                   <ListItemText>Pulihkan</ListItemText>
                 </MenuItem>,
@@ -705,7 +701,7 @@ export function Drive({
                   }}
                 >
                   <ListItemIcon>
-                    <DeleteForeverOutlined fontSize="small" />
+                    <DeleteForeverRounded fontSize="small" />
                   </ListItemIcon>
                   <ListItemText>Hapus permanen</ListItemText>
                 </MenuItem>,
@@ -719,7 +715,7 @@ export function Drive({
                   }}
                 >
                   <ListItemIcon>
-                    {menuItem.kind === "folder" ? <FolderOpenOutlined fontSize="small" /> : <VisibilityOutlined fontSize="small" />}
+                    {menuItem.kind === "folder" ? <FolderOpenRounded fontSize="small" /> : <VisibilityRounded fontSize="small" />}
                   </ListItemIcon>
                   <ListItemText>{menuItem.kind === "folder" ? "Buka" : "Pratinjau"}</ListItemText>
                 </MenuItem>,
@@ -733,7 +729,7 @@ export function Drive({
                     }}
                   >
                     <ListItemIcon>
-                      <DownloadOutlined fontSize="small" />
+                      <DownloadRounded fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>Download</ListItemText>
                   </MenuItem>
@@ -761,7 +757,7 @@ export function Drive({
                   }}
                 >
                   <ListItemIcon>
-                    <DriveFileRenameOutlineOutlined fontSize="small" />
+                    <DriveFileRenameOutlineRounded fontSize="small" />
                   </ListItemIcon>
                   <ListItemText>Ganti nama</ListItemText>
                 </MenuItem>,
@@ -773,7 +769,7 @@ export function Drive({
                   }}
                 >
                   <ListItemIcon>
-                    <DriveFileMoveOutlined fontSize="small" />
+                    <DriveFileMoveRounded fontSize="small" />
                   </ListItemIcon>
                   <ListItemText>Pindahkan ke</ListItemText>
                 </MenuItem>,
@@ -785,7 +781,7 @@ export function Drive({
                   }}
                 >
                   <ListItemIcon>
-                    {menuItem.data.starred ? <StarRounded fontSize="small" /> : <StarBorderRounded fontSize="small" />}
+                    {menuItem.data.starred ? <StarRounded fontSize="small" /> : <StarRounded fontSize="small" />}
                   </ListItemIcon>
                   <ListItemText>{menuItem.data.starred ? "Hapus bintang" : "Bintangi"}</ListItemText>
                 </MenuItem>,
@@ -798,7 +794,7 @@ export function Drive({
                   }}
                 >
                   <ListItemIcon>
-                    <DeleteOutlineRounded fontSize="small" />
+                    <DeleteRounded fontSize="small" />
                   </ListItemIcon>
                   <ListItemText>Hapus</ListItemText>
                 </MenuItem>,

@@ -13,9 +13,9 @@ import CloseRounded from "@mui/icons-material/CloseRounded";
 import DownloadRounded from "@mui/icons-material/DownloadRounded";
 import OpenInNewRounded from "@mui/icons-material/OpenInNewRounded";
 import ReplayRounded from "@mui/icons-material/ReplayRounded";
-import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
-import ErrorOutlineRounded from "@mui/icons-material/ErrorOutlineRounded";
-import HelpOutlineRounded from "@mui/icons-material/HelpOutlineRounded";
+import ChatBubbleRounded from "@mui/icons-material/ChatBubbleRounded";
+import ErrorRounded from "@mui/icons-material/ErrorRounded";
+import HelpRounded from "@mui/icons-material/HelpRounded";
 import type { DriveFile } from "@/lib/drive/types";
 import { toastError } from "@/components/ui/Toast";
 import { retryJob, DOC_TYPE_LABEL } from "../api";
@@ -100,7 +100,7 @@ export function PreviewDialog({
   } else if (file.status === "needs_input") {
     body = (
       <Center>
-        <HelpOutlineRounded sx={{ fontSize: 44, color: "#B06000" }} />
+        <HelpRounded sx={{ fontSize: 44, color: "#B06000" }} />
         <Typography sx={{ fontSize: "1rem", fontWeight: 500 }}>Agen butuh jawaban Anda</Typography>
         <Typography sx={{ fontSize: "0.875rem", maxWidth: 460, whiteSpace: "pre-wrap" }}>{file.agent_message}</Typography>
       </Center>
@@ -108,7 +108,7 @@ export function PreviewDialog({
   } else if (file.status === "failed") {
     body = (
       <Center>
-        <ErrorOutlineRounded sx={{ fontSize: 44, color: "#B3261E" }} />
+        <ErrorRounded sx={{ fontSize: 44, color: "#B3261E" }} />
         <Typography sx={{ fontSize: "1rem", fontWeight: 500 }}>Gagal dibuat</Typography>
         <Typography sx={{ fontSize: "0.8125rem", maxWidth: 460, whiteSpace: "pre-wrap" }}>
           {file.error_msg || "Terjadi kesalahan."}
@@ -256,7 +256,7 @@ export function PreviewDialog({
                   href={`/chat/${file.chat_id}`}
                   size="small"
                   variant="outlined"
-                  startIcon={<ChatBubbleOutlineRounded />}
+                  startIcon={<ChatBubbleRounded />}
                   sx={{ borderRadius: "9999px", mt: 1.5 }}
                 >
                   Buka chat

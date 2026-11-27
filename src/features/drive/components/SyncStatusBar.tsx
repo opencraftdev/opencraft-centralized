@@ -6,9 +6,9 @@ import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import CloudDoneOutlined from "@mui/icons-material/CloudDoneOutlined";
-import CloudSyncOutlined from "@mui/icons-material/CloudSyncOutlined";
-import SyncProblemOutlined from "@mui/icons-material/SyncProblemOutlined";
+import CloudDoneRounded from "@mui/icons-material/CloudDoneRounded";
+import CloudSyncRounded from "@mui/icons-material/CloudSyncRounded";
+import SyncProblemRounded from "@mui/icons-material/SyncProblemRounded";
 import SyncRounded from "@mui/icons-material/SyncRounded";
 import OpenInNewRounded from "@mui/icons-material/OpenInNewRounded";
 import type { DriveSyncState } from "@/lib/drive/types";
@@ -104,7 +104,7 @@ export function SyncStatusBar({
     .filter(Boolean)
     .join("\n");
 
-  const Icon = waiting ? CloudSyncOutlined : warn ? SyncProblemOutlined : CloudDoneOutlined;
+  const Icon = waiting ? CloudSyncRounded : warn ? SyncProblemRounded : CloudDoneRounded;
   const fg = waiting ? "#0B57D0" : warn ? "#8A5300" : "#146C2E";
 
   return (

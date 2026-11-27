@@ -20,8 +20,8 @@ export function PeopleView({ ctx, memberFilter }: { ctx: TasksCtx; memberFilter:
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2 }, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(auto-fill, minmax(280px, 1fr))" }, alignItems: "start" }}>
-      {people.map((m) => (
-        <PersonCard key={m.id} member={m} tasks={leaves.filter((t) => t.assignee_id === m.id && ctx.visible(t))} all={leaves.filter((t) => t.assignee_id === m.id)} ctx={ctx} />
+      {people.map((m, i) => (
+        <PersonCard key={m.id} index={i} member={m} tasks={leaves.filter((t) => t.assignee_id === m.id && ctx.visible(t))} all={leaves.filter((t) => t.assignee_id === m.id)} ctx={ctx} />
       ))}
       {memberFilter === "all" && unassigned.length > 0 && <PersonCard member={null} tasks={unassigned} all={unassigned} ctx={ctx} />}
       {people.length === 0 && <Typography sx={{ color: "#5F6368", fontSize: "0.875rem", p: 2 }}>Belum ada anggota tim. Tambahkan lewat “Tim & proyek”.</Typography>}
@@ -29,7 +29,7 @@ export function PeopleView({ ctx, memberFilter }: { ctx: TasksCtx; memberFilter:
   );
 }
 
-function PersonCard({ member, tasks, all, ctx }: { member: Member | null; tasks: Task[]; all: Task[]; ctx: TasksCtx }) {
+function PersonCard({ member, tasks, all, ctx, index = 0 }: { member: Member | null; tasks: Task[]; all: Task[]; ctx: TasksCtx; index?: number }) {
   const done = all.filter((t) => t.status === "done").length;
   const overdue = all.filter((t) => dueInfo(t.due_date, t.status === "done")?.tone === "overdue").length;
 
@@ -47,7 +47,7 @@ function PersonCard({ member, tasks, all, ctx }: { member: Member | null; tasks:
   const ordered = [...groups.values()].sort((x, y) => x.key.localeCompare(y.key));
 
   return (
-    <Box sx={{ border: "1px solid #E0E3E7", borderRadius: "16px", display: "flex", flexDirection: "column", bgcolor: "#fff", overflow: "hidden" }}>
+    <Box sx={{ border: "1px solid #E0E3E7", borderRadius: "16px", display: "flex", flexDirection: "column", bgcolor: "#fff", overflow: "hidden", animation: `oc-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) ${index * 50}ms both` }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 2, pt: 2, pb: 1.25 }}>
         <MemberAvatar member={member ?? undefined} size={40} />
         <Box sx={{ minWidth: 0, flex: 1 }}>

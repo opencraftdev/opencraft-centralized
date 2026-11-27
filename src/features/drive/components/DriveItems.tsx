@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
 import CircularProgress from "@mui/material/CircularProgress";
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
+import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import FolderRounded from "@mui/icons-material/FolderRounded";
 import PictureAsPdfRounded from "@mui/icons-material/PictureAsPdfRounded";
 import SlideshowRounded from "@mui/icons-material/SlideshowRounded";
@@ -119,7 +119,7 @@ function MoreButton({ item, h, light = false }: { item: DriveItem; h: ItemHandle
       onDoubleClick={(e) => e.stopPropagation()}
       sx={{ color: light ? "#444746" : "#5F6368", flexShrink: 0 }}
     >
-      <MoreVertOutlined sx={{ fontSize: 20 }} />
+      <MoreVertRounded sx={{ fontSize: 20 }} />
     </IconButton>
   );
 }

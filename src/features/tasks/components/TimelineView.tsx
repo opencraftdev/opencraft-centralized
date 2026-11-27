@@ -191,6 +191,8 @@ function Row({ task: t, ctx, from, days, grid, color }: { task: Task; ctx: Tasks
                 overflow: "hidden",
                 color: fg,
                 opacity: done ? 0.45 : 1,
+                transformOrigin: "left center",
+                animation: "oc-grow-x 520ms cubic-bezier(0.22, 1, 0.36, 1) both",
                 bgcolor: t.is_optional ? "transparent" : color,
                 backgroundImage: t.is_optional ? `repeating-linear-gradient(135deg, ${color}2E 0 6px, ${color}12 6px 12px)` : "none",
                 "&:hover": { filter: "brightness(1.06)", boxShadow: "0 1px 4px rgba(0,0,0,.2)" },

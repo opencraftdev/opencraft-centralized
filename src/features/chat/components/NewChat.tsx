@@ -5,7 +5,7 @@ import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
+import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import type { SkillSummary } from "@/features/skills/api";
 import { Composer, draftKey, splitSkill, type ComposerHandle } from "./Composer";
 import { SidebarIcon } from "./ChatList";
@@ -105,7 +105,7 @@ export function NewChat({
                       "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
                     }}
                   >
-                    <AutoAwesomeOutlined sx={{ fontSize: 20, color: "#444746", flexShrink: 0 }} />
+                    <AutoAwesomeRounded sx={{ fontSize: 20, color: "#444746", flexShrink: 0 }} />
                     <Box component="span" sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {s.title}
                     </Box>

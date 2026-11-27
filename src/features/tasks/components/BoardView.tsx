@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import Box from "@mui/material/Box";
 import InputBase from "@mui/material/InputBase";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
-import DiamondOutlined from "@mui/icons-material/DiamondOutlined";
+import DiamondRounded from "@mui/icons-material/DiamondRounded";
 import ChecklistRounded from "@mui/icons-material/ChecklistRounded";
 import type { Task, TaskStatus } from "../types";
 import { STATUSES } from "../types";
+import { EASE_OUT, SPRING } from "@/components/ui/motion";
 import type { TasksCtx } from "./TasksApp";
 import { AvatarStack, DueChip, PriorityFlag, ProgressBar, ProjectTag } from "./bits";
 
@@ -30,6 +32,7 @@ export function BoardView({ ctx, onQuickAdd }: { ctx: TasksCtx; onQuickAdd: (tit
   };
 
   return (
+    <LayoutGroup>
     <Box sx={{ display: "flex", gap: 1.5, p: { xs: 1.5, sm: 2 }, overflowX: "auto", alignItems: "flex-start", height: "100%" }}>
       {STATUSES.map((s) => {
         const items = top.filter((t) => t.status === s.value);
@@ -63,15 +66,28 @@ export function BoardView({ ctx, onQuickAdd }: { ctx: TasksCtx; onQuickAdd: (tit
               <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368" }}>{items.length}</Typography>
             </Box>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              {items.map((t) => (
-                <Card key={t.id} task={t} ctx={ctx} dragging={dragId === t.id} onDragStart={() => setDragId(t.id)} onDragEnd={() => { setDragId(null); setOverCol(null); }} />
-              ))}
+              <AnimatePresence initial={false}>
+                {items.map((t, i) => (
+                  // layoutId: a card that changes status glides to its new column.
+                  <motion.div
+                    key={t.id}
+                    layoutId={`task-card-${t.id}`}
+                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.15 } }}
+                    transition={{ layout: SPRING, default: { duration: 0.28, ease: EASE_OUT, delay: Math.min(i, 8) * 0.025 } }}
+                  >
+                    <Card task={t} ctx={ctx} dragging={dragId === t.id} onDragStart={() => setDragId(t.id)} onDragEnd={() => { setDragId(null); setOverCol(null); }} />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
               <QuickAdd onAdd={(title) => onQuickAdd(title, s.value)} />
             </Box>
           </Box>
         );
       })}
     </Box>
+    </LayoutGroup>
   );
 }
 
@@ -111,7 +127,7 @@ function Card({ task: t, ctx, dragging, onDragStart, onDragEnd }: { task: Task; 
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
         <ProjectTag project={t.project_id ? ctx.projectById.get(t.project_id) : undefined} />
         <Box sx={{ flex: 1 }} />
-        {t.is_milestone && <DiamondOutlined sx={{ fontSize: 16, color: "#444746" }} titleAccess="Milestone" />}
+        {t.is_milestone && <DiamondRounded sx={{ fontSize: 16, color: "#444746" }} titleAccess="Milestone" />}
         <PriorityFlag priority={t.priority} />
       </Box>
       <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500, color: isDone ? "#5F6368" : "#1F1F1F", textDecoration: isDone ? "line-through" : "none", lineHeight: 1.35 }}>

@@ -3,7 +3,7 @@
 import Box from "@mui/material/Box";
 import Tooltip from "@mui/material/Tooltip";
 import FlagRounded from "@mui/icons-material/FlagRounded";
-import EventOutlined from "@mui/icons-material/EventOutlined";
+import EventRounded from "@mui/icons-material/EventRounded";
 import type { Member, Project, TaskPriority, TaskStatus } from "../types";
 import { priorityMeta, statusMeta } from "../types";
 import { DUE_COLORS, dueInfo } from "../dates";
@@ -84,7 +84,7 @@ export function DueChip({ due, done, compact }: { due: string | null; done: bool
         whiteSpace: "nowrap",
       }}
     >
-      <EventOutlined sx={{ fontSize: 14 }} />
+      <EventRounded sx={{ fontSize: 14 }} />
       {info.label}
     </Box>
   );

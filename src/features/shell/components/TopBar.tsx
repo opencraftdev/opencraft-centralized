@@ -11,20 +11,22 @@ import Avatar from "@mui/material/Avatar";
 import Popover from "@mui/material/Popover";
 import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
-import MenuOutlined from "@mui/icons-material/MenuOutlined";
-import SearchOutlined from "@mui/icons-material/SearchOutlined";
-import CloseOutlined from "@mui/icons-material/CloseOutlined";
-import LogoutOutlined from "@mui/icons-material/LogoutOutlined";
+import MenuRounded from "@mui/icons-material/MenuRounded";
+import SearchRounded from "@mui/icons-material/SearchRounded";
+import CloseRounded from "@mui/icons-material/CloseRounded";
+import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import { logout } from "@/features/auth/actions";
 
 export function TopBar({
   userEmail,
   loading = false,
   onMenu,
+  menuExpanded,
 }: {
   userEmail: string;
   loading?: boolean;
   onMenu?: () => void;
+  menuExpanded?: boolean;
 }) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
@@ -55,7 +57,8 @@ export function TopBar({
       >
         {/* Hamburger */}
         <IconButton
-          aria-label="Main menu"
+          aria-label={menuExpanded ? "Ciutkan menu" : "Buka menu"}
+          aria-expanded={menuExpanded}
           onClick={onMenu}
           sx={{
             width: 48,
@@ -64,7 +67,7 @@ export function TopBar({
             "&:hover": { bgcolor: "rgba(68,71,70,0.08)" },
           }}
         >
-          <MenuOutlined sx={{ fontSize: 24 }} />
+          <MenuRounded sx={{ fontSize: 24 }} />
         </IconButton>
 
         {/* Logo + brand */}
@@ -77,7 +80,7 @@ export function TopBar({
             flexShrink: 0,
           }}
         >
-          <Image src="/logo.png" alt="OpenCraft" width={32} height={32} />
+          <Image src="/logo.svg" alt="OpenCraft" width={38} height={32} priority />
           <Typography
             sx={{
               fontSize: "1.125rem",
@@ -109,7 +112,7 @@ export function TopBar({
             pr: 1,
           }}
         >
-          <SearchOutlined sx={{ fontSize: 20, color: "#474747", flexShrink: 0 }} />
+          <SearchRounded sx={{ fontSize: 20, color: "#474747", flexShrink: 0 }} />
           <InputBase
             placeholder='Search content in "opencraft.id"'
             sx={{
@@ -172,7 +175,7 @@ export function TopBar({
                 onClick={() => setAnchorEl(null)}
                 sx={{ color: "#5E5E5E", "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } }}
               >
-                <CloseOutlined sx={{ fontSize: 20 }} />
+                <CloseRounded sx={{ fontSize: 20 }} />
               </IconButton>
             </Box>
 
@@ -233,7 +236,7 @@ export function TopBar({
                     "&:hover": { bgcolor: "#F6FAFE" },
                   }}
                 >
-                  <LogoutOutlined sx={{ fontSize: 18 }} />
+                  <LogoutRounded sx={{ fontSize: 18 }} />
                   Sign out
                 </Box>
               </Box>
