@@ -375,7 +375,7 @@ export function NotificationBell() {
                       "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
                     }}
                   >
-                    <Box sx={{ position: "relative", flexShrink: 0 }}>
+                    <Box sx={{ position: "relative", flexShrink: 0, alignSelf: "flex-start", width: 36, height: 36 }}>
                       {who.member ? (
                         <MemberAvatar member={who.member} size={36} />
                       ) : (
@@ -383,7 +383,7 @@ export function NotificationBell() {
                           <SmartToyRounded sx={{ fontSize: 20 }} />
                         </Box>
                       )}
-                      <Box sx={{ position: "absolute", right: -3, bottom: -3, width: 18, height: 18, borderRadius: "50%", bgcolor: k.bg, color: "#fff", border: "2px solid #fff", display: "grid", placeItems: "center" }}>
+                      <Box sx={{ position: "absolute", right: -4, bottom: -4, width: 18, height: 18, borderRadius: "50%", bgcolor: k.bg, color: "#fff", border: "2px solid #fff", display: "grid", placeItems: "center" }}>
                         <k.Icon sx={{ fontSize: 10 }} />
                       </Box>
                     </Box>
