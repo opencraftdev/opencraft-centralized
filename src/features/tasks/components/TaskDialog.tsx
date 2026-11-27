@@ -46,6 +46,7 @@ import { AttachmentGrid, AttachPicker, DropZone, PendingFiles } from "./Attachme
 import { commentIdOf, listAttachments, removeAttachment, uploadAttachments } from "../attachments";
 import { SwapIn } from "@/components/ui/AutoHeight";
 import { DatePill } from "./DatePicker";
+import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
 import { CommentBody, MentionInput, type MentionInputHandle } from "./Mentions";
 import { ProjectMark } from "./bits";
 import { PreviewDialog } from "@/features/drive/components/PreviewDialog";
@@ -97,6 +98,8 @@ export function TaskDialog({
   const [form, setForm] = useState<Form>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // One confirm modal for every delete in this dialog (checklist item, comment, attachment)
+  const [ask, setAsk] = useState<{ title: string; body: React.ReactNode; label: string; run: () => Promise<void> } | null>(null);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [comment, setComment] = useState("");
   const [replyTo, setReplyTo] = useState<TaskComment | null>(null); // WhatsApp-style reply to one comment
@@ -281,6 +284,17 @@ export function TaskDialog({
     }
   };
 
+  const askRemoveFile = (f: DriveFile) =>
+    setAsk({
+      title: "Hapus lampiran?",
+      body: (
+        <>
+          <b>{f.name}</b> akan dihapus dari tugas ini. Tindakan ini tidak bisa dibatalkan.
+        </>
+      ),
+      label: "Hapus lampiran",
+      run: () => removeFile(f),
+    });
   const removeFile = async (f: DriveFile) => {
     setFiles((l) => l.filter((x) => x.id !== f.id));
     try {
@@ -627,7 +641,7 @@ export function TaskDialog({
                   )}
                   {taskFiles.length > 0 && (
                     <Box sx={{ pt: 1.25 }}>
-                      <AttachmentGrid files={taskFiles} size={72} onOpen={(f) => openPreview(f, taskFiles)} onRemove={(f) => void removeFile(f)} />
+                      <AttachmentGrid files={taskFiles} size={72} onOpen={(f) => openPreview(f, taskFiles)} onRemove={askRemoveFile} />
                     </Box>
                   )}
                 </Box>
@@ -685,7 +699,18 @@ export function TaskDialog({
                           <IconButton
                             size="small"
                             aria-label={`Hapus ${s.title}`}
-                            onClick={() => deleteTask(s.id).then(onChanged).catch((e) => toastError((e as Error).message))}
+                            onClick={() =>
+                              setAsk({
+                                title: "Hapus item checklist?",
+                                body: (
+                                  <>
+                                    <b>{s.title}</b> beserta komentar dan lampirannya akan dihapus. Tindakan ini tidak bisa dibatalkan.
+                                  </>
+                                ),
+                                label: "Hapus",
+                                run: () => deleteTask(s.id).then(onChanged).catch((e) => toastError((e as Error).message)),
+                              })
+                            }
                             sx={{ color: "#5F6368", "&:hover": { color: "#B3261E", bgcolor: "#FCE8E6" } }}
                           >
                             <DeleteRounded sx={{ fontSize: 18 }} />
@@ -769,7 +794,20 @@ export function TaskDialog({
                         className="c-del"
                         size="small"
                         aria-label="Hapus komentar"
-                        onClick={() => deleteComment(c.id).then(() => { setComments((l) => l.filter((x) => x.id !== c.id)); onChanged(); }).catch((e) => toastError((e as Error).message))}
+                        onClick={() =>
+                          setAsk({
+                            title: "Hapus komentar?",
+                            body: <>Komentar ini{cfiles.length ? ` dan ${cfiles.length} lampirannya` : ""} akan dihapus untuk semua orang. Tindakan ini tidak bisa dibatalkan.</>,
+                            label: "Hapus komentar",
+                            run: () =>
+                              deleteComment(c.id)
+                                .then(() => {
+                                  setComments((l) => l.filter((x) => x.id !== c.id));
+                                  onChanged();
+                                })
+                                .catch((e) => toastError((e as Error).message)),
+                          })
+                        }
                         sx={{ opacity: { xs: 1, sm: 0 }, p: 0.25, color: "#80868B" }}
                       >
                         <DeleteRounded sx={{ fontSize: 14 }} />
@@ -826,7 +864,7 @@ export function TaskDialog({
                     )}
                     {cfiles.length > 0 && (
                       <Box sx={{ mt: 0.75 }}>
-                        <AttachmentGrid files={cfiles} size={72} onOpen={(f) => openPreview(f, cfiles)} onRemove={(f) => void removeFile(f)} />
+                        <AttachmentGrid files={cfiles} size={72} onOpen={(f) => openPreview(f, cfiles)} onRemove={askRemoveFile} />
                       </Box>
                     )}
                   </Box>
@@ -889,22 +927,11 @@ export function TaskDialog({
 
       {/* Footer */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 3, py: 1.25, borderTop: "1px solid #E0E3E7", bgcolor: "#fff", flexShrink: 0 }}>
-        {live &&
-          (confirmDelete ? (
-            <>
-              <Typography sx={{ fontSize: "0.8125rem", color: "#B3261E" }}>{subs.length ? `Hapus beserta ${subs.length} item checklist?` : "Hapus tugas ini?"}</Typography>
-              <Button size="small" color="error" variant="contained" disableElevation onClick={() => void remove()} sx={{ borderRadius: "9999px" }}>
-                Ya, hapus
-              </Button>
-              <Button size="small" onClick={() => setConfirmDelete(false)} sx={{ borderRadius: "9999px" }}>
-                Batal
-              </Button>
-            </>
-          ) : (
-            <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => setConfirmDelete(true)} sx={{ borderRadius: "9999px" }}>
-              Hapus
-            </Button>
-          ))}
+        {live && (
+          <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => setConfirmDelete(true)} sx={{ borderRadius: "9999px" }}>
+            Hapus
+          </Button>
+        )}
         <Box sx={{ flex: 1 }} />
         <Button onClick={onClose} sx={{ borderRadius: "9999px", color: "#444746" }}>
           {live && !dirty ? "Tutup" : "Batal"}
@@ -913,6 +940,34 @@ export function TaskDialog({
           {live ? "Simpan" : "Buat tugas"}
         </Button>
       </Box>
+      <ConfirmDialog
+        open={confirmDelete}
+        title={parent ? "Hapus item checklist?" : "Hapus tugas?"}
+        body={
+          <>
+            <b>{live?.title}</b>
+            {subs.length ? ` beserta ${subs.length} item checklist-nya` : ""}, komentar, dan lampirannya akan dihapus. Tindakan ini tidak bisa dibatalkan.
+          </>
+        }
+        confirmLabel="Hapus"
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={async () => {
+          setConfirmDelete(false);
+          await remove();
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(ask)}
+        title={ask?.title ?? ""}
+        body={ask?.body ?? null}
+        confirmLabel={ask?.label ?? "Hapus"}
+        onClose={() => setAsk(null)}
+        onConfirm={async () => {
+          const a = ask;
+          setAsk(null);
+          if (a) await a.run();
+        }}
+      />
       <PreviewDialog file={preview} files={previewSet} onNavigate={setPreview} onClose={() => setPreview(null)} onChanged={() => void reloadFiles()} />
     </Dialog>
   );
@@ -994,7 +1049,7 @@ function BriefText({ text, onEdit, render }: { text: string; onEdit: () => void;
           component="button"
           type="button"
           onClick={() => setOpen((v) => !v)}
-          sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, mt: 0.5, p: 0, border: "none", bgcolor: "transparent", fontFamily: "inherit", fontSize: "0.8125rem", fontWeight: 500, color: "#0B57D0", cursor: "pointer" }}
+          sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, mt: 0.5, p: 0, border: "none", bgcolor: "transparent", fontFamily: "inherit", fontSize: "0.8125rem", fontWeight: 500, color: "#5F6368", cursor: "pointer", "&:hover": { color: "#1F1F1F" } }}
         >
           {open ? "Tampilkan lebih sedikit" : "Tampilkan semua"}
           <ExpandMoreRounded sx={{ fontSize: 18, transform: open ? "rotate(180deg)" : "none", transition: "transform 200ms" }} />

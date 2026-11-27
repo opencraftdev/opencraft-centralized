@@ -115,6 +115,7 @@ export function Drive({
   const [renaming, setRenaming] = useState<DriveItem | null>(null);
   const [moving, setMoving] = useState<DriveItem | null>(null);
   const [purging, setPurging] = useState<DriveItem | null>(null);
+  const [trashing, setTrashing] = useState<DriveItem | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(0);
   const [dragOver, setDragOver] = useState(false);
@@ -790,7 +791,7 @@ export function Drive({
                   key="trash"
                   onClick={() => {
                     closeMenu();
-                    act(() => trashItem(menuItem.kind, menuItem.data.id), `"${menuItem.data.name}" dipindahkan ke sampah`);
+                    setTrashing(menuItem);
                   }}
                 >
                   <ListItemIcon>
@@ -840,6 +841,23 @@ export function Drive({
             await act(() => moveItem(moving.kind, moving.data.id, target), `Dipindahkan ke ${dest}`);
           }
           setMoving(null);
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(trashing)}
+        title={trashing?.kind === "folder" ? "Hapus folder?" : "Hapus file?"}
+        body={
+          <>
+            <b>{trashing?.data.name}</b>
+            {trashing?.kind === "folder" ? " beserta isinya" : ""} akan dipindahkan ke Sampah. Kamu masih bisa memulihkannya dari menu Sampah.
+          </>
+        }
+        confirmLabel="Hapus"
+        onClose={() => setTrashing(null)}
+        onConfirm={async () => {
+          const t = trashing;
+          setTrashing(null);
+          if (t) await act(() => trashItem(t.kind, t.data.id), `"${t.data.name}" dipindahkan ke sampah`);
         }}
       />
       <ConfirmDialog

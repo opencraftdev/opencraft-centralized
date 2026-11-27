@@ -19,6 +19,7 @@ import UploadRounded from "@mui/icons-material/UploadRounded";
 import WarningRounded from "@mui/icons-material/WarningRounded";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { AutoHeight } from "@/components/ui/AutoHeight";
+import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
 import { driveContentUrl } from "@/lib/drive/links";
 import { saveMember, saveProject } from "../api";
 import { imageSize, uploadImage } from "../attachments";
@@ -233,6 +234,7 @@ function ImageUpload({
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
+  const [askRemove, setAskRemove] = useState(false);
 
   const pick = async (file: File) => {
     setWarning(null);
@@ -275,7 +277,7 @@ function ImageUpload({
               {busy ? "Mengunggah…" : value ? "Ganti" : buttonText}
             </Button>
             {value && !busy && (
-              <Button size="small" onClick={() => { onChange(null); setWarning(null); }} sx={{ borderRadius: "9999px", color: "#B3261E" }}>
+              <Button size="small" onClick={() => setAskRemove(true)} sx={{ borderRadius: "9999px", color: "#B3261E" }}>
                 Hapus
               </Button>
             )}
@@ -291,6 +293,18 @@ function ImageUpload({
           {warning}
         </Box>
       )}
+      <ConfirmDialog
+        open={askRemove}
+        title={shape === "circle" ? "Hapus foto profil?" : "Hapus logo?"}
+        body={shape === "circle" ? "Foto profil diganti inisial berwarna setelah kamu klik Simpan." : "Logo diganti emoji atau warna project setelah kamu klik Simpan."}
+        confirmLabel="Hapus"
+        onClose={() => setAskRemove(false)}
+        onConfirm={async () => {
+          setAskRemove(false);
+          onChange(null);
+          setWarning(null);
+        }}
+      />
       <input
         ref={input}
         type="file"
