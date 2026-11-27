@@ -10,7 +10,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
-import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
+import ChatBubbleRounded from "@mui/icons-material/ChatBubbleRounded";
 import { toastError } from "@/components/ui/Toast";
 import { formatRelative } from "@/features/drive/format";
 import { listSkills, updateSkill, type Skill } from "../api";
@@ -150,7 +150,7 @@ export function Skills({ initialSkills }: { initialSkills: Skill[] }) {
                 {s.enabled && (
                   <Tooltip title="Pakai di chat">
                     <IconButton component={Link} href={`/chat?skill=${encodeURIComponent(s.name)}`} aria-label={`Pakai ${s.title} di chat`} sx={{ color: "#444746", display: { xs: "none", sm: "inline-flex" } }}>
-                      <ChatBubbleOutlineRounded sx={{ fontSize: 20 }} />
+                      <ChatBubbleRounded sx={{ fontSize: 20 }} />
                     </IconButton>
                   </Tooltip>
                 )}

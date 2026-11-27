@@ -12,14 +12,13 @@ import Divider from "@mui/material/Divider";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import CloseRounded from "@mui/icons-material/CloseRounded";
-import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
-import DriveFileRenameOutlineOutlined from "@mui/icons-material/DriveFileRenameOutlineOutlined";
-import EditOutlined from "@mui/icons-material/EditOutlined";
+import DeleteRounded from "@mui/icons-material/DeleteRounded";
+import DriveFileRenameOutlineRounded from "@mui/icons-material/DriveFileRenameOutlineRounded";
+import EditRounded from "@mui/icons-material/EditRounded";
 import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
-import PushPinOutlined from "@mui/icons-material/PushPinOutlined";
 import PushPinRounded from "@mui/icons-material/PushPinRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
-import ViewSidebarOutlined from "@mui/icons-material/ViewSidebarOutlined";
+import ViewSidebarRounded from "@mui/icons-material/ViewSidebarRounded";
 import type { ChatListItem, ChatStatus } from "../types";
 
 // Left pane of /chat (docs/CHAT.md → "UI"), styled like Gemini's sidebar (light): "Chat baru" row, search toggle,
@@ -54,18 +53,18 @@ export function ChatMenu({
     >
       <MenuItem onClick={() => act("rename")}>
         <ListItemIcon>
-          <DriveFileRenameOutlineOutlined fontSize="small" />
+          <DriveFileRenameOutlineRounded fontSize="small" />
         </ListItemIcon>
         <ListItemText>Ganti nama</ListItemText>
       </MenuItem>
       <MenuItem onClick={() => act("pin")}>
-        <ListItemIcon>{chat?.pinned ? <PushPinRounded fontSize="small" /> : <PushPinOutlined fontSize="small" />}</ListItemIcon>
+        <ListItemIcon>{chat?.pinned ? <PushPinRounded fontSize="small" /> : <PushPinRounded fontSize="small" />}</ListItemIcon>
         <ListItemText>{chat?.pinned ? "Lepas sematan" : "Sematkan"}</ListItemText>
       </MenuItem>
       <Divider />
       <MenuItem onClick={() => act("delete")} sx={{ color: "#B3261E" }}>
         <ListItemIcon>
-          <DeleteOutlineRounded fontSize="small" sx={{ color: "#B3261E" }} />
+          <DeleteRounded fontSize="small" sx={{ color: "#B3261E" }} />
         </ListItemIcon>
         <ListItemText>Hapus</ListItemText>
       </MenuItem>
@@ -101,7 +100,7 @@ export function StatusDot({ status }: { status: ChatStatus }) {
 
 /** Gemini's "toggle sidebar" glyph: a panel with a bar on the left. */
 export function SidebarIcon() {
-  return <ViewSidebarOutlined sx={{ fontSize: 22, transform: "scaleX(-1)" }} />;
+  return <ViewSidebarRounded sx={{ fontSize: 22, transform: "scaleX(-1)" }} />;
 }
 
 const iconBtn = { color: "#444746", width: 40, height: 40, "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } } as const;
@@ -224,7 +223,7 @@ export function ChatList({
             "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
           }}
         >
-          <EditOutlined sx={{ fontSize: 20, color: newActive ? "#041E49" : "#444746" }} />
+          <EditRounded sx={{ fontSize: 20, color: newActive ? "#041E49" : "#444746" }} />
           Chat baru
         </Box>
       </Box>

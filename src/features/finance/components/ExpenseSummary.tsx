@@ -4,7 +4,7 @@ import { useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Checkbox from "@mui/material/Checkbox";
-import HelpOutline from "@mui/icons-material/HelpOutlineOutlined";
+import HelpRounded from "@mui/icons-material/HelpRounded";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { CATEGORY_META, formatIDR, type FinanceSummary } from "../data";
 import type { ResolvedExpense } from "../types";
@@ -82,7 +82,7 @@ function Tile({
           {sub}
         </Typography>
       </Box>
-      <HelpOutline
+      <HelpRounded
         sx={{ position: "absolute", right: 12, bottom: 12, fontSize: 16, color: "rgba(255,255,255,0.6)" }}
       />
     </Box>

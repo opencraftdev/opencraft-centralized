@@ -14,7 +14,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import CloseRounded from "@mui/icons-material/CloseRounded";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import InfoRounded from "@mui/icons-material/InfoRounded";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
 import { ChatMarkdown } from "@/features/chat/components/Markdown";
@@ -224,7 +224,7 @@ export function SkillEditor({
             sx={{ alignItems: "flex-start", ml: 0, gap: 1, "& .MuiSwitch-root": { mt: -0.5 } }}
           />
           <Typography sx={{ display: "flex", alignItems: "center", gap: 0.75, fontSize: "0.75rem", color: "#5F6368" }}>
-            <InfoOutlined sx={{ fontSize: 16 }} />
+            <InfoRounded sx={{ fontSize: 16 }} />
             Perubahan sampai ke agen chat dalam ±30 detik.
           </Typography>
         </Box>

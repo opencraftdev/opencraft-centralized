@@ -33,6 +33,8 @@ declare module "@mui/material/styles" {
   }
 }
 
+const PRESS_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+
 const theme = createTheme({
   palette: {
     primary: {
@@ -98,12 +100,45 @@ const theme = createTheme({
     borderRadius: 8,
   },
   components: {
+    // Motion basics (Apple-like): pressed controls shrink a touch, dialogs pop in, and everything
+    // respects the OS "reduce motion" setting.
+    MuiCssBaseline: {
+      styleOverrides: `
+        @keyframes oc-pop-in {
+          from { opacity: 0; transform: translateY(8px) scale(0.97); }
+          to { opacity: 1; transform: none; }
+        }
+        @keyframes oc-grow-x {
+          from { opacity: 0; transform: scaleX(0.4); }
+          to { opacity: 1; transform: none; }
+        }
+        @keyframes oc-rise {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
+      `,
+    },
+    MuiButtonBase: {
+      styleOverrides: {
+        root: {
+          transition: `transform 160ms ${PRESS_EASE}, background-color 150ms ease, box-shadow 150ms ease, color 150ms ease`,
+          "&:active:not(.Mui-disabled)": { transform: "scale(0.97)" },
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: { root: { "&:active:not(.Mui-disabled)": { transform: "none" } } },
+    },
     MuiButton: {
       styleOverrides: {
         root: {
           textTransform: "none",
           fontWeight: 600,
           borderRadius: 4,
+          transition: `transform 160ms ${PRESS_EASE}, background-color 150ms ease, box-shadow 150ms ease, color 150ms ease, border-color 150ms ease`,
         },
         sizeSmall: { fontSize: "0.8125rem", padding: "4px 12px" },
         sizeMedium: { fontSize: "0.875rem", padding: "6px 16px" },
@@ -156,6 +191,7 @@ const theme = createTheme({
       styleOverrides: {
         paper: {
           borderRadius: 12,
+          animation: `oc-pop-in 280ms ${PRESS_EASE}`,
         },
       },
     },

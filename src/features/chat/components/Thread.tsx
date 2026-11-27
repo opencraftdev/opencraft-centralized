@@ -7,8 +7,8 @@ import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
-import EditOutlined from "@mui/icons-material/EditOutlined";
+import ChatBubbleRounded from "@mui/icons-material/ChatBubbleRounded";
+import EditRounded from "@mui/icons-material/EditRounded";
 import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import type { DriveFile } from "@/lib/drive/types";
 import { toastError } from "@/components/ui/Toast";
@@ -270,7 +270,7 @@ export function Thread({
         {onNew && (
           <Tooltip title="Chat baru">
             <IconButton aria-label="Chat baru" onClick={onNew} sx={{ color: "#444746" }}>
-              <EditOutlined sx={{ fontSize: 22 }} />
+              <EditRounded sx={{ fontSize: 22 }} />
             </IconButton>
           </Tooltip>
         )}
@@ -295,7 +295,7 @@ export function Thread({
           </Box>
         ) : state === "missing" ? (
           <Box sx={{ textAlign: "center", color: "#5F6368", py: 8 }}>
-            <ChatBubbleOutlineRounded sx={{ fontSize: 40, color: "#C4C7C5", mb: 1 }} />
+            <ChatBubbleRounded sx={{ fontSize: 40, color: "#C4C7C5", mb: 1 }} />
             <Typography sx={{ fontSize: "0.9375rem" }}>Chat tidak ditemukan atau sudah dihapus.</Typography>
             {onNew && (
               <Button onClick={onNew} sx={{ mt: 1.5, borderRadius: "9999px" }}>

@@ -13,10 +13,10 @@ import Chip from "@mui/material/Chip";
 import Tooltip from "@mui/material/Tooltip";
 import CircularProgress from "@mui/material/CircularProgress";
 import StarRounded from "@mui/icons-material/StarRounded";
-import EmailOutlined from "@mui/icons-material/EmailOutlined";
-import PhoneOutlined from "@mui/icons-material/PhoneOutlined";
-import LanguageOutlined from "@mui/icons-material/LanguageOutlined";
-import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
+import EmailRounded from "@mui/icons-material/EmailRounded";
+import PhoneRounded from "@mui/icons-material/PhoneRounded";
+import LanguageRounded from "@mui/icons-material/LanguageRounded";
+import LaunchRounded from "@mui/icons-material/LaunchRounded";
 import WhatsApp from "@mui/icons-material/WhatsApp";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import RadioButtonUncheckedRounded from "@mui/icons-material/RadioButtonUncheckedRounded";
@@ -132,7 +132,7 @@ function ContactCell({ lead }: { lead: ScraperLead }) {
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
       {lead.email && (
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-          <EmailOutlined sx={{ fontSize: 15, color: "#0B57D0" }} />
+          <EmailRounded sx={{ fontSize: 15, color: "#0B57D0" }} />
           <Typography
             component="a"
             href={`mailto:${lead.email}`}
@@ -144,13 +144,13 @@ function ContactCell({ lead }: { lead: ScraperLead }) {
       )}
       {lead.phone && (
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-          <PhoneOutlined sx={{ fontSize: 15, color: "#5f6368" }} />
+          <PhoneRounded sx={{ fontSize: 15, color: "#5f6368" }} />
           <Typography sx={{ fontSize: "0.8125rem", color: "#3c4043" }}>{lead.phone}</Typography>
         </Box>
       )}
       {lead.website && (
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-          <LanguageOutlined sx={{ fontSize: 15, color: "#5f6368" }} />
+          <LanguageRounded sx={{ fontSize: 15, color: "#5f6368" }} />
           <Typography
             component="a"
             href={lead.website}
@@ -410,7 +410,7 @@ export function ScrapersView({ leads }: { leads: ScraperLead[] }) {
                             rel="noopener noreferrer"
                             sx={{ display: "inline-flex", color: "#0B57D0" }}
                           >
-                            <LaunchOutlined sx={{ fontSize: 18 }} />
+                            <LaunchRounded sx={{ fontSize: 18 }} />
                           </Box>
                         ) : (
                           <Typography sx={{ fontSize: "0.8125rem", color: "#bdc1c6" }}>—</Typography>

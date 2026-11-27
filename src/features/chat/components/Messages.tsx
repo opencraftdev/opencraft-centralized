@@ -9,14 +9,14 @@ import Typography from "@mui/material/Typography";
 import CheckRounded from "@mui/icons-material/CheckRounded";
 import ContentCopyRounded from "@mui/icons-material/ContentCopyRounded";
 import DownloadRounded from "@mui/icons-material/DownloadRounded";
-import ErrorOutlineRounded from "@mui/icons-material/ErrorOutlineRounded";
+import ErrorRounded from "@mui/icons-material/ErrorRounded";
 import InsertDriveFileRounded from "@mui/icons-material/InsertDriveFileRounded";
 import OpenInNewRounded from "@mui/icons-material/OpenInNewRounded";
 import ReplayRounded from "@mui/icons-material/ReplayRounded";
 import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
 import SendRounded from "@mui/icons-material/SendRounded";
-import StopCircleOutlined from "@mui/icons-material/StopCircleOutlined";
-import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
+import StopCircleRounded from "@mui/icons-material/StopCircleRounded";
+import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import type { DriveFile } from "@/lib/drive/types";
 import { driveContentUrl, driveViewUrl } from "@/lib/drive/links";
 import { toastError } from "@/components/ui/Toast";
@@ -135,7 +135,7 @@ export function FileCard({ att, file, onPreview }: { att: ChatAttachment; file: 
       </Box>
       {file && !gone && (
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, px: 1, pb: 1 }}>
-          <Button size="small" startIcon={<VisibilityOutlined />} onClick={() => onPreview(file.id)} sx={fileBtnSx}>
+          <Button size="small" startIcon={<VisibilityRounded />} onClick={() => onPreview(file.id)} sx={fileBtnSx}>
             Pratinjau
           </Button>
           {gid && (
@@ -173,13 +173,13 @@ export function AssistantMessage({
       {text && <ChatMarkdown text={text} />}
       {m.stopped && (
         <Box sx={{ mt: text ? 1.5 : 0, display: "inline-flex", alignItems: "center", gap: 0.75, color: "#444746", fontSize: "0.875rem" }}>
-          <StopCircleOutlined sx={{ fontSize: 18 }} />
+          <StopCircleRounded sx={{ fontSize: 18 }} />
           Dihentikan
         </Box>
       )}
       {m.error && (
         <Box sx={{ mt: text ? 1.5 : 0, display: "flex", alignItems: "flex-start", gap: 1, color: "#B3261E", minWidth: 0 }}>
-          <ErrorOutlineRounded sx={{ fontSize: 20, mt: 0.15 }} />
+          <ErrorRounded sx={{ fontSize: 20, mt: 0.15 }} />
           <Typography sx={{ fontSize: "1rem", lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{m.error}</Typography>
         </Box>
       )}

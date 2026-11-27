@@ -72,7 +72,7 @@ export function LoginForm({ error: initialError }: { error?: string | null }) {
     <Card sx={{ width: "100%", maxWidth: 380 }}>
       <CardContent sx={{ p: 4 }}>
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mb: 4 }}>
-          <Image src="/logo.png" alt="OpenCraft" width={48} height={48} style={{ marginBottom: 16 }} />
+          <Image src="/logo.svg" alt="OpenCraft" width={57} height={48} style={{ marginBottom: 16 }} />
           <Typography variant="h5" sx={{ fontWeight: 600 }}>
             <Box component="span" sx={{ color: "primary.main" }}>Open</Box>
             <Box component="span" sx={{ color: "text.primary" }}>Craft</Box>

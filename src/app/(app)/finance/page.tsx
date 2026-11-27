@@ -11,7 +11,6 @@ import { ExpenseTable } from "@/features/finance/components/ExpenseTable";
 export const dynamic = "force-dynamic";
 
 const MAX_W = 1180;
-const SIDEBAR = 280;
 const TOPBAR = 64;
 const HEADER_H = 68;
 
@@ -31,7 +30,8 @@ export default async function FinancePage() {
         sx={{
           position: "fixed",
           top: TOPBAR,
-          left: SIDEBAR,
+          left: "var(--sidebar-w)",
+          transition: "left 280ms cubic-bezier(0.22, 1, 0.36, 1)",
           right: 0,
           zIndex: 10,
           height: HEADER_H,

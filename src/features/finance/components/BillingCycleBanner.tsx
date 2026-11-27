@@ -1,6 +1,6 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import AutorenewOutlined from "@mui/icons-material/AutorenewOutlined";
+import AutorenewRounded from "@mui/icons-material/AutorenewRounded";
 import { formatIDR, type BillingCycle, type FinanceSummary } from "../data";
 
 export function BillingCycleBanner({
@@ -42,7 +42,7 @@ export function BillingCycleBanner({
             "& .MuiSvgIcon-root": { fontSize: 22 },
           }}
         >
-          <AutorenewOutlined />
+          <AutorenewRounded />
         </Box>
         <Box>
           <Typography sx={{ fontSize: "0.9375rem", fontWeight: 600, color: "#202124", lineHeight: 1.2 }}>
