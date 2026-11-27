@@ -9,7 +9,6 @@ import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
-import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -19,6 +18,14 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import TuneRounded from "@mui/icons-material/TuneRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import SendRounded from "@mui/icons-material/SendRounded";
+import CircleRounded from "@mui/icons-material/CircleRounded";
+import PersonRounded from "@mui/icons-material/PersonRounded";
+import GroupRounded from "@mui/icons-material/GroupRounded";
+import FolderRounded from "@mui/icons-material/FolderRounded";
+import EventRounded from "@mui/icons-material/EventRounded";
+import FlagRounded from "@mui/icons-material/FlagRounded";
+import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
+import { useAccount } from "@/features/accounts/account";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { formatRelative } from "@/features/drive/format";
 import { addComment, createTask, deleteComment, deleteTask, listComments, saveMember, saveProject, updateTask } from "../api";
@@ -30,13 +37,14 @@ import { PROJECT_COLORS } from "./TeamDialog";
 import { AttachmentGrid, AttachPicker, DropZone, PendingFiles } from "./Attachments";
 import { commentIdOf, listAttachments, removeAttachment, uploadAttachments } from "../attachments";
 import { Linkify } from "@/components/ui/Linkify";
-import { AutoHeight, SwapIn } from "@/components/ui/AutoHeight";
+import { SwapIn } from "@/components/ui/AutoHeight";
 import { CommentBody, MentionInput, type MentionInputHandle } from "./Mentions";
 import { ProjectMark } from "./bits";
 import { PreviewDialog } from "@/features/drive/components/PreviewDialog";
 import type { DriveFile } from "@/lib/drive/types";
 
-// Create / edit one task: details on the right, checklist (subtasks) and comments on the left.
+// Create / edit one task (main task or checklist item): title, properties as pills, the brief with its files and the
+// checklist on the left; the comments as chat bubbles on the right (ClickUp-like).
 
 type Form = Omit<TaskInput, "sort">;
 
@@ -92,6 +100,7 @@ export function TaskDialog({
   const [preview, setPreview] = useState<DriveFile | null>(null);
   const [editingNote, setEditingNote] = useState(false);
   const mention = useRef<MentionInputHandle>(null);
+  const { email: myEmail } = useAccount();
 
   // The live copy (realtime / checkbox changes) of the task being edited.
   const live = task ? ctx.all.find((x) => x.id === task.id) ?? task : null;
@@ -252,13 +261,60 @@ export function TaskDialog({
     }
   };
 
-  const label = (text: string) => <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#5F6368", mb: 0.5 }}>{text}</Typography>;
+  const label = (text: string) => <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#5F6368", mb: 0.75 }}>{text}</Typography>;
   const fieldSx = { "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: "0.875rem" } } as const;
+  const taskFiles = files.filter((f) => !commentIdOf(f));
+  const st = STATUSES.find((x) => x.value === form.status) ?? STATUSES[0];
+  const pr = PRIORITIES.find((x) => x.value === form.priority) ?? PRIORITIES[1];
+
+  // newest comment in view
+  const feed = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = feed.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [comments.length, files.length, taskId]);
+
+  const inlineNew = (value: string, setValue: (v: string | null) => void, onAdd: () => void, placeholder: string) => (
+    <Box sx={{ display: "flex", gap: 0.5, alignItems: "center", width: "100%" }}>
+      <TextField
+        autoFocus
+        fullWidth
+        size="small"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            onAdd();
+          }
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            setValue(null);
+          }
+        }}
+        sx={{ ...fieldSx, "& .MuiOutlinedInput-root": { borderRadius: "9999px", fontSize: "0.8125rem", height: 32 } }}
+      />
+      <Button variant="contained" disableElevation disabled={!value.trim()} onClick={onAdd} sx={{ borderRadius: "9999px", minWidth: 0, px: 1.5, height: 32 }}>
+        Tambah
+      </Button>
+      <IconButton size="small" aria-label="Batal" onClick={() => setValue(null)}>
+        <CloseRounded sx={{ fontSize: 18 }} />
+      </IconButton>
+    </Box>
+  );
 
   return (
-    <Dialog open={open} onClose={onClose} fullScreen={mobile} maxWidth="md" fullWidth slotProps={{ paper: { sx: { borderRadius: mobile ? 0 : "20px" } } }}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullScreen={mobile}
+      maxWidth="lg"
+      fullWidth
+      slotProps={{ paper: { sx: { borderRadius: mobile ? 0 : "20px", height: mobile ? "100%" : "min(780px, 92vh)", display: "flex", flexDirection: "column" } } }}
+    >
       {/* Top bar */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, pt: 1.5 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, pt: 1.5, pb: 0.5, flexShrink: 0 }}>
         {parent ? (
           <Button size="small" startIcon={<ArrowBackRounded sx={{ fontSize: 16 }} />} onClick={() => onOpenTask(parent)} sx={{ color: "#444746", borderRadius: "9999px", textTransform: "none", maxWidth: "70%", justifyContent: "flex-start" }}>
             <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Bagian dari: {parent.title}</Box>
@@ -273,404 +329,452 @@ export function TaskDialog({
         </IconButton>
       </Box>
 
-      <Box sx={{ overflowY: "auto", flex: "1 1 auto" }}>
-      {/* Height glides and content slides in when switching task ↔ checklist item (no jump). */}
-      <AutoHeight>
-      <SwapIn id={taskId ?? "new"} dir={swapDir}>
-      <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 3, px: 3, pt: 1, pb: 2 }}>
-        {/* Main */}
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <InputBase
-            autoFocus={!live}
-            fullWidth
-            multiline
-            value={form.title}
-            onChange={(e) => set("title", e.target.value.replace(/\n/g, " "))}
-            placeholder="Judul tugas"
-            sx={{ fontSize: "1.375rem", fontWeight: 500, color: "#1F1F1F", mb: 1.5 }}
-            inputProps={{ "aria-label": "Judul tugas" }}
-          />
-          <Box sx={{ display: "flex", alignItems: "center" }}>
-            {label("Catatan")}
-            <Box sx={{ flex: 1 }} />
-            {!editingNote && (
-              <Button size="small" onClick={() => setEditingNote(true)} sx={{ borderRadius: "9999px", minWidth: 0, py: 0, mb: 0.5, fontSize: "0.75rem" }}>
-                Ubah
-              </Button>
-            )}
-          </Box>
-          {editingNote ? (
-            <TextField
-              fullWidth
-              multiline
-              minRows={3}
-              autoFocus={!!live && !!form.description}
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Detail, link, atau hasil yang diharapkan…"
-              sx={fieldSx}
-            />
-          ) : (
-            <Box
-              onClick={() => setEditingNote(true)}
-              sx={{ border: "1px solid #E0E3E7", borderRadius: "10px", px: 1.75, py: 1.25, minHeight: 72, fontSize: "0.875rem", color: "#1F1F1F", whiteSpace: "pre-wrap", overflowWrap: "anywhere", cursor: "text", "&:hover": { borderColor: "#A8C7FA" } }}
-            >
-              <Linkify text={form.description} />
-            </Box>
-          )}
+      <Box sx={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1.35fr) minmax(320px, 1fr)" }, overflowY: { xs: "auto", md: "hidden" } }}>
+        {/* ── Left: title, properties, brief (+ files), checklist ── */}
+        <Box sx={{ overflowY: { md: "auto" }, minHeight: 0 }}>
+          <SwapIn id={taskId ?? "new"} dir={swapDir}>
+            <Box sx={{ px: 3, pt: 0.5, pb: 3 }}>
+              <InputBase
+                autoFocus={!live}
+                fullWidth
+                multiline
+                value={form.title}
+                onChange={(e) => set("title", e.target.value.replace(/\n/g, " "))}
+                placeholder="Judul tugas"
+                sx={{ fontSize: "1.375rem", fontWeight: 500, color: "#1F1F1F", mb: 1 }}
+                inputProps={{ "aria-label": "Judul tugas" }}
+              />
 
-          {/* Attachments on the task itself */}
-          <Box sx={{ mt: 2.5 }}>
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              {label(`Lampiran${files.filter((f) => !commentIdOf(f)).length ? ` · ${files.filter((f) => !commentIdOf(f)).length}` : ""}`)}
-              <Box sx={{ flex: 1 }} />
-              {live && <AttachPicker onPick={(l) => void upload(l)} disabled={!!uploading} />}
-            </Box>
-            {live ? (
-              <DropZone onDrop={(l) => void upload(l)} disabled={!!uploading}>
-                {files.some((f) => !commentIdOf(f)) ? (
-                  <AttachmentGrid files={files.filter((f) => !commentIdOf(f))} onOpen={setPreview} onRemove={(f) => void removeFile(f)} />
-                ) : (
-                  <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368", border: "1px dashed #C4C7C5", borderRadius: "12px", px: 1.75, py: 1.5 }}>
-                    Tarik file, gambar, atau video ke sini, atau klik “Tambah lampiran”.
-                  </Typography>
-                )}
-              </DropZone>
-            ) : (
-              <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368" }}>Buat tugasnya dulu, lalu lampiran bisa ditambahkan.</Typography>
-            )}
-            {uploading && (
-              <Typography sx={{ fontSize: "0.75rem", color: "#0B57D0", mt: 0.75 }}>
-                Mengunggah {uploading.done + 1 > uploading.total ? uploading.total : uploading.done + 1} dari {uploading.total} file…
-              </Typography>
-            )}
-          </Box>
-
-          {/* Checklist */}
-          {live && !live.parent_id && (
-            <Box sx={{ mt: 2.5 }}>
-              {label(`Checklist${subs.length ? ` · ${subs.filter((s) => s.status === "done").length}/${subs.length}` : ""}`)}
-              <Box sx={{ border: "1px solid #E0E3E7", borderRadius: "12px", overflow: "hidden" }}>
-                {subs.map((s) => {
-                  const d = s.status === "done";
-                  return (
-                    <Box key={s.id} sx={{ display: "flex", alignItems: "center", gap: 0.5, pr: 1, borderBottom: "1px solid #EEF1F4", "&:hover": { bgcolor: "#F8FAFD" }, "&:hover .sub-del": { opacity: 1 } }}>
-                      <Checkbox size="small" checked={d} onChange={(e) => ctx.patch(s, { status: e.target.checked ? "done" : "todo" })} slotProps={{ input: { "aria-label": `Selesai: ${s.title}` } }} />
-                      <Box component="button" type="button" onClick={() => onOpenTask(s)} sx={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", bgcolor: "transparent", fontFamily: "inherit", cursor: "pointer", py: 1, fontSize: "0.875rem", color: d ? "#5F6368" : "#1F1F1F", textDecoration: d ? "line-through" : "none" }}>
-                        {s.title}
-                      </Box>
-                      <Box sx={{ display: { xs: "none", sm: "inline-flex" }, mr: 0.5 }}>
-                        <CommentCount count={ctx.commentCount(s.id)} />
-                      </Box>
-                      {!d && (
-                        <Box sx={{ display: { xs: "none", sm: "inline-flex" } }}>
-                          <DueChip due={s.due_date} done={d} compact />
+              {/* Properties: label on the left, the value as a clickable pill */}
+              <Box sx={{ display: "flex", flexDirection: "column", mb: 2.5 }}>
+                <PropRow icon={<CircleRounded />} label="Status">
+                  <Select
+                    value={form.status}
+                    onChange={(e) => set("status", e.target.value as Form["status"])}
+                    variant="standard" input={<InputBase />}
+                    renderValue={() => (
+                      <>
+                        <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: st.dot }} />
+                        {st.label}
+                      </>
+                    )}
+                    sx={pillSx(st.bg, st.color)}
+                    inputProps={{ "aria-label": "Status" }}
+                  >
+                    {STATUSES.map((s) => (
+                      <MenuItem key={s.value} value={s.value}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: s.dot }} />
+                          {s.label}
                         </Box>
-                      )}
-                      <MemberAvatar member={s.assignee_id ? ctx.memberById.get(s.assignee_id) : undefined} size={22} />
-                      <Box
-                        component="button"
-                        type="button"
-                        onClick={() => onOpenTask(s)}
-                        aria-label={`Lihat detail ${s.title}`}
-                        sx={{
-                          ml: 1,
-                          p: 0,
-                          border: "none",
-                          bgcolor: "transparent",
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                          fontSize: "0.8125rem",
-                          fontWeight: 600,
-                          color: "#0B57D0",
-                          whiteSpace: "nowrap",
-                          flexShrink: 0,
-                          // underline that draws in from the left on hover
-                          backgroundImage: "linear-gradient(currentColor, currentColor)",
-                          backgroundRepeat: "no-repeat",
-                          backgroundPosition: "0 100%",
-                          backgroundSize: "0% 1.5px",
-                          transition: "background-size 320ms cubic-bezier(0.22, 1, 0.36, 1)",
-                          "&:hover, &:focus-visible": { backgroundSize: "100% 1.5px" },
-                        }}
-                      >
-                        Lihat Detail
-                      </Box>
-                      <IconButton
-                        className="sub-del"
-                        size="small"
-                        aria-label={`Hapus ${s.title}`}
-                        onClick={() => deleteTask(s.id).then(onChanged).catch((e) => toastError((e as Error).message))}
-                        sx={{ color: "#5F6368", "&:hover": { color: "#B3261E", bgcolor: "#FCE8E6" } }}
-                      >
-                        <DeleteRounded sx={{ fontSize: 18 }} />
-                      </IconButton>
-                    </Box>
-                  );
-                })}
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.5, py: 0.75 }}>
-                  <AddRounded sx={{ fontSize: 18, color: "#5F6368" }} />
-                  <InputBase
-                    fullWidth
-                    value={newSub}
-                    onChange={(e) => setNewSub(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                        e.preventDefault();
-                        void addSub();
-                      }
-                    }}
-                    placeholder="Tambah item checklist, Enter untuk simpan"
-                    sx={{ fontSize: "0.875rem" }}
-                  />
-                </Box>
-              </Box>
-            </Box>
-          )}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </PropRow>
 
-          {/* Comments */}
-          {live && (
-            <Box sx={{ mt: 2.5 }}>
-              {label(`Komentar${comments.length ? ` · ${comments.length}` : ""}`)}
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {comments.map((c) => (
-                  <Box key={c.id} sx={{ bgcolor: "#F0F4F9", borderRadius: "12px", px: 1.5, py: 1, "&:hover .c-del": { opacity: 1 } }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#1F1F1F" }}>{authorName(c.author_email, ctx)}</Typography>
-                      <Typography sx={{ fontSize: "0.6875rem", color: "#5F6368" }}>{formatRelative(c.created_at)}</Typography>
-                      <Box sx={{ flex: 1 }} />
+                <PropRow icon={<PersonRounded />} label="PIC">
+                  {newPerson !== null ? (
+                    inlineNew(newPerson, setNewPerson, () => void addPerson(), "Nama orang baru")
+                  ) : (
+                    <Select
+                      displayEmpty
+                      value={form.assignee_id ?? ""}
+                      onChange={(e) => (e.target.value === "__new" ? setNewPerson("") : set("assignee_id", e.target.value || null))}
+                      variant="standard" input={<InputBase />}
+                      renderValue={(id) =>
+                        id ? (
+                          <>
+                            <MemberAvatar member={ctx.memberById.get(id)} size={20} />
+                            {ctx.memberById.get(id)?.name}
+                          </>
+                        ) : (
+                          <Box component="span" sx={{ color: "#80868B" }}>Pilih orang</Box>
+                        )
+                      }
+                      sx={pillSx("#fff", "#1F1F1F", true, Boolean(form.assignee_id))}
+                      inputProps={{ "aria-label": "PIC" }}
+                    >
+                      <MenuItem value="">
+                        <em>Belum ada</em>
+                      </MenuItem>
+                      {ctx.members.filter((m) => m.active || m.id === form.assignee_id).map((m) => (
+                        <MenuItem key={m.id} value={m.id}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                            <MemberAvatar member={m} size={20} />
+                            {m.name}
+                          </Box>
+                        </MenuItem>
+                      ))}
+                      <MenuItem value="__new" sx={{ color: "#0B57D0", borderTop: "1px solid #EEF1F4" }}>
+                        <AddRounded sx={{ fontSize: 18, mr: 1 }} /> Tambah orang baru…
+                      </MenuItem>
+                    </Select>
+                  )}
+                </PropRow>
+
+                <PropRow icon={<GroupRounded />} label="Dibantu oleh">
+                  <Select
+                    multiple
+                    displayEmpty
+                    value={form.helper_ids}
+                    onChange={(e) => set("helper_ids", (typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value).filter((id) => id !== form.assignee_id))}
+                    variant="standard" input={<InputBase />}
+                    renderValue={(ids) =>
+                      ids.length === 0 ? (
+                        <Box component="span" sx={{ color: "#80868B" }}>+ Tambah</Box>
+                      ) : (
+                        ids.map((id) => (
+                          <Box key={id} component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                            <MemberAvatar member={ctx.memberById.get(id)} size={20} />
+                            {ctx.memberById.get(id)?.name}
+                          </Box>
+                        ))
+                      )
+                    }
+                    sx={pillSx("#fff", "#1F1F1F", true, form.helper_ids.length > 0)}
+                    inputProps={{ "aria-label": "Dibantu oleh" }}
+                  >
+                    {ctx.members.filter((m) => m.active && m.id !== form.assignee_id).map((m) => (
+                      <MenuItem key={m.id} value={m.id}>
+                        <Checkbox size="small" checked={form.helper_ids.includes(m.id)} sx={{ p: 0.5, mr: 1 }} />
+                        <MemberAvatar member={m} size={20} />
+                        <Box component="span" sx={{ ml: 1 }}>{m.name}</Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </PropRow>
+
+                <PropRow icon={<FolderRounded />} label="Project">
+                  {newProject !== null ? (
+                    inlineNew(newProject, setNewProject, () => void addProject(), "Nama project baru")
+                  ) : (
+                    <Select
+                      displayEmpty
+                      value={form.project_id ?? ""}
+                      onChange={(e) => (e.target.value === "__new" ? setNewProject("") : e.target.value === "__manage" ? ctx.openTeam("projects") : set("project_id", e.target.value || null))}
+                      variant="standard" input={<InputBase />}
+                      renderValue={(id) =>
+                        id ? (
+                          <>
+                            <ProjectMark project={ctx.projectById.get(id)} size={14} />
+                            {ctx.projectById.get(id)?.name}
+                          </>
+                        ) : (
+                          <Box component="span" sx={{ color: "#80868B" }}>Tanpa project</Box>
+                        )
+                      }
+                      sx={pillSx("#fff", "#1F1F1F", true, Boolean(form.project_id))}
+                      inputProps={{ "aria-label": "Project" }}
+                    >
+                      <MenuItem value="">
+                        <em>Tanpa project</em>
+                      </MenuItem>
+                      {ctx.projects.filter((p) => p.status !== "parked" || p.id === form.project_id).map((p) => (
+                        <MenuItem key={p.id} value={p.id}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                            <Box sx={{ width: 18, display: "grid", placeItems: "center" }}>
+                              <ProjectMark project={p} size={16} />
+                            </Box>
+                            {p.name}
+                          </Box>
+                        </MenuItem>
+                      ))}
+                      <MenuItem value="__new" sx={{ color: "#0B57D0", borderTop: "1px solid #EEF1F4" }}>
+                        <AddRounded sx={{ fontSize: 18, mr: 1 }} /> Tambah project baru…
+                      </MenuItem>
+                      <MenuItem value="__manage" sx={{ color: "#444746" }}>
+                        <TuneRounded sx={{ fontSize: 18, mr: 1 }} /> Atur ikon, warna & logo…
+                      </MenuItem>
+                    </Select>
+                  )}
+                </PropRow>
+
+                <PropRow icon={<EventRounded />} label="Tanggal">
+                  {!form.is_milestone && (
+                    <>
+                      <DatePill label="Mulai" value={form.start_date} max={form.due_date} onChange={(v) => set("start_date", v)} />
+                      <ArrowForwardRounded sx={{ fontSize: 16, color: "#80868B" }} />
+                    </>
+                  )}
+                  <DatePill label="Deadline" value={form.due_date} min={form.is_milestone ? null : form.start_date} onChange={(v) => set("due_date", v)} strong error={!!dateError} />
+                </PropRow>
+                {dateError && <Typography sx={{ fontSize: "0.75rem", color: "#B3261E", pl: "120px", mt: -0.5 }}>{dateError}</Typography>}
+
+                <PropRow icon={<FlagRounded />} label="Prioritas">
+                  <Select
+                    value={form.priority}
+                    onChange={(e) => set("priority", e.target.value as Form["priority"])}
+                    variant="standard" input={<InputBase />}
+                    renderValue={() => (
+                      <>
+                        <FlagRounded sx={{ fontSize: 15 }} />
+                        {pr.label}
+                      </>
+                    )}
+                    sx={pillSx(`${pr.color}1A`, pr.color)}
+                    inputProps={{ "aria-label": "Prioritas" }}
+                  >
+                    {PRIORITIES.map((p) => (
+                      <MenuItem key={p.value} value={p.value}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: p.color }} />
+                          {p.label}
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </PropRow>
+              </Box>
+
+              {/* Brief: text + its files in one box (drop files anywhere on it) */}
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                {label(`Brief${taskFiles.length ? ` · ${taskFiles.length} lampiran` : ""}`)}
+                <Box sx={{ flex: 1 }} />
+                {!editingNote && (
+                  <Button size="small" onClick={() => setEditingNote(true)} sx={{ borderRadius: "9999px", minWidth: 0, py: 0, mb: 0.5, fontSize: "0.75rem" }}>
+                    Ubah
+                  </Button>
+                )}
+              </Box>
+              <DropZone onDrop={(l) => void upload(l)} disabled={!live || !!uploading}>
+                <Box sx={{ border: "1px solid #DADCE0", borderRadius: "12px", transition: "border-color 150ms, box-shadow 150ms", "&:focus-within": { borderColor: "#0B57D0", boxShadow: "0 0 0 1px #0B57D0" } }}>
+                  {editingNote ? (
+                    <InputBase
+                      fullWidth
+                      multiline
+                      minRows={3}
+                      autoFocus={!!live && !!form.description}
+                      value={form.description}
+                      onChange={(e) => set("description", e.target.value)}
+                      placeholder="Tulis brief: tujuan, detail, link, atau hasil yang diharapkan…"
+                      sx={{ px: 1.75, pt: 1.25, pb: 0.5, fontSize: "0.875rem", alignItems: "flex-start" }}
+                      inputProps={{ "aria-label": "Brief" }}
+                    />
+                  ) : (
+                    <Box onClick={() => setEditingNote(true)} sx={{ px: 1.75, pt: 1.25, pb: 0.75, minHeight: 64, fontSize: "0.875rem", color: "#1F1F1F", whiteSpace: "pre-wrap", overflowWrap: "anywhere", cursor: "text" }}>
+                      <Linkify text={form.description} />
+                    </Box>
+                  )}
+                  {taskFiles.length > 0 && (
+                    <Box sx={{ px: 1.5, pb: 1 }}>
+                      <AttachmentGrid files={taskFiles} size={72} onOpen={setPreview} onRemove={(f) => void removeFile(f)} />
+                    </Box>
+                  )}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 0.5, py: 0.25, borderTop: "1px solid #F1F3F4" }}>
+                    {live ? (
+                      <>
+                        <AttachPicker variant="icon" onPick={(l) => void upload(l)} disabled={!!uploading} />
+                        <Typography sx={{ fontSize: "0.75rem", color: uploading ? "#0B57D0" : "#80868B" }}>
+                          {uploading
+                            ? `Mengunggah ${Math.min(uploading.done + 1, uploading.total)} dari ${uploading.total} file…`
+                            : "Lampirkan file, gambar, atau video — atau tarik ke kotak ini"}
+                        </Typography>
+                      </>
+                    ) : (
+                      <Typography sx={{ fontSize: "0.75rem", color: "#80868B", px: 1, py: 0.75 }}>Buat tugasnya dulu, lalu file bisa dilampirkan di brief.</Typography>
+                    )}
+                  </Box>
+                </Box>
+              </DropZone>
+
+              {/* Checklist (main task only) */}
+              {live && !live.parent_id && (
+                <Box sx={{ mt: 2.5 }}>
+                  {label(`Checklist${subs.length ? ` · ${subs.filter((s) => s.status === "done").length}/${subs.length}` : ""}`)}
+                  <Box sx={{ border: "1px solid #E0E3E7", borderRadius: "12px", overflow: "hidden" }}>
+                    {subs.map((s) => {
+                      const d = s.status === "done";
+                      return (
+                        <Box key={s.id} sx={{ display: "flex", alignItems: "center", gap: 0.5, pr: 1, borderBottom: "1px solid #EEF1F4", "&:hover": { bgcolor: "#F8FAFD" } }}>
+                          <Checkbox size="small" checked={d} onChange={(e) => ctx.patch(s, { status: e.target.checked ? "done" : "todo" })} slotProps={{ input: { "aria-label": `Selesai: ${s.title}` } }} />
+                          <Box component="button" type="button" onClick={() => onOpenTask(s)} sx={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", bgcolor: "transparent", fontFamily: "inherit", cursor: "pointer", py: 1, fontSize: "0.875rem", color: d ? "#5F6368" : "#1F1F1F", textDecoration: d ? "line-through" : "none" }}>
+                            {s.title}
+                          </Box>
+                          <Box sx={{ display: { xs: "none", sm: "inline-flex" }, mr: 0.5 }}>
+                            <CommentCount count={ctx.commentCount(s.id)} />
+                          </Box>
+                          {!d && (
+                            <Box sx={{ display: { xs: "none", sm: "inline-flex" } }}>
+                              <DueChip due={s.due_date} done={d} compact />
+                            </Box>
+                          )}
+                          <MemberAvatar member={s.assignee_id ? ctx.memberById.get(s.assignee_id) : undefined} size={22} />
+                          <Box
+                            component="button"
+                            type="button"
+                            onClick={() => onOpenTask(s)}
+                            aria-label={`Lihat detail ${s.title}`}
+                            sx={{
+                              ml: 1,
+                              p: 0,
+                              border: "none",
+                              bgcolor: "transparent",
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              fontSize: "0.8125rem",
+                              fontWeight: 600,
+                              color: "#0B57D0",
+                              whiteSpace: "nowrap",
+                              flexShrink: 0,
+                              backgroundImage: "linear-gradient(currentColor, currentColor)",
+                              backgroundRepeat: "no-repeat",
+                              backgroundPosition: "0 100%",
+                              backgroundSize: "0% 1.5px",
+                              transition: "background-size 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+                              "&:hover, &:focus-visible": { backgroundSize: "100% 1.5px" },
+                            }}
+                          >
+                            Lihat Detail
+                          </Box>
+                          <IconButton
+                            size="small"
+                            aria-label={`Hapus ${s.title}`}
+                            onClick={() => deleteTask(s.id).then(onChanged).catch((e) => toastError((e as Error).message))}
+                            sx={{ color: "#5F6368", "&:hover": { color: "#B3261E", bgcolor: "#FCE8E6" } }}
+                          >
+                            <DeleteRounded sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Box>
+                      );
+                    })}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.5, py: 0.75 }}>
+                      <AddRounded sx={{ fontSize: 18, color: "#5F6368" }} />
+                      <InputBase
+                        fullWidth
+                        value={newSub}
+                        onChange={(e) => setNewSub(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                            e.preventDefault();
+                            void addSub();
+                          }
+                        }}
+                        placeholder="Tambah item checklist, Enter untuk simpan"
+                        sx={{ fontSize: "0.875rem" }}
+                      />
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          </SwapIn>
+        </Box>
+
+        {/* ── Right: comments as chat bubbles ── */}
+        <Box sx={{ bgcolor: "#F8FAFD", borderLeft: { md: "1px solid #EEF1F4" }, borderTop: { xs: "1px solid #EEF1F4", md: "none" }, display: "flex", flexDirection: "column", minHeight: { xs: 420, md: 0 } }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2.25, py: 1.25, borderBottom: "1px solid #EEF1F4", flexShrink: 0 }}>
+            <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500 }}>Komentar</Typography>
+            {comments.length > 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368" }}>{comments.length}</Typography>}
+            <Box sx={{ flex: 1 }} />
+            <Box sx={{ display: "flex" }}>
+              {[...new Set(comments.map((c) => c.author_email ?? ""))].slice(0, 5).map((em, i) => (
+                <Box key={em || i} sx={{ ml: i ? -0.75 : 0, borderRadius: "50%", boxShadow: "0 0 0 2px #F8FAFD" }}>
+                  <MemberAvatar member={memberOf(em, ctx)} size={22} />
+                </Box>
+              ))}
+            </Box>
+          </Box>
+
+          <Box ref={feed} sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 2.25, py: 2, display: "flex", flexDirection: "column", gap: 1.75 }}>
+            {live && (
+              <Box sx={{ alignSelf: "center", fontSize: "0.75rem", color: "#5F6368", bgcolor: "#EEF1F5", borderRadius: "9999px", px: 1.25, py: 0.4 }}>
+                Tugas dibuat · {formatRelative(live.created_at)}
+              </Box>
+            )}
+            {!live && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", mt: 4 }}>Komentar bisa ditulis setelah tugas dibuat.</Typography>}
+            {live && comments.length === 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", mt: 2 }}>Belum ada komentar. Mulai diskusi di bawah.</Typography>}
+            {comments.map((c) => {
+              const mine = !!myEmail && c.author_email === myEmail;
+              const cfiles = files.filter((f) => commentIdOf(f) === c.id);
+              const onlyFiles = c.body === "Lampiran" && cfiles.length > 0;
+              return (
+                <Box key={c.id} sx={{ display: "flex", gap: 1, flexDirection: mine ? "row-reverse" : "row", animation: "oc-rise 280ms cubic-bezier(0.22, 1, 0.36, 1) both", "&:hover .c-del": { opacity: 1 } }}>
+                  <MemberAvatar member={memberOf(c.author_email, ctx)} size={28} />
+                  <Box sx={{ maxWidth: "80%", minWidth: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexDirection: mine ? "row-reverse" : "row", mx: 0.5, mb: 0.25 }}>
+                      <Typography sx={{ fontSize: "0.6875rem", color: "#80868B" }}>
+                        {mine ? "Kamu" : authorName(c.author_email, ctx)} · {formatRelative(c.created_at)}
+                      </Typography>
                       <IconButton
                         className="c-del"
                         size="small"
                         aria-label="Hapus komentar"
                         onClick={() => deleteComment(c.id).then(() => { setComments((l) => l.filter((x) => x.id !== c.id)); onChanged(); }).catch((e) => toastError((e as Error).message))}
-                        sx={{ opacity: { xs: 1, sm: 0 }, p: 0.25 }}
+                        sx={{ opacity: { xs: 1, sm: 0 }, p: 0.25, color: "#80868B" }}
                       >
-                        <DeleteRounded sx={{ fontSize: 16 }} />
+                        <DeleteRounded sx={{ fontSize: 14 }} />
                       </IconButton>
                     </Box>
-                    {!(c.body === "Lampiran" && files.some((f) => commentIdOf(f) === c.id)) && (
-                      <Typography sx={{ fontSize: "0.875rem", color: "#1F1F1F", whiteSpace: "pre-wrap", overflowWrap: "anywhere", mt: 0.25 }}>
+                    {!onlyFiles && (
+                      <Box
+                        sx={{
+                          bgcolor: mine ? "#0B57D0" : "#fff",
+                          color: mine ? "#fff" : "#1F1F1F",
+                          border: mine ? "none" : "1px solid #E8EBEF",
+                          borderRadius: mine ? "16px 4px 16px 16px" : "4px 16px 16px 16px",
+                          px: 1.5,
+                          py: 1,
+                          fontSize: "0.875rem",
+                          lineHeight: 1.5,
+                          whiteSpace: "pre-wrap",
+                          overflowWrap: "anywhere",
+                          "& a": { color: "inherit !important", textDecorationColor: "currentColor" },
+                        }}
+                      >
                         <CommentBody text={c.body} ctx={ctx} onOpenTask={onOpenTask} />
-                      </Typography>
+                      </Box>
                     )}
-                    {files.some((f) => commentIdOf(f) === c.id) && (
+                    {cfiles.length > 0 && (
                       <Box sx={{ mt: 0.75 }}>
-                        <AttachmentGrid files={files.filter((f) => commentIdOf(f) === c.id)} size={72} onOpen={setPreview} onRemove={(f) => void removeFile(f)} />
+                        <AttachmentGrid files={cfiles} size={72} onOpen={setPreview} onRemove={(f) => void removeFile(f)} />
                       </Box>
                     )}
                   </Box>
-                ))}
-                <DropZone onDrop={(l) => setPending((p) => [...p, ...l])}>
-                <Box sx={{ border: "1px solid #C4C7C5", borderRadius: "12px" }}>
-                <PendingFiles files={pending} onRemove={(i) => setPending((p) => p.filter((_, j) => j !== i))} />
-                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.5, pl: 0.5, pr: 0.5, py: 0.5 }}>
-                  <AttachPicker variant="icon" onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
-                  <MentionInput
-                    ref={mention}
-                    value={comment}
-                    onChange={setComment}
-                    onSubmit={() => void sendComment()}
-                    ctx={ctx}
-                    currentTaskId={live.id}
-                    placeholder="Tulis update… ketik @ untuk tag orang, tugas, atau project"
-                  />
-                  <IconButton aria-label="Kirim komentar" onClick={() => void sendComment()} disabled={(!comment.trim() && pending.length === 0) || !!uploading} sx={{ color: "#0B57D0" }}>
-                    <SendRounded sx={{ fontSize: 20 }} />
-                  </IconButton>
                 </Box>
+              );
+            })}
+          </Box>
+
+          {live && (
+            <Box sx={{ px: 1.75, py: 1.5, borderTop: "1px solid #EEF1F4", flexShrink: 0 }}>
+              <DropZone onDrop={(l) => setPending((p) => [...p, ...l])}>
+                <Box sx={{ border: "1px solid #DADCE0", borderRadius: "16px", bgcolor: "#fff", transition: "border-color 150ms, box-shadow 150ms", "&:focus-within": { borderColor: "#0B57D0", boxShadow: "0 0 0 1px #0B57D0" } }}>
+                  <PendingFiles files={pending} onRemove={(i) => setPending((p) => p.filter((_, j) => j !== i))} />
+                  <Box sx={{ px: 1.5, pt: 0.5 }}>
+                    <MentionInput
+                      ref={mention}
+                      value={comment}
+                      onChange={setComment}
+                      onSubmit={() => void sendComment()}
+                      ctx={ctx}
+                      currentTaskId={live.id}
+                      placeholder="Tulis komentar… ketik @ untuk tag orang, tugas, atau project"
+                    />
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, px: 0.75, pb: 0.75 }}>
+                    <AttachPicker variant="icon" onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
+                    <Box sx={{ flex: 1 }} />
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disableElevation
+                      endIcon={<SendRounded sx={{ fontSize: "16px !important" }} />}
+                      onClick={() => void sendComment()}
+                      disabled={(!comment.trim() && pending.length === 0) || !!uploading}
+                      sx={{ borderRadius: "9999px", height: 30, px: 1.75, fontSize: "0.8125rem" }}
+                    >
+                      Kirim
+                    </Button>
+                  </Box>
                 </Box>
-                </DropZone>
-              </Box>
+              </DropZone>
             </Box>
           )}
         </Box>
-
-        {/* Details */}
-        <Box sx={{ width: { xs: "100%", sm: 260 }, flexShrink: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>
-          <Box>
-            {label("Status")}
-            <Select fullWidth size="small" value={form.status} onChange={(e) => set("status", e.target.value as Form["status"])} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
-              {STATUSES.map((s) => (
-                <MenuItem key={s.value} value={s.value}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: s.dot }} />
-                    {s.label}
-                  </Box>
-                </MenuItem>
-              ))}
-            </Select>
-          </Box>
-          <Box>
-            {label("PIC (penanggung jawab)")}
-            {newPerson !== null ? (
-              <Box sx={{ display: "flex", gap: 0.5 }}>
-                <TextField
-                  autoFocus
-                  fullWidth
-                  size="small"
-                  placeholder="Nama orang baru"
-                  value={newPerson}
-                  onChange={(e) => setNewPerson(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                      e.preventDefault();
-                      void addPerson();
-                    }
-                    if (e.key === "Escape") {
-                      e.stopPropagation();
-                      setNewPerson(null);
-                    }
-                  }}
-                  sx={fieldSx}
-                />
-                <Button variant="contained" disableElevation disabled={!newPerson.trim()} onClick={() => void addPerson()} sx={{ borderRadius: "10px", minWidth: 0, px: 1.5 }}>
-                  Tambah
-                </Button>
-                <IconButton size="small" aria-label="Batal" onClick={() => setNewPerson(null)}>
-                  <CloseRounded sx={{ fontSize: 18 }} />
-                </IconButton>
-              </Box>
-            ) : (
-            <Select fullWidth size="small" displayEmpty value={form.assignee_id ?? ""} onChange={(e) => (e.target.value === "__new" ? setNewPerson("") : set("assignee_id", e.target.value || null))} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
-              <MenuItem value="">
-                <em>Belum ada</em>
-              </MenuItem>
-              {ctx.members.filter((m) => m.active || m.id === form.assignee_id).map((m) => (
-                <MenuItem key={m.id} value={m.id}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <MemberAvatar member={m} size={20} />
-                    {m.name}
-                  </Box>
-                </MenuItem>
-              ))}
-              <MenuItem value="__new" sx={{ color: "#0B57D0", borderTop: "1px solid #EEF1F4" }}>
-                <AddRounded sx={{ fontSize: 18, mr: 1 }} /> Tambah orang baru…
-              </MenuItem>
-            </Select>
-            )}
-          </Box>
-          <Box>
-            {label("Dibantu oleh")}
-            <Select
-              fullWidth
-              size="small"
-              multiple
-              displayEmpty
-              value={form.helper_ids}
-              onChange={(e) => set("helper_ids", (typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value).filter((id) => id !== form.assignee_id))}
-              renderValue={(ids) =>
-                ids.length === 0 ? (
-                  <Typography sx={{ fontSize: "0.875rem", color: "#9AA0A6" }}>Tidak ada</Typography>
-                ) : (
-                  <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                    {ids.map((id) => (
-                      <Box key={id} sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, fontSize: "0.8125rem" }}>
-                        <MemberAvatar member={ctx.memberById.get(id)} size={18} />
-                        {ctx.memberById.get(id)?.name}
-                      </Box>
-                    ))}
-                  </Box>
-                )
-              }
-              sx={{ borderRadius: "10px", fontSize: "0.875rem" }}
-            >
-              {ctx.members.filter((m) => m.active && m.id !== form.assignee_id).map((m) => (
-                <MenuItem key={m.id} value={m.id}>
-                  <Checkbox size="small" checked={form.helper_ids.includes(m.id)} sx={{ p: 0.5, mr: 1 }} />
-                  {m.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </Box>
-          <Box>
-            {label("Project")}
-            {newProject !== null ? (
-              <Box sx={{ display: "flex", gap: 0.5 }}>
-                <TextField
-                  autoFocus
-                  fullWidth
-                  size="small"
-                  placeholder="Nama project baru"
-                  value={newProject}
-                  onChange={(e) => setNewProject(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                      e.preventDefault();
-                      void addProject();
-                    }
-                    if (e.key === "Escape") {
-                      e.stopPropagation();
-                      setNewProject(null);
-                    }
-                  }}
-                  sx={fieldSx}
-                />
-                <Button variant="contained" disableElevation disabled={!newProject.trim()} onClick={() => void addProject()} sx={{ borderRadius: "10px", minWidth: 0, px: 1.5 }}>
-                  Tambah
-                </Button>
-                <IconButton size="small" aria-label="Batal" onClick={() => setNewProject(null)}>
-                  <CloseRounded sx={{ fontSize: 18 }} />
-                </IconButton>
-              </Box>
-            ) : (
-            <Select fullWidth size="small" displayEmpty value={form.project_id ?? ""} onChange={(e) => (e.target.value === "__new" ? setNewProject("") : e.target.value === "__manage" ? ctx.openTeam("projects") : set("project_id", e.target.value || null))} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
-              <MenuItem value="">
-                <em>Tanpa project</em>
-              </MenuItem>
-              {ctx.projects.filter((p) => p.status !== "parked" || p.id === form.project_id).map((p) => (
-                <MenuItem key={p.id} value={p.id}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 18, display: "grid", placeItems: "center" }}>
-                      <ProjectMark project={p} size={16} />
-                    </Box>
-                    {p.name}
-                  </Box>
-                </MenuItem>
-              ))}
-              <MenuItem value="__new" sx={{ color: "#0B57D0", borderTop: "1px solid #EEF1F4" }}>
-                <AddRounded sx={{ fontSize: 18, mr: 1 }} /> Tambah project baru…
-              </MenuItem>
-              <MenuItem value="__manage" sx={{ color: "#444746" }}>
-                <TuneRounded sx={{ fontSize: 18, mr: 1 }} /> Atur ikon, warna & logo…
-              </MenuItem>
-            </Select>
-            )}
-          </Box>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-            {!form.is_milestone && (
-              <Box sx={{ flex: 1 }}>
-                {label("Mulai")}
-                <TextField fullWidth size="small" type="date" value={form.start_date ?? ""} onChange={(e) => set("start_date", e.target.value || null)} sx={fieldSx} slotProps={{ htmlInput: { max: form.due_date ?? undefined } }} />
-              </Box>
-            )}
-            <Box sx={{ flex: 1 }}>
-              {label(form.is_milestone ? "Tanggal" : "Deadline")}
-              <TextField fullWidth size="small" type="date" value={form.due_date ?? ""} onChange={(e) => set("due_date", e.target.value || null)} sx={fieldSx} error={!!dateError} slotProps={{ htmlInput: { min: form.is_milestone ? undefined : form.start_date ?? undefined } }} />
-            </Box>
-          </Box>
-          {dateError && <Typography sx={{ fontSize: "0.75rem", color: "#B3261E", mt: -1 }}>{dateError}</Typography>}
-          <Box>
-            {label("Prioritas")}
-            <Select fullWidth size="small" value={form.priority} onChange={(e) => set("priority", e.target.value as Form["priority"])} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
-              {PRIORITIES.map((p) => (
-                <MenuItem key={p.value} value={p.value}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: p.color }} />
-                    {p.label}
-                  </Box>
-                </MenuItem>
-              ))}
-            </Select>
-          </Box>
-        </Box>
-      </Box>
-      </SwapIn>
-      </AutoHeight>
       </Box>
 
       {/* Footer */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 3, py: 1.5, borderTop: "1px solid #E0E3E7", position: "sticky", bottom: 0, bgcolor: "#fff" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 3, py: 1.25, borderTop: "1px solid #E0E3E7", bgcolor: "#fff", flexShrink: 0 }}>
         {live &&
           (confirmDelete ? (
             <>
@@ -700,6 +804,83 @@ export function TaskDialog({
   );
 }
 
+/** One property line: icon + label on the left, the value (a pill) on the right. */
+function PropRow({ icon, label, children }: { icon: React.ReactElement<{ sx?: object }>; label: string; children: React.ReactNode }) {
+  return (
+    <Box sx={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr)", alignItems: "center", minHeight: 40 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, color: "#5F6368", fontSize: "0.8125rem", "& svg": { fontSize: 18, color: "#80868B" } }}>
+        {icon}
+        {label}
+      </Box>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", minWidth: 0 }}>{children}</Box>
+    </Box>
+  );
+}
+
+/** A Select that looks like a pill (status / people / project / priority). */
+function pillSx(bg: string, color: string, outlined = false, filled = true) {
+  return {
+    minWidth: 0,
+    maxWidth: "100%",
+    "& .MuiSelect-select": {
+      display: "inline-flex !important",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 0.75,
+      minHeight: "0 !important",
+      py: "4px",
+      pl: filled && outlined ? 0.5 : 1.25,
+      pr: "28px !important",
+      borderRadius: "9999px",
+      bgcolor: bg,
+      color,
+      border: outlined ? "1px solid #E0E3E7" : "1px solid transparent",
+      fontSize: "0.8125rem",
+      fontWeight: 500,
+      lineHeight: "20px",
+      transition: "filter 150ms, border-color 150ms",
+    },
+    "&:hover .MuiSelect-select": { filter: "brightness(0.97)", borderColor: outlined ? "#C4C7C5" : "transparent" },
+    "& .MuiSelect-icon": { right: 6, fontSize: 18, color },
+    "&.Mui-focused .MuiSelect-select": { boxShadow: "0 0 0 2px #A8C7FA" },
+  } as const;
+}
+
+/** A native date input styled as a pill. */
+function DatePill({ label, value, min, max, onChange, strong, error }: { label: string; value: string | null; min?: string | null; max?: string | null; onChange: (v: string | null) => void; strong?: boolean; error?: boolean }) {
+  return (
+    <Box
+      component="input"
+      type="date"
+      aria-label={label}
+      title={label}
+      value={value ?? ""}
+      min={min ?? undefined}
+      max={max ?? undefined}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value || null)}
+      sx={{
+        height: 30,
+        px: 1.25,
+        border: "1px solid",
+        borderColor: error ? "#B3261E" : strong && value ? "#FEF0DB" : "#E0E3E7",
+        bgcolor: strong && value ? "#FEF0DB" : "#fff",
+        color: strong && value ? "#B06000" : value ? "#1F1F1F" : "#80868B",
+        borderRadius: "9999px",
+        fontFamily: "inherit",
+        fontSize: "0.8125rem",
+        fontWeight: strong ? 500 : 400,
+        outline: "none",
+        cursor: "pointer",
+        "&:focus-visible": { boxShadow: "0 0 0 2px #A8C7FA" },
+        "&::-webkit-calendar-picker-indicator": { opacity: 0.55, cursor: "pointer", ml: 0.5 },
+      }}
+    />
+  );
+}
+
+function memberOf(email: string | null, ctx: TasksCtx) {
+  return email ? ctx.members.find((x) => x.email === email) : undefined;
+}
 
 function authorName(email: string | null, ctx: TasksCtx): string {
   if (!email) return "Seseorang";
