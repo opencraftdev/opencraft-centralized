@@ -135,7 +135,7 @@ function Card({ task: t, ctx, dragging, onDragStart, onDragEnd }: { task: Task; 
       {/* People · priority */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         <AvatarStack ids={[t.assignee_id, ...t.helper_ids]} members={ctx.memberById} size={24} />
-        <CommentCount count={ctx.commentCount(t.id)} />
+        <CommentCount count={ctx.commentTotal(t.id)} />
         <Box sx={{ flex: 1 }} />
         <PriorityText priority={t.priority} />
       </Box>

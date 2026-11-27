@@ -49,8 +49,10 @@ export interface TasksCtx {
   create: (defaults: Partial<TaskInput>) => void;
   patch: (t: Task, p: Partial<TaskInput>) => void;
   openTeam: (tab?: "members" | "projects") => void;
-  /** Number of comments on a task (0 when none). */
+  /** Number of comments on a task itself (0 when none). */
   commentCount: (id: string) => number;
+  /** Comments on a task plus all of its subtasks (for cards that stand for the whole task). */
+  commentTotal: (id: string) => number;
 }
 
 const VIEWS: { value: View; label: string; icon: React.ReactNode }[] = [
@@ -194,6 +196,13 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
     patch,
     openTeam: (tab = "members") => setTeamOpen(tab),
     commentCount: (id) => data.commentCounts?.[id] ?? 0,
+    commentTotal: function total(id: string, seen = new Set<string>()): number {
+      if (seen.has(id)) return 0;
+      seen.add(id);
+      let n = data.commentCounts?.[id] ?? 0;
+      for (const c of childrenOf.get(id) ?? []) n += total(c.id, seen);
+      return n;
+    },
   };
 
   // Summary numbers (top-level and subtasks alike, respecting the person/project filter but not "hide done").
