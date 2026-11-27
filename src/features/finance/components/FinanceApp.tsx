@@ -14,8 +14,10 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import { toastError } from "@/components/ui/Toast";
 import { EASE_OUT, SPRING } from "@/components/ui/motion";
-import { listEntries } from "../api";
-import { KIND_META, MONTHS, formatDate, formatIDR, type EntryKind, type FinanceEntry } from "../types";
+import { listEntries, listMembers } from "../api";
+import { AvatarStack } from "@/features/tasks/components/bits";
+import type { Member } from "@/features/tasks/types";
+import { KIND_META, MONTHS, PIC_LABEL, formatDate, formatIDR, type EntryKind, type FinanceEntry } from "../types";
 import { EntryDialog } from "./EntryDialog";
 
 // Finance (docs/FINANCE.md), in the style of Task Management: one white sheet, plain text, no boxes.
@@ -49,6 +51,11 @@ export function FinanceApp() {
   const [view, setView] = useState<View>("expense");
   const [q, setQ] = useState("");
   const [entries, setEntries] = useState<FinanceEntry[] | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  useEffect(() => {
+    listMembers().then(setMembers, () => {});
+  }, []);
+  const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const [editing, setEditing] = useState<{ entry: FinanceEntry | null; kind: EntryKind } | null>(null);
 
   useEffect(() => {
@@ -206,6 +213,7 @@ export function FinanceApp() {
                 monthLabel={`${MONTHS[month]} ${year}`}
                 rows={monthRows.filter((e) => e.kind === view)}
                 q={q}
+                memberById={memberById}
                 onAdd={() => add(view as EntryKind)}
                 onEdit={(entry) => setEditing({ entry, kind: entry.kind })}
               />
@@ -215,7 +223,7 @@ export function FinanceApp() {
       </Box>
 
       {editing && (
-        <EntryDialog entry={editing.entry} kind={editing.kind} defaultDate={defaultDate} onClose={() => setEditing(null)} onSaved={load} />
+        <EntryDialog entry={editing.entry} kind={editing.kind} defaultDate={defaultDate} members={members} onClose={() => setEditing(null)} onSaved={load} />
       )}
     </Box>
   );
@@ -237,6 +245,7 @@ function Ledger({
   monthLabel,
   rows,
   q,
+  memberById,
   onAdd,
   onEdit,
 }: {
@@ -244,12 +253,15 @@ function Ledger({
   monthLabel: string;
   rows: FinanceEntry[];
   q: string;
+  memberById: Map<string, Member>;
   onAdd: () => void;
   onEdit: (e: FinanceEntry) => void;
 }) {
   const s = q.trim().toLowerCase();
   const shown = s
-    ? rows.filter((r) => [r.description, r.category, r.note].some((x) => x.toLowerCase().includes(s)))
+    ? rows.filter((r) =>
+        [r.description, r.category, r.note, ...r.pic_ids.map((id) => memberById.get(id)?.name ?? "")].some((x) => x.toLowerCase().includes(s)),
+      )
     : rows;
   const label = KIND_META[kind].label.toLowerCase();
 
@@ -258,6 +270,7 @@ function Ledger({
       <Box sx={{ display: "flex", gap: 2, ...headSx }}>
         <Box sx={{ width: 84, flexShrink: 0 }}>Tanggal</Box>
         <Box sx={{ flex: 1 }}>Keterangan</Box>
+        <Box sx={{ width: { xs: 64, sm: 120 }, flexShrink: 0 }}>{PIC_LABEL[kind]}</Box>
         <Box sx={{ flex: 1, display: { xs: "none", md: "block" } }}>Catatan</Box>
         <Box sx={{ width: 130, textAlign: "right", flexShrink: 0 }}>Jumlah</Box>
       </Box>
@@ -298,6 +311,20 @@ function Ledger({
               {r.description}
             </Typography>
             <Typography sx={{ fontSize: "0.75rem", color: "#5F6368" }}>{r.category}</Typography>
+          </Box>
+          <Box sx={{ width: { xs: 64, sm: 120 }, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+            {r.pic_ids.length > 0 ? (
+              <>
+                <AvatarStack ids={r.pic_ids} members={memberById} size={22} />
+                {r.pic_ids.length === 1 && (
+                  <Typography sx={{ display: { xs: "none", sm: "block" }, fontSize: "0.8125rem", color: "#444746", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {memberById.get(r.pic_ids[0])?.name}
+                  </Typography>
+                )}
+              </>
+            ) : (
+              <Typography sx={{ fontSize: "0.8125rem", color: "#9AA0A6" }}>—</Typography>
+            )}
           </Box>
           <Typography sx={{ flex: 1, minWidth: 0, display: { xs: "none", md: "block" }, fontSize: "0.8125rem", color: "#5F6368", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {r.note}

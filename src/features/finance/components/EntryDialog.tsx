@@ -11,23 +11,29 @@ import TextField from "@mui/material/TextField";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
+import CheckRounded from "@mui/icons-material/CheckRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
+import { useAccount } from "@/features/accounts/account";
+import { MemberAvatar } from "@/features/tasks/components/bits";
+import type { Member } from "@/features/tasks/types";
 import { createEntry, deleteEntry, updateEntry } from "../api";
-import { CATEGORIES, KIND_META, formatIDR, type EntryKind, type FinanceEntry } from "../types";
+import { CATEGORIES, KIND_META, PIC_LABEL, formatIDR, type EntryKind, type FinanceEntry } from "../types";
 
 // Add / edit one row of the book: Tanggal · Keterangan · Kategori · Jumlah · Catatan (like the spreadsheet).
 export function EntryDialog({
   entry,
   kind: initialKind,
   defaultDate,
+  members,
   onClose,
   onSaved,
 }: {
   entry: FinanceEntry | null; // null = new
   kind: EntryKind;
   defaultDate: string;
+  members: Member[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -37,6 +43,10 @@ export function EntryDialog({
   const [category, setCategory] = useState(entry?.category ?? "");
   const [amount, setAmount] = useState(entry ? String(entry.amount) : "");
   const [note, setNote] = useState(entry?.note ?? "");
+  const { me } = useAccount();
+  // New rows: the PIC defaults to the person logged in.
+  const [pics, setPics] = useState<string[]>(entry?.pic_ids ?? (me ? [me.id] : []));
+  const togglePic = (id: string) => setPics((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -49,7 +59,7 @@ export function EntryDialog({
   const save = async () => {
     setSaving(true);
     try {
-      const input = { kind, entry_date: date, description: description.trim(), category: categoryValue, amount: amountNum, note: note.trim() };
+      const input = { kind, entry_date: date, description: description.trim(), category: categoryValue, amount: amountNum, note: note.trim(), pic_ids: pics };
       if (entry) await updateEntry(entry.id, input);
       else await createEntry(input);
       toastSuccess(entry ? "Tersimpan" : `${KIND_META[kind].label} ditambahkan`);
@@ -128,6 +138,53 @@ export function EntryDialog({
           onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
           helperText={amountNum ? formatIDR(amountNum) : " "}
         />
+        <Box>
+          <Typography sx={{ fontSize: "0.75rem", color: "#5F6368", mb: 0.75 }}>
+            {PIC_LABEL[kind]} <Box component="span" sx={{ color: "#9AA0A6" }}>(bisa lebih dari satu)</Box>
+          </Typography>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+            {members.map((m) => {
+              const on = pics.includes(m.id);
+              return (
+                <Box
+                  key={m.id}
+                  component="button"
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => togglePic(m.id)}
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 0.75,
+                    height: 32,
+                    pl: 0.5,
+                    pr: 1.25,
+                    borderRadius: "9999px",
+                    border: "1px solid",
+                    borderColor: on ? "#0B57D0" : "#C4C7C5",
+                    bgcolor: on ? "#D3E3FD" : "#fff",
+                    color: on ? "#041E49" : "#444746",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: "0.8125rem",
+                    fontWeight: on ? 500 : 400,
+                    transition: "background-color 150ms, border-color 150ms",
+                  }}
+                >
+                  {on ? (
+                    <Box component="span" sx={{ width: 22, height: 22, borderRadius: "50%", bgcolor: "#0B57D0", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                      <CheckRounded sx={{ fontSize: 16 }} />
+                    </Box>
+                  ) : (
+                    <MemberAvatar member={m} size={22} />
+                  )}
+                  {m.name}
+                </Box>
+              );
+            })}
+            {members.length === 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#9AA0A6" }}>Memuat anggota…</Typography>}
+          </Box>
+        </Box>
         <TextField label="Catatan" size="small" multiline minRows={1} maxRows={4} value={note} onChange={(e) => setNote(e.target.value)} />
       </Box>
 

@@ -10,11 +10,13 @@ export interface FinanceEntry {
   category: string;
   amount: number; // whole rupiah
   note: string;
+  /** Who paid (expense) / received (income): task_members ids, several allowed. */
+  pic_ids: string[];
   created_by: string | null;
   created_at: string;
 }
 
-export type EntryInput = Pick<FinanceEntry, "kind" | "entry_date" | "description" | "category" | "amount" | "note">;
+export type EntryInput = Pick<FinanceEntry, "kind" | "entry_date" | "description" | "category" | "amount" | "note" | "pic_ids">;
 
 // Categories from the team's spreadsheet ("Kategori" dropdown); income has its own list.
 export const CATEGORIES: Record<EntryKind, string[]> = {
@@ -26,6 +28,9 @@ export const KIND_META: Record<EntryKind, { label: string; color: string; bg: st
   income: { label: "Pemasukan", color: "#188038", bg: "#E6F4EA" },
   expense: { label: "Pengeluaran", color: "#B3261E", bg: "#FCE8E6" },
 };
+
+/** PIC label per kind. */
+export const PIC_LABEL: Record<EntryKind, string> = { expense: "Dibayar oleh", income: "Diterima oleh" };
 
 export const MONTHS = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
