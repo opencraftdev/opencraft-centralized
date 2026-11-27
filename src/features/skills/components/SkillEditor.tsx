@@ -8,9 +8,8 @@ import Dialog from "@mui/material/Dialog";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
 import Switch from "@mui/material/Switch";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import CloseRounded from "@mui/icons-material/CloseRounded";
@@ -31,6 +30,25 @@ const slugify = (s: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 63);
+
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
+const labelSx = { fontSize: "0.75rem", fontWeight: 500, color: "#444746" } as const;
+const fieldSx = {
+  "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: "0.875rem" },
+  "& .MuiFormHelperText-root": { mx: 0.25, fontSize: "0.7188rem" },
+} as const;
+
+/** A label above its field (not floating), so long values never collide with it. */
+function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+  return (
+    <Box>
+      <Box component="label" htmlFor={htmlFor} sx={{ display: "block", mb: 0.75, ...labelSx }}>
+        {label}
+      </Box>
+      {children}
+    </Box>
+  );
+}
 
 const STARTER = `# Judul skill
 
@@ -118,7 +136,7 @@ export function SkillEditor({
       fullScreen={fullScreen}
       fullWidth
       maxWidth="md"
-      slotProps={{ paper: { sx: { borderRadius: fullScreen ? 0 : "16px", height: fullScreen ? "100%" : "min(860px, 92vh)" } } }}
+      slotProps={{ paper: { sx: { borderRadius: fullScreen ? 0 : "20px", height: fullScreen ? "100%" : "min(860px, 92vh)" } } }}
     >
       <Box
         component="form"
@@ -129,109 +147,158 @@ export function SkillEditor({
         }}
         sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: { xs: 1, sm: 3 }, pl: { xs: 2, sm: 3 }, minHeight: 64, borderBottom: "1px solid #E0E3E7", flexShrink: 0 }}>
-          <Typography component="h2" sx={{ flex: 1, minWidth: 0, fontSize: "1.25rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {isNew ? "Skill baru" : skill.title}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, pr: 1.5, pl: { xs: 2, sm: 3 }, pt: 1.5, pb: 1, flexShrink: 0 }}>
+          <Typography component="h2" sx={{ flex: 1, minWidth: 0, fontSize: "1.125rem", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {isNew ? "Skill baru" : title.trim() || skill.title}
           </Typography>
-          <IconButton onClick={close} aria-label="Tutup">
+          <IconButton onClick={close} aria-label="Tutup" sx={{ color: "#444746" }}>
             <CloseRounded />
           </IconButton>
         </Box>
 
-        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: { xs: 2, sm: 3 }, py: 2.5, display: "flex", flexDirection: "column", gap: 2.25 }}>
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-            <TextField
-              label="Judul"
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                if (isNew && !nameTouched) setName(slugify(e.target.value));
-              }}
-              error={tried && Boolean(titleError)}
-              helperText={(tried && titleError) || "Nama yang dibaca orang, mis. “Dokumen OpenCraft”"}
-              autoFocus={isNew}
-              fullWidth
-            />
-            <TextField
-              label="Nama"
-              value={name}
-              onChange={(e) => {
-                setNameTouched(true);
-                setName(e.target.value.toLowerCase().replace(/\s+/g, "-"));
-              }}
-              disabled={!isNew}
-              error={isNew && (tried || Boolean(name)) && Boolean(nameError)}
-              helperText={
-                isNew
-                  ? (tried || name ? nameError : null) ?? `Dipakai di chat sebagai /${name || "nama-skill"} · tidak bisa diubah nanti`
-                  : `Dipakai di chat sebagai /${name}`
-              }
-              slotProps={{ htmlInput: { spellCheck: false, autoCapitalize: "none", style: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" } } }}
-              fullWidth
-            />
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: { xs: 2, sm: 3 }, pt: 0.5, pb: 2, display: "flex", flexDirection: "column", gap: 1.75 }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.75 }}>
+            <Field label="Judul" htmlFor="skill-title">
+              <TextField
+                id="skill-title"
+                size="small"
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  if (isNew && !nameTouched) setName(slugify(e.target.value));
+                }}
+                error={tried && Boolean(titleError)}
+                helperText={(tried && titleError) || "Nama yang dibaca orang."}
+                autoFocus={isNew}
+                fullWidth
+                sx={fieldSx}
+              />
+            </Field>
+            <Field label="Nama perintah" htmlFor="skill-name">
+              <TextField
+                id="skill-name"
+                size="small"
+                value={isNew ? name : `/${name}`}
+                onChange={(e) => {
+                  setNameTouched(true);
+                  setName(e.target.value.toLowerCase().replace(/\s+/g, "-"));
+                }}
+                slotProps={{
+                  input: { readOnly: !isNew },
+                  htmlInput: { spellCheck: false, autoCapitalize: "none", style: { fontFamily: MONO, fontSize: "0.8125rem" } },
+                }}
+                error={isNew && (tried || Boolean(name)) && Boolean(nameError)}
+                helperText={
+                  isNew
+                    ? (tried || name ? nameError : null) ?? `Dipanggil di chat dengan /${name || "nama-skill"} · tidak bisa diubah nanti`
+                    : `Dipanggil di chat dengan /${name}`
+                }
+                fullWidth
+                sx={{ ...fieldSx, ...(isNew ? {} : { "& .MuiOutlinedInput-root": { ...fieldSx["& .MuiOutlinedInput-root"], bgcolor: "#F8FAFD", color: "#5F6368" } }) }}
+              />
+            </Field>
           </Box>
-          <TextField
-            label="Deskripsi"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            error={tried && Boolean(descError)}
-            helperText={(tried && descError) || "Satu kalimat: kapan AI memakai skill ini."}
-            multiline
-            minRows={2}
-            maxRows={4}
-            fullWidth
-          />
+          <Field label="Deskripsi" htmlFor="skill-desc">
+            <TextField
+              id="skill-desc"
+              size="small"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              error={tried && Boolean(descError)}
+              helperText={(tried && descError) || "Satu kalimat: kapan AI memakai skill ini."}
+              multiline
+              minRows={1}
+              maxRows={5}
+              fullWidth
+              sx={fieldSx}
+            />
+          </Field>
 
-          <Box sx={{ display: "flex", flexDirection: "column", minHeight: 320, flex: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, borderBottom: "1px solid #E0E3E7" }}>
-              <Typography sx={{ fontSize: "0.875rem", fontWeight: 500, color: "#444746" }}>Instruksi</Typography>
-              <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ minHeight: 40, "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontSize: "0.875rem" } }}>
-                <Tab value="write" label="Tulis" />
-                <Tab value="preview" label="Pratinjau" />
-              </Tabs>
+          <Box sx={{ display: "flex", flexDirection: "column", minHeight: 300, flex: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 0.75 }}>
+              <Typography component="span" sx={labelSx}>
+                Instruksi
+              </Typography>
+              <Box role="tablist" aria-label="Mode instruksi" sx={{ display: "inline-flex", bgcolor: "#F0F4F9", borderRadius: "9999px", p: "3px" }}>
+                {(["write", "preview"] as const).map((v) => (
+                  <Box
+                    key={v}
+                    component="button"
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === v}
+                    onClick={() => setTab(v)}
+                    sx={{
+                      border: "none",
+                      fontFamily: "inherit",
+                      fontSize: "0.8125rem",
+                      px: 1.75,
+                      py: 0.5,
+                      borderRadius: "9999px",
+                      cursor: "pointer",
+                      bgcolor: tab === v ? "#fff" : "transparent",
+                      color: tab === v ? "#0B57D0" : "#444746",
+                      fontWeight: tab === v ? 500 : 400,
+                      boxShadow: tab === v ? "0 1px 2px rgba(60,64,67,.2)" : "none",
+                      transition: "background-color 200ms, color 200ms, box-shadow 200ms",
+                      "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: 1 },
+                    }}
+                  >
+                    {v === "write" ? "Tulis" : "Pratinjau"}
+                  </Box>
+                ))}
+              </Box>
             </Box>
             {tab === "write" ? (
-              <TextField
+              <Box
+                component="textarea"
                 value={body}
-                onChange={(e) => setBody(e.target.value)}
-                multiline
-                minRows={12}
-                fullWidth
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setBody(e.target.value)}
                 placeholder="Instruksi dalam Markdown…"
-                slotProps={{
-                  htmlInput: { "aria-label": "Instruksi (Markdown)", spellCheck: false },
-                }}
+                aria-label="Instruksi (Markdown)"
+                spellCheck={false}
                 sx={{
-                  mt: 1.5,
-                  "& textarea": { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.8125rem", lineHeight: 1.6 },
+                  flex: 1,
+                  minHeight: 260,
+                  width: "100%",
+                  resize: "none",
+                  border: "1px solid #E3E3E3",
+                  borderRadius: "12px",
+                  bgcolor: "#F8FAFD",
+                  color: "#1F1F1F",
+                  fontFamily: MONO,
+                  fontSize: "0.8125rem",
+                  lineHeight: 1.7,
+                  px: 2,
+                  py: 1.5,
+                  outline: "none",
+                  transition: "border-color 150ms, background-color 150ms",
+                  "&:focus": { borderColor: "#0B57D0", bgcolor: "#fff" },
                 }}
               />
             ) : (
-              <Box sx={{ mt: 1.5, p: 2, border: "1px solid #E0E3E7", borderRadius: "8px", minHeight: 280 }}>
+              <Box sx={{ flex: 1, minHeight: 260, px: 2, py: 1.5, border: "1px solid #E3E3E3", borderRadius: "12px", overflowY: "auto", fontSize: "0.875rem" }}>
                 {body.trim() ? <ChatMarkdown text={body} /> : <Typography sx={{ color: "#9AA0A6", fontSize: "0.875rem" }}>Belum ada instruksi.</Typography>}
               </Box>
             )}
           </Box>
 
-          <FormControlLabel
-            control={<Switch checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />}
-            label={
-              <Box>
-                <Typography sx={{ fontSize: "0.9375rem" }}>Aktif</Typography>
-                <Typography sx={{ fontSize: "0.75rem", color: "#5F6368" }}>Skill nonaktif tidak dipakai AI dan tidak muncul di menu “/”.</Typography>
-              </Box>
-            }
-            sx={{ alignItems: "flex-start", ml: 0, gap: 1, "& .MuiSwitch-root": { mt: -0.5 } }}
-          />
           <Typography sx={{ display: "flex", alignItems: "center", gap: 0.75, fontSize: "0.75rem", color: "#5F6368" }}>
-            <InfoRounded sx={{ fontSize: 16 }} />
+            <InfoRounded sx={{ fontSize: 15 }} />
             Perubahan sampai ke agen chat dalam ±30 detik.
           </Typography>
         </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: { xs: 2, sm: 3 }, py: 1.5, borderTop: "1px solid #E0E3E7", flexShrink: 0 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: { xs: 2, sm: 3 }, py: 1.5, borderTop: "1px solid #EEF1F4", flexShrink: 0 }}>
+          <Tooltip title="Skill nonaktif tidak dipakai AI dan tidak muncul di menu “/”.">
+            <FormControlLabel
+              control={<Switch size="small" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />}
+              label="Aktif"
+              sx={{ ml: 0, mr: 0.5, gap: 0.75, "& .MuiFormControlLabel-label": { fontSize: "0.875rem" } }}
+            />
+          </Tooltip>
           {!isNew && (
-            <Button color="error" onClick={() => setConfirmDelete(true)} disabled={saving} sx={{ borderRadius: "9999px" }}>
+            <Button color="error" onClick={() => setConfirmDelete(true)} disabled={saving} sx={{ borderRadius: "9999px", textTransform: "none", fontSize: "0.875rem" }}>
               Hapus
             </Button>
           )}
