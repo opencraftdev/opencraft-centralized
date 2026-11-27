@@ -47,8 +47,9 @@ export async function listComments(taskId: string): Promise<TaskComment[]> {
   ) as TaskComment[];
 }
 
-export async function addComment(taskId: string, body: string): Promise<void> {
-  check(await sb().from("task_comments").insert({ task_id: taskId, body }));
+export async function addComment(taskId: string, body: string): Promise<string> {
+  const row = check(await sb().from("task_comments").insert({ task_id: taskId, body }).select("id").single()) as { id: string };
+  return row.id;
 }
 
 export async function deleteComment(id: string): Promise<void> {

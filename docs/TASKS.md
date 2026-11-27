@@ -36,3 +36,15 @@ only creates what is missing and seeds the plan from 22 November 2026 only while
 - Task dialog — title, notes, checklist (add / tick / delete / open item), comments; status, PIC, helpers, project,
   start, deadline, priority, milestone, "kalau perlu". Delete asks to confirm (cascades to checklist items).
 - "Tim & project" dialog — add/edit members and projects.
+
+## Lampiran (attachments) & links
+
+- A task and each comment can carry files (images, videos, PDFs, anything). They are uploaded straight to Google Drive
+  through `/api/drive/upload`, into the dashboard folder **"Task Management"** (created on first use), as ordinary
+  `drive_files` rows tagged in `metadata`: `{task_id}` for a file on the task, `{task_id, comment_id}` for a file on a
+  comment (`src/features/tasks/attachments.ts`). No extra table or migration. They also show in `/documents`.
+- Task dialog: "Lampiran" section (button or drag & drop), thumbnails for images/videos, click → the Drive preview
+  dialog; the × moves the file to the Drive trash (restorable from Document → Sampah). Comment composer: paperclip or
+  drop to queue files; they upload after the comment is posted (a files-only comment is stored with body "Lampiran").
+- URLs in notes ("Catatan") and comments become links (`src/components/ui/Linkify.tsx`, new tab). Notes show as text
+  with links; "Ubah" or a click switches to editing.
