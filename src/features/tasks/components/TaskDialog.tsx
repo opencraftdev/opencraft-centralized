@@ -25,6 +25,13 @@ import FolderRounded from "@mui/icons-material/FolderRounded";
 import EventRounded from "@mui/icons-material/EventRounded";
 import FlagRounded from "@mui/icons-material/FlagRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
+import EditRounded from "@mui/icons-material/EditRounded";
+import CheckRounded from "@mui/icons-material/CheckRounded";
+import ImageRounded from "@mui/icons-material/ImageRounded";
+import VideocamRounded from "@mui/icons-material/VideocamRounded";
+import DescriptionRounded from "@mui/icons-material/DescriptionRounded";
+import AttachFileRounded from "@mui/icons-material/AttachFileRounded";
+import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
 import { useAccount } from "@/features/accounts/account";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { formatRelative } from "@/features/drive/format";
@@ -124,7 +131,7 @@ export function TaskDialog({
     setFiles([]);
     setPending([]);
     setUploading(null);
-    setEditingNote(!task || !task.description.trim());
+    setEditingNote(!task);
     if (task) {
       listComments(task.id).then(setComments).catch(() => setComments([]));
       listAttachments(task.id).then(setFiles).catch(() => setFiles([]));
@@ -492,11 +499,13 @@ export function TaskDialog({
                 <PropRow icon={<EventRounded />} label="Tanggal">
                   {!form.is_milestone && (
                     <>
-                      <DatePill label="Mulai" value={form.start_date} max={form.due_date} onChange={(v) => set("start_date", v)} />
-                      <ArrowForwardRounded sx={{ fontSize: 16, color: "#80868B" }} />
+                      <Box component="span" sx={dateLabelSx}>Start Date</Box>
+                      <DatePill label="Start Date" value={form.start_date} max={form.due_date} onChange={(v) => set("start_date", v)} />
+                      <ArrowForwardRounded sx={{ fontSize: 16, color: "#80868B", mx: 0.25 }} />
                     </>
                   )}
-                  <DatePill label="Deadline" value={form.due_date} min={form.is_milestone ? null : form.start_date} onChange={(v) => set("due_date", v)} strong error={!!dateError} />
+                  <Box component="span" sx={dateLabelSx}>End Date</Box>
+                  <DatePill label="End Date" value={form.due_date} min={form.is_milestone ? null : form.start_date} onChange={(v) => set("due_date", v)} strong error={!!dateError} />
                 </PropRow>
                 {dateError && <Typography sx={{ fontSize: "0.75rem", color: "#B3261E", pl: "120px", mt: -0.5 }}>{dateError}</Typography>}
 
@@ -526,52 +535,69 @@ export function TaskDialog({
                 </PropRow>
               </Box>
 
-              {/* Brief: text + its files in one box (drop files anywhere on it) */}
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                {label(`Brief${taskFiles.length ? ` · ${taskFiles.length} lampiran` : ""}`)}
+              {/* Brief: plain text (no box) that expands like ClickUp; "Edit Brief" opens the editor; files attach below */}
+              <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#5F6368" }}>
+                  Brief{taskFiles.length ? ` · ${taskFiles.length} lampiran` : ""}
+                </Typography>
                 <Box sx={{ flex: 1 }} />
-                {!editingNote && (
-                  <Button size="small" onClick={() => setEditingNote(true)} sx={{ borderRadius: "9999px", minWidth: 0, py: 0, mb: 0.5, fontSize: "0.75rem" }}>
-                    Ubah
-                  </Button>
-                )}
+                <Button
+                  size="small"
+                  startIcon={editingNote ? <CheckRounded sx={{ fontSize: "16px !important" }} /> : <EditRounded sx={{ fontSize: "15px !important" }} />}
+                  onClick={() => setEditingNote((v) => !v)}
+                  sx={{ borderRadius: "9999px", py: 0.25, px: 1.25, fontSize: "0.75rem", fontWeight: 500, color: "#0B57D0" }}
+                >
+                  {editingNote ? "Selesai" : "Edit Brief"}
+                </Button>
               </Box>
               <DropZone onDrop={(l) => void upload(l)} disabled={!live || !!uploading}>
-                <Box sx={{ border: "1px solid #DADCE0", borderRadius: "12px", transition: "border-color 150ms, box-shadow 150ms", "&:focus-within": { borderColor: "#0B57D0", boxShadow: "0 0 0 1px #0B57D0" } }}>
+                <Box>
                   {editingNote ? (
                     <InputBase
                       fullWidth
                       multiline
                       minRows={3}
-                      autoFocus={!!live && !!form.description}
+                      autoFocus
                       value={form.description}
                       onChange={(e) => set("description", e.target.value)}
                       placeholder="Tulis brief: tujuan, detail, link, atau hasil yang diharapkan…"
-                      sx={{ px: 1.75, pt: 1.25, pb: 0.5, fontSize: "0.875rem", alignItems: "flex-start" }}
+                      sx={{ px: 1.5, py: 1, fontSize: "0.875rem", lineHeight: 1.6, alignItems: "flex-start", bgcolor: "#F8FAFD", borderRadius: "10px", transition: "box-shadow 150ms", "&.Mui-focused": { boxShadow: "inset 0 0 0 1px #A8C7FA" } }}
                       inputProps={{ "aria-label": "Brief" }}
                     />
+                  ) : form.description.trim() ? (
+                    <BriefText text={form.description} onEdit={() => setEditingNote(true)} />
                   ) : (
-                    <Box onClick={() => setEditingNote(true)} sx={{ px: 1.75, pt: 1.25, pb: 0.75, minHeight: 64, fontSize: "0.875rem", color: "#1F1F1F", whiteSpace: "pre-wrap", overflowWrap: "anywhere", cursor: "text" }}>
-                      <Linkify text={form.description} />
+                    <Box component="button" type="button" onClick={() => setEditingNote(true)} sx={{ display: "block", width: "100%", textAlign: "left", border: "none", bgcolor: "transparent", fontFamily: "inherit", p: 0, py: 0.5, fontSize: "0.875rem", color: "#9AA0A6", cursor: "text" }}>
+                      Belum ada brief. Klik untuk menulis tujuan, detail, atau hasil yang diharapkan.
                     </Box>
                   )}
                   {taskFiles.length > 0 && (
-                    <Box sx={{ px: 1.5, pb: 1 }}>
+                    <Box sx={{ pt: 1.25 }}>
                       <AttachmentGrid files={taskFiles} size={72} onOpen={setPreview} onRemove={(f) => void removeFile(f)} />
                     </Box>
                   )}
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 0.5, py: 0.25, borderTop: "1px solid #F1F3F4" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, mt: 0.75, ml: -1 }}>
                     {live ? (
                       <>
-                        <AttachPicker variant="icon" onPick={(l) => void upload(l)} disabled={!!uploading} />
-                        <Typography sx={{ fontSize: "0.75rem", color: uploading ? "#0B57D0" : "#80868B" }}>
-                          {uploading
-                            ? `Mengunggah ${Math.min(uploading.done + 1, uploading.total)} dari ${uploading.total} file…`
-                            : "Lampirkan file, gambar, atau video — atau tarik ke kotak ini"}
-                        </Typography>
+                        <AttachPicker variant="icon" accept="image/*" label="Lampirkan gambar" icon={<ImageRounded sx={{ fontSize: 20 }} />} onPick={(l) => void upload(l)} disabled={!!uploading} />
+                        <AttachPicker variant="icon" accept="video/*" label="Lampirkan video" icon={<VideocamRounded sx={{ fontSize: 20 }} />} onPick={(l) => void upload(l)} disabled={!!uploading} />
+                        <AttachPicker
+                          variant="icon"
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt"
+                          label="Lampirkan dokumen (PDF, Word, Excel, PPT)"
+                          icon={<DescriptionRounded sx={{ fontSize: 20 }} />}
+                          onPick={(l) => void upload(l)}
+                          disabled={!!uploading}
+                        />
+                        <AttachPicker variant="icon" label="Lampirkan file lain" icon={<AttachFileRounded sx={{ fontSize: 20 }} />} onPick={(l) => void upload(l)} disabled={!!uploading} />
+                        {uploading && (
+                          <Typography sx={{ fontSize: "0.75rem", color: "#0B57D0", ml: 0.5 }}>
+                            Mengunggah {Math.min(uploading.done + 1, uploading.total)} dari {uploading.total} file…
+                          </Typography>
+                        )}
                       </>
                     ) : (
-                      <Typography sx={{ fontSize: "0.75rem", color: "#80868B", px: 1, py: 0.75 }}>Buat tugasnya dulu, lalu file bisa dilampirkan di brief.</Typography>
+                      <Typography sx={{ fontSize: "0.75rem", color: "#80868B", pl: 1 }}>Buat tugasnya dulu, lalu file bisa dilampirkan.</Typography>
                     )}
                   </Box>
                 </Box>
@@ -844,6 +870,50 @@ function pillSx(bg: string, color: string, outlined = false, filled = true) {
     "& .MuiSelect-icon": { right: 6, fontSize: 18, color },
     "&.Mui-focused .MuiSelect-select": { boxShadow: "0 0 0 2px #A8C7FA" },
   } as const;
+}
+
+const dateLabelSx = { fontSize: "0.75rem", color: "#5F6368", whiteSpace: "nowrap" } as const;
+
+/** Brief in read mode: plain text, clamped to ~6 lines with a "Tampilkan semua" toggle (ClickUp-like). */
+function BriefText({ text, onEdit }: { text: string; onEdit: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [long, setLong] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) setLong(el.scrollHeight > el.clientHeight + 2 || open);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
+  return (
+    <Box>
+      <Box
+        ref={ref}
+        onDoubleClick={onEdit}
+        sx={{
+          fontSize: "0.875rem",
+          lineHeight: 1.6,
+          color: "#1F1F1F",
+          whiteSpace: "pre-wrap",
+          overflowWrap: "anywhere",
+          py: 0.25,
+          ...(open ? {} : { display: "-webkit-box", WebkitLineClamp: 6, WebkitBoxOrient: "vertical", overflow: "hidden" }),
+        }}
+      >
+        <Linkify text={text} />
+      </Box>
+      {long && (
+        <Box
+          component="button"
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, mt: 0.5, p: 0, border: "none", bgcolor: "transparent", fontFamily: "inherit", fontSize: "0.8125rem", fontWeight: 500, color: "#0B57D0", cursor: "pointer" }}
+        >
+          {open ? "Tampilkan lebih sedikit" : "Tampilkan semua"}
+          <ExpandMoreRounded sx={{ fontSize: 18, transform: open ? "rotate(180deg)" : "none", transition: "transform 200ms" }} />
+        </Box>
+      )}
+    </Box>
+  );
 }
 
 /** A native date input styled as a pill. */

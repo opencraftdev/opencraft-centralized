@@ -122,7 +122,21 @@ export function PendingFiles({ files, onRemove }: { files: File[]; onRemove: (i:
 }
 
 /** Hidden file input + trigger. `variant="button"` = labelled button, `"icon"` = paperclip icon. */
-export function AttachPicker({ onPick, variant = "button", disabled }: { onPick: (files: File[]) => void; variant?: "button" | "icon"; disabled?: boolean }) {
+export function AttachPicker({
+  onPick,
+  variant = "button",
+  disabled,
+  accept,
+  icon,
+  label = "Lampirkan file, gambar, atau video",
+}: {
+  onPick: (files: File[]) => void;
+  variant?: "button" | "icon";
+  disabled?: boolean;
+  accept?: string; // e.g. "image/*"
+  icon?: React.ReactNode; // the icon variant's glyph (default: paperclip)
+  label?: string; // tooltip / aria-label of the icon variant
+}) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
@@ -131,6 +145,7 @@ export function AttachPicker({ onPick, variant = "button", disabled }: { onPick:
         type="file"
         multiple
         hidden
+        accept={accept}
         onChange={(e) => {
           const list = Array.from(e.target.files ?? []);
           e.target.value = "";
@@ -138,10 +153,10 @@ export function AttachPicker({ onPick, variant = "button", disabled }: { onPick:
         }}
       />
       {variant === "icon" ? (
-        <Tooltip title="Lampirkan file, gambar, atau video">
-          <span>
-            <IconButton aria-label="Lampirkan file" disabled={disabled} onClick={() => input.current?.click()} sx={{ color: "#444746" }}>
-              <AttachFileRounded sx={{ fontSize: 20 }} />
+        <Tooltip title={label}>
+          <span style={{ display: "inline-flex" }}>
+            <IconButton aria-label={label} disabled={disabled} onClick={() => input.current?.click()} sx={{ color: "#444746" }}>
+              {icon ?? <AttachFileRounded sx={{ fontSize: 20 }} />}
             </IconButton>
           </span>
         </Tooltip>
