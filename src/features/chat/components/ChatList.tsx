@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
@@ -18,6 +18,12 @@ import EditRounded from "@mui/icons-material/EditRounded";
 import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import PushPinRounded from "@mui/icons-material/PushPinRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
+import LayersRounded from "@mui/icons-material/LayersRounded";
+import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
+import CreateNewFolderRounded from "@mui/icons-material/CreateNewFolderRounded";
+import DriveFileMoveRounded from "@mui/icons-material/DriveFileMoveRounded";
+import CheckRounded from "@mui/icons-material/CheckRounded";
+import Collapse from "@mui/material/Collapse";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
 import ViewSidebarRounded from "@mui/icons-material/ViewSidebarRounded";
@@ -26,6 +32,7 @@ import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import PersonAddRounded from "@mui/icons-material/PersonAddRounded";
 import { useAccount } from "@/features/accounts/account";
 import { participants, type ChatListItem, type ChatStatus } from "../types";
+import type { ChatGroup } from "../api";
 
 // Left pane of /chat (docs/CHAT.md → "UI"), styled like Gemini's sidebar (light): "Chat baru" row, search toggle,
 // "Terbaru" with single-line titles as pills; pinned first, then newest; ⋮ row menu.
@@ -38,19 +45,35 @@ export function ChatMenu({
   chat,
   onClose,
   onAction,
+  groups,
+  groupId,
+  onMove,
+  onNewGroup,
 }: {
   anchor: HTMLElement | null;
   chat: ChatListItem | null;
   onClose: () => void;
   onAction: (action: ChatAction, chat: ChatListItem) => void;
+  /** With these: a "Pindahkan ke grup" item (groups: the caller's folders; groupId: where this chat is now). */
+  groups?: ChatGroup[] | null;
+  groupId?: string | null;
+  onMove?: (chat: ChatListItem, groupId: string | null) => void;
+  onNewGroup?: (chat: ChatListItem) => void;
 }) {
   const { email } = useAccount();
+  const [moveMenu, setMoveMenu] = useState<{ anchor: HTMLElement; chat: ChatListItem } | null>(null);
+  const moveTo = (g: string | null) => {
+    const c = moveMenu?.chat;
+    setMoveMenu(null);
+    if (c && onMove) onMove(c, g);
+  };
   const owner = !chat || chat.owner_email === email;
   const act = (a: ChatAction) => {
     onClose();
     if (chat) onAction(a, chat);
   };
   return (
+    <>
     <Menu
       anchorEl={anchor}
       open={Boolean(anchor && chat)}
@@ -75,6 +98,19 @@ export function ChatMenu({
         </ListItemIcon>
         <ListItemText>Bagikan</ListItemText>
       </MenuItem>
+      {groups && onMove && (
+        <MenuItem
+          onClick={() => {
+            if (anchor && chat) setMoveMenu({ anchor, chat });
+            onClose();
+          }}
+        >
+          <ListItemIcon>
+            <DriveFileMoveRounded fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Pindahkan ke grup</ListItemText>
+        </MenuItem>
+      )}
       <Divider />
       <MenuItem onClick={() => act("delete")} sx={{ color: "#B3261E" }}>
         <ListItemIcon>
@@ -83,6 +119,45 @@ export function ChatMenu({
         <ListItemText>{owner ? "Hapus" : "Keluar dari chat"}</ListItemText>
       </MenuItem>
     </Menu>
+    <Menu
+      anchorEl={moveMenu?.anchor ?? null}
+      open={Boolean(moveMenu)}
+      onClose={() => setMoveMenu(null)}
+      slotProps={{ paper: { sx: { minWidth: 220, maxWidth: 300, borderRadius: "16px", py: 0.5, boxShadow: "0 1px 3px rgba(0,0,0,.15), 0 4px 8px 3px rgba(0,0,0,.08)" } } }}
+    >
+      <Typography sx={{ px: 2, pt: 0.75, pb: 0.5, fontSize: "0.75rem", fontWeight: 500, color: "#5F6368" }}>Pindahkan ke grup</Typography>
+      {(groups ?? []).map((g) => (
+        <MenuItem key={g.id} onClick={() => moveTo(g.id)} selected={groupId === g.id}>
+          <ListItemIcon>
+            <LayersRounded fontSize="small" />
+          </ListItemIcon>
+          <ListItemText slotProps={{ primary: { noWrap: true } }}>{g.name}</ListItemText>
+          {groupId === g.id && <CheckRounded fontSize="small" sx={{ ml: 1, color: "#0B57D0" }} />}
+        </MenuItem>
+      ))}
+      {groupId && (
+        <MenuItem onClick={() => moveTo(null)}>
+          <ListItemIcon>
+            <CloseRounded fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Keluarkan dari grup</ListItemText>
+        </MenuItem>
+      )}
+      <Divider />
+      <MenuItem
+        onClick={() => {
+          const c = moveMenu?.chat;
+          setMoveMenu(null);
+          if (c && onNewGroup) onNewGroup(c);
+        }}
+      >
+        <ListItemIcon>
+          <CreateNewFolderRounded fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Grup baru…</ListItemText>
+      </MenuItem>
+    </Menu>
+    </>
   );
 }
 
@@ -161,6 +236,15 @@ export function ChatNavButtons({
   );
 }
 
+const CLOSED_GROUPS_KEY = "chat:groups-closed";
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <Typography sx={{ px: 1.5, pt: 1, pb: 0.75, fontSize: "0.875rem", fontWeight: 500, color: "#444746" }}>{children}</Typography>;
+}
+function Empty({ children }: { children: React.ReactNode }) {
+  return <Typography sx={{ fontSize: "0.8125rem", color: "#5E5E5E", px: 1.5, py: 1 }}>{children}</Typography>;
+}
+
 const iconBtn = { color: "#444746", width: 40, height: 40, "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } } as const;
 
 export function ChatList({
@@ -173,6 +257,10 @@ export function ChatList({
   onCollapse,
   collapseLabel,
   popover,
+  groups = null,
+  placement = {},
+  onMove,
+  onGroupAction,
 }: {
   chats: ChatListItem[];
   activeId: string | null;
@@ -184,11 +272,36 @@ export function ChatList({
   collapseLabel?: string;
   /** Shown in the "Riwayat chat" popover: white, search open, no "Chat baru" row (the header has a + button). */
   popover?: boolean;
+  /** The caller's chat groups (null: not available, e.g. migration 030 not run) and chat id → group id. */
+  groups?: ChatGroup[] | null;
+  placement?: Record<string, string>;
+  onMove?: (chat: ChatListItem, groupId: string | null) => void;
+  /** "new" (optionally moving `chat` into it), "rename", "delete". */
+  onGroupAction?: (action: "new" | "rename" | "delete", group: ChatGroup | null, chat?: ChatListItem) => void;
 }) {
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(Boolean(popover));
   const [menu, setMenu] = useState<{ anchor: HTMLElement; chat: ChatListItem } | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
+  const [groupMenu, setGroupMenu] = useState<{ anchor: HTMLElement; group: ChatGroup } | null>(null);
+  const [closedGroups, setClosedGroups] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      setClosedGroups(JSON.parse(window.localStorage.getItem(CLOSED_GROUPS_KEY) ?? "[]"));
+    } catch {}
+  }, []);
+  const toggleGroup = (id: string) =>
+    setClosedGroups((l) => {
+      const next = l.includes(id) ? l.filter((x) => x !== id) : [...l, id];
+      try {
+        window.localStorage.setItem(CLOSED_GROUPS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  const grouping = groups !== null && Boolean(onMove);
+  const known = new Set((groups ?? []).map((g) => g.id));
+  const loose = chats.filter((c) => !grouping || !known.has(placement[c.id]));
+  const searchingNow = Boolean(query.trim());
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return q ? chats.filter((c) => c.title.toLowerCase().includes(q)) : chats;
@@ -204,12 +317,106 @@ export function ChatList({
     }
   };
 
+  const renderRow = (c: ChatListItem) => {
+        const active = c.id === activeId;
+        const menuOn = menu?.chat.id === c.id;
+        return (
+          <Box
+            key={c.id}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenu({ anchor: e.currentTarget as HTMLElement, chat: c });
+            }}
+            sx={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              height: 40,
+              borderRadius: "9999px",
+              bgcolor: active ? "#D3E3FD" : menuOn ? "rgba(68,71,70,0.08)" : "transparent",
+              "&:hover": { bgcolor: active ? "#D3E3FD" : "rgba(68,71,70,0.08)" },
+              "& .row-more": { display: { xs: "inline-flex", md: active || menuOn ? "inline-flex" : "none" } },
+              "&:hover .row-more, &:focus-within .row-more": { display: "inline-flex" },
+              "&:hover .row-dot, &:focus-within .row-dot": { display: { md: "none" } },
+            }}
+          >
+            <Box
+              component="button"
+              type="button"
+              aria-current={active ? "page" : undefined}
+              onClick={() => onSelect(c.id)}
+              onDoubleClick={() => onAction("rename", c)}
+              title={c.title}
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                pl: 1.5,
+                pr: 1,
+                border: "none",
+                bgcolor: "transparent",
+                fontFamily: "inherit",
+                textAlign: "left",
+                cursor: "pointer",
+                borderRadius: "9999px",
+                "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
+              }}
+            >
+              {c.pinned && <PushPinRounded aria-label="Disematkan" sx={{ fontSize: 14, color: active ? "#041E49" : "#444746", flexShrink: 0, transform: "rotate(45deg)" }} />}
+              <Typography
+                component="span"
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: "0.875rem",
+                  fontWeight: active ? 500 : 400,
+                  color: active ? "#041E49" : "#1F1F1F",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {c.title || "Chat baru"}
+              </Typography>
+              {participants(c).length > 1 && (
+                <Tooltip title={`Dibagikan · ${participants(c).length} orang`}>
+                  <GroupRounded aria-label="Chat bersama" sx={{ fontSize: 16, color: active ? "#041E49" : "#5E5E5E", flexShrink: 0 }} />
+                </Tooltip>
+              )}
+              <Box className="row-dot" component="span" sx={{ display: "inline-flex", pr: 0.75 }}>
+                <StatusDot status={c.status} />
+              </Box>
+            </Box>
+            <IconButton
+              className="row-more"
+              size="small"
+              aria-label={`Menu ${c.title}`}
+              aria-haspopup="menu"
+              onClick={(e) => setMenu({ anchor: e.currentTarget, chat: c })}
+              sx={{ mr: 0.5, width: 32, height: 32, color: active ? "#041E49" : "#444746", flexShrink: 0 }}
+            >
+              <MoreVertRounded sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Box>
+        );
+  };
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, bgcolor: popover ? "#fff" : "#F0F4F9" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 2, pr: 1, pt: 1, pb: popover ? 0.5 : 1, minHeight: popover ? 48 : 56 }}>
         <Typography component="h2" sx={{ flex: 1, fontSize: popover ? "1rem" : "1.25rem", fontWeight: popover ? 500 : 400, color: "#1F1F1F", letterSpacing: 0 }}>
           {popover ? "Riwayat chat" : "Chat"}
         </Typography>
+        {groups !== null && onGroupAction && (
+          <Tooltip title="Grup baru">
+            <IconButton aria-label="Grup baru" onClick={() => onGroupAction("new", null)} sx={iconBtn}>
+              <CreateNewFolderRounded sx={{ fontSize: 21 }} />
+            </IconButton>
+          </Tooltip>
+        )}
         {!popover && (
         <Tooltip title="Cari chat">
           <IconButton aria-label="Cari chat" aria-pressed={searching} onClick={toggleSearch} sx={iconBtn}>
@@ -293,104 +500,129 @@ export function ChatList({
         </Box>
       </Box>
 
-      <Typography sx={{ px: 2.5, pt: popover ? 1 : 2.5, pb: 1, fontSize: "0.875rem", fontWeight: 500, color: "#444746" }}>
-        {query.trim() ? "Hasil pencarian" : "Terbaru"}
-      </Typography>
-
-      <Box component="nav" aria-label="Daftar chat" sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1, pb: 1.5 }}>
-        {shown.length === 0 ? (
-          <Typography sx={{ fontSize: "0.875rem", color: "#5E5E5E", px: 1.5, py: 1 }}>
-            {query ? "Tidak ada chat yang cocok." : "Belum ada chat."}
-          </Typography>
+      <Box component="nav" aria-label="Daftar chat" sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1, pb: 1.5, pt: popover ? 0.5 : 1.5 }}>
+        {searchingNow ? (
+          <>
+            <SectionTitle>Hasil pencarian</SectionTitle>
+            {shown.length === 0 ? <Empty>Tidak ada chat yang cocok.</Empty> : shown.map(renderRow)}
+          </>
         ) : (
-          shown.map((c) => {
-            const active = c.id === activeId;
-            const menuOn = menu?.chat.id === c.id;
-            return (
-              <Box
-                key={c.id}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setMenu({ anchor: e.currentTarget as HTMLElement, chat: c });
-                }}
-                sx={{
-                  position: "relative",
-                  display: "flex",
-                  alignItems: "center",
-                  height: 40,
-                  borderRadius: "9999px",
-                  bgcolor: active ? "#D3E3FD" : menuOn ? "rgba(68,71,70,0.08)" : "transparent",
-                  "&:hover": { bgcolor: active ? "#D3E3FD" : "rgba(68,71,70,0.08)" },
-                  "& .row-more": { display: { xs: "inline-flex", md: active || menuOn ? "inline-flex" : "none" } },
-                  "&:hover .row-more, &:focus-within .row-more": { display: "inline-flex" },
-                  "&:hover .row-dot, &:focus-within .row-dot": { display: { md: "none" } },
-                }}
-              >
-                <Box
-                  component="button"
-                  type="button"
-                  aria-current={active ? "page" : undefined}
-                  onClick={() => onSelect(c.id)}
-                  title={c.title}
-                  sx={{
-                    flex: 1,
-                    minWidth: 0,
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    pl: 1.5,
-                    pr: 1,
-                    border: "none",
-                    bgcolor: "transparent",
-                    fontFamily: "inherit",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    borderRadius: "9999px",
-                    "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
-                  }}
-                >
-                  {c.pinned && <PushPinRounded aria-label="Disematkan" sx={{ fontSize: 14, color: active ? "#041E49" : "#444746", flexShrink: 0, transform: "rotate(45deg)" }} />}
-                  <Typography
-                    component="span"
-                    sx={{
-                      flex: 1,
-                      minWidth: 0,
-                      fontSize: "0.875rem",
-                      fontWeight: active ? 500 : 400,
-                      color: active ? "#041E49" : "#1F1F1F",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {c.title || "Chat baru"}
-                  </Typography>
-                  {participants(c).length > 1 && (
-                    <Tooltip title={`Dibagikan · ${participants(c).length} orang`}>
-                      <GroupRounded aria-label="Chat bersama" sx={{ fontSize: 16, color: active ? "#041E49" : "#5E5E5E", flexShrink: 0 }} />
-                    </Tooltip>
-                  )}
-                  <Box className="row-dot" component="span" sx={{ display: "inline-flex", pr: 0.75 }}>
-                    <StatusDot status={c.status} />
-                  </Box>
-                </Box>
-                <IconButton
-                  className="row-more"
-                  size="small"
-                  aria-label={`Menu ${c.title}`}
-                  aria-haspopup="menu"
-                  onClick={(e) => setMenu({ anchor: e.currentTarget, chat: c })}
-                  sx={{ mr: 0.5, width: 32, height: 32, color: active ? "#041E49" : "#444746", flexShrink: 0 }}
-                >
-                  <MoreVertRounded sx={{ fontSize: 20 }} />
-                </IconButton>
+          <>
+            {grouping && (groups?.length ?? 0) > 0 && (
+              <Box sx={{ mb: 1 }}>
+                {groups!.map((g) => {
+                  const items = chats.filter((c) => placement[c.id] === g.id);
+                  const isOpen = !closedGroups.includes(g.id);
+                  return (
+                    <Box key={g.id}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          height: 40,
+                          borderRadius: "9999px",
+                          "&:hover": { bgcolor: "rgba(68,71,70,0.08)" },
+                          "& .row-more": { display: { xs: "inline-flex", md: groupMenu?.group.id === g.id ? "inline-flex" : "none" } },
+                          "&:hover .row-more, &:focus-within .row-more": { display: "inline-flex" },
+                        }}
+                      >
+                        <Box
+                          component="button"
+                          type="button"
+                          aria-expanded={isOpen}
+                          onClick={() => toggleGroup(g.id)}
+                          sx={{
+                            flex: 1,
+                            minWidth: 0,
+                            height: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1.25,
+                            pl: 1.5,
+                            border: "none",
+                            bgcolor: "transparent",
+                            fontFamily: "inherit",
+                            textAlign: "left",
+                            cursor: "pointer",
+                            borderRadius: "9999px",
+                            color: "#1F1F1F",
+                            "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
+                          }}
+                        >
+                          <LayersRounded sx={{ fontSize: 19, color: "#444746", flexShrink: 0 }} />
+                          <Typography component="span" sx={{ flex: 1, minWidth: 0, fontSize: "0.875rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {g.name}
+                          </Typography>
+                          <ExpandMoreRounded sx={{ fontSize: 18, color: "#5F6368", transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform 200ms" }} />
+                        </Box>
+                        <IconButton
+                          className="row-more"
+                          size="small"
+                          aria-label={`Menu grup ${g.name}`}
+                          aria-haspopup="menu"
+                          onClick={(e) => setGroupMenu({ anchor: e.currentTarget, group: g })}
+                          sx={{ mr: 0.5, width: 32, height: 32, color: "#444746", flexShrink: 0 }}
+                        >
+                          <MoreVertRounded sx={{ fontSize: 20 }} />
+                        </IconButton>
+                      </Box>
+                      <Collapse in={isOpen} timeout={220}>
+                        <Box sx={{ ml: 2.4, pl: 0.75, borderLeft: "1px solid #DADCE0", mb: 0.5 }}>
+                          {items.length ? items.map(renderRow) : <Empty>Belum ada chat. Pindahkan lewat menu ⋮ di chat.</Empty>}
+                        </Box>
+                      </Collapse>
+                    </Box>
+                  );
+                })}
               </Box>
-            );
-          })
+            )}
+            <SectionTitle>Terbaru</SectionTitle>
+            {loose.length === 0 ? <Empty>{chats.length ? "Semua chat sudah masuk grup." : "Belum ada chat."}</Empty> : loose.map(renderRow)}
+          </>
         )}
       </Box>
-      <ChatMenu anchor={menu?.anchor ?? null} chat={menu?.chat ?? null} onClose={() => setMenu(null)} onAction={onAction} />
+      <ChatMenu
+        anchor={menu?.anchor ?? null}
+        chat={menu?.chat ?? null}
+        onClose={() => setMenu(null)}
+        onAction={onAction}
+        groups={grouping ? groups : null}
+        groupId={menu ? placement[menu.chat.id] ?? null : null}
+        onMove={onMove}
+        onNewGroup={(c) => onGroupAction?.("new", null, c)}
+      />
+      <Menu
+        anchorEl={groupMenu?.anchor ?? null}
+        open={Boolean(groupMenu)}
+        onClose={() => setGroupMenu(null)}
+        slotProps={{ paper: { sx: { minWidth: 200, borderRadius: "16px", py: 0.5, boxShadow: "0 1px 3px rgba(0,0,0,.15), 0 4px 8px 3px rgba(0,0,0,.08)" } } }}
+      >
+        <MenuItem
+          onClick={() => {
+            const g = groupMenu?.group ?? null;
+            setGroupMenu(null);
+            onGroupAction?.("rename", g);
+          }}
+        >
+          <ListItemIcon>
+            <DriveFileRenameOutlineRounded fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Ganti nama grup</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            const g = groupMenu?.group ?? null;
+            setGroupMenu(null);
+            onGroupAction?.("delete", g);
+          }}
+          sx={{ color: "#B3261E" }}
+        >
+          <ListItemIcon>
+            <DeleteRounded fontSize="small" sx={{ color: "#B3261E" }} />
+          </ListItemIcon>
+          <ListItemText>Hapus grup</ListItemText>
+        </MenuItem>
+      </Menu>
     </Box>
   );
 }

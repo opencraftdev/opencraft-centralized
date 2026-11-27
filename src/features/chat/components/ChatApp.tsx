@@ -9,7 +9,21 @@ import { toastError, toastInfo, toastSuccess } from "@/components/ui/Toast";
 import { nameOf, useAccount, usePeople } from "@/features/accounts/account";
 import { ConfirmDialog, NameDialog } from "@/features/drive/components/DriveDialogs";
 import { listEnabledSkills, type SkillSummary } from "@/features/skills/api";
-import { listChats, removeChatMember, renameChat, sendMessage, setChatPinned, subscribeChats, trashChat } from "../api";
+import {
+  createChatGroup,
+  deleteChatGroup,
+  listChatGroups,
+  listChats,
+  removeChatMember,
+  renameChat,
+  renameChatGroup,
+  sendMessage,
+  setChatGroup,
+  setChatPinned,
+  subscribeChats,
+  trashChat,
+  type ChatGroup,
+} from "../api";
 import type { ChatListItem } from "../types";
 import { ChatList, type ChatAction } from "./ChatList";
 import { NewChat } from "./NewChat";
@@ -51,6 +65,10 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
   const [skills, setSkills] = useState(initialSkills);
   const [drawer, setDrawer] = useState(false);
   const [historyAnchor, setHistoryAnchor] = useState<HTMLElement | null>(null);
+  const [groups, setGroups] = useState<ChatGroup[] | null>(null); // null: groups not available (yet)
+  const [placement, setPlacement] = useState<Record<string, string>>({});
+  const [groupDialog, setGroupDialog] = useState<{ group: ChatGroup | null; moveChat?: ChatListItem } | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState<ChatGroup | null>(null);
   const [renaming, setRenaming] = useState<ChatListItem | null>(null);
   const [deleting, setDeleting] = useState<ChatListItem | null>(null);
   const [sharing, setSharing] = useState<string | null>(null); // chat id
@@ -58,13 +76,39 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
   const people = usePeople();
   const { ref, narrow } = useNarrow<HTMLDivElement>();
 
+  const refreshGroups = useCallback(async () => {
+    const g = await listChatGroups().catch(() => null);
+    if (!g) return;
+    setGroups(g.groups);
+    setPlacement(g.placement);
+  }, []);
   const refresh = useCallback(async () => {
     try {
       setChats(await listChats());
     } catch {
       /* transient; the next poll retries */
     }
-  }, []);
+    void refreshGroups();
+  }, [refreshGroups]);
+
+  const moveChat = (c: ChatListItem, groupId: string | null) => {
+    setPlacement((p) => {
+      const next = { ...p };
+      if (groupId) next[c.id] = groupId;
+      else delete next[c.id];
+      return next;
+    });
+    setChatGroup(c.id, groupId)
+      .then(() => toastSuccess(groupId ? `Dipindahkan ke ${groups?.find((g) => g.id === groupId)?.name ?? "grup"}` : "Dikeluarkan dari grup"))
+      .catch((e: Error) => {
+        toastError(e.message);
+        void refreshGroups();
+      });
+  };
+  const onGroupAction = (action: "new" | "rename" | "delete", group: ChatGroup | null, c?: ChatListItem) => {
+    if (action === "delete") setDeletingGroup(group);
+    else setGroupDialog({ group: action === "rename" ? group : null, moveChat: c });
+  };
 
   // live (Supabase realtime): someone shared a chat with me, wrote in a shared chat, renamed it… (debounced)
   const peopleRef = useRef(people);
@@ -106,7 +150,8 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
   }, [refresh]);
   useEffect(() => {
     listEnabledSkills().then(setSkills, () => {});
-  }, []);
+    void refreshGroups();
+  }, [refreshGroups]);
 
   const listed = chatId ? chats.find((c) => c.id === chatId) ?? null : null;
   const isNarrow = narrow === true;
@@ -165,6 +210,10 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
       onCollapse={closeList}
       collapseLabel="Tutup riwayat chat"
       popover={!inDrawer}
+      groups={groups}
+      placement={placement}
+      onMove={moveChat}
+      onGroupAction={onGroupAction}
     />
   );
 
@@ -241,6 +290,53 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
             await refresh();
           }
           setRenaming(null);
+        }}
+      />
+      <NameDialog
+        open={Boolean(groupDialog)}
+        title={groupDialog?.group ? "Ganti nama grup" : "Grup baru"}
+        initial={groupDialog?.group?.name ?? ""}
+        submitLabel={groupDialog?.group ? "Simpan" : "Buat"}
+        onClose={() => setGroupDialog(null)}
+        onSubmit={async (name) => {
+          const d = groupDialog;
+          setGroupDialog(null);
+          if (!d || !name.trim()) return;
+          try {
+            if (d.group) {
+              if (name !== d.group.name) await renameChatGroup(d.group.id, name);
+            } else {
+              const g = await createChatGroup(name);
+              if (d.moveChat) await setChatGroup(d.moveChat.id, g.id);
+              toastSuccess(`Grup "${g.name}" dibuat`);
+            }
+          } catch (e) {
+            toastError((e as Error).message);
+          }
+          await refreshGroups();
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(deletingGroup)}
+        title="Hapus grup?"
+        body={
+          <>
+            Grup <b>{deletingGroup?.name}</b> dihapus. Chat di dalamnya tidak ikut terhapus, hanya kembali ke Terbaru.
+          </>
+        }
+        confirmLabel="Hapus"
+        onClose={() => setDeletingGroup(null)}
+        onConfirm={async () => {
+          const g = deletingGroup;
+          setDeletingGroup(null);
+          if (!g) return;
+          try {
+            await deleteChatGroup(g.id);
+            toastSuccess("Grup dihapus");
+          } catch (e) {
+            toastError((e as Error).message);
+          }
+          await refreshGroups();
         }}
       />
       <ShareDialog
