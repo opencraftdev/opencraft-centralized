@@ -301,7 +301,7 @@ export function NotificationBell() {
                     </Typography>
                     <AutoHeight duration={0.28}>
                     {expanded === n.id && (
-                      <Box data-qa sx={{ mt: 0.75, animation: `${rise} 240ms cubic-bezier(0.22,1,0.36,1) both`, cursor: "default" }}>
+                      <Box data-qa sx={{ mt: 0.75, pb: 0.5, animation: `${rise} 240ms cubic-bezier(0.22,1,0.36,1) both`, cursor: "default" }}>
                         {replyTo === n.id ? (
                           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                             <Tooltip title="Kembali">

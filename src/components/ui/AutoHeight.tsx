@@ -28,7 +28,8 @@ export function AutoHeight({ children, duration = 0.34 }: { children: React.Reac
       transition={{ duration: reduce ? 0 : duration, ease: EASE_OUT }}
       style={{ overflow: "hidden" }}
     >
-      <div ref={inner}>{children}</div>
+      {/* flow-root: children's margins stay inside, so the measured height includes them (no clipped bottom row) */}
+      <div ref={inner} style={{ display: "flow-root" }}>{children}</div>
     </motion.div>
   );
 }
