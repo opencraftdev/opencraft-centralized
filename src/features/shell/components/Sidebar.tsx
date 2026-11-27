@@ -25,14 +25,26 @@ const TOPBAR_HEIGHT = 64;
 
 type NavItem = { href: string; label: string; icon: React.ReactNode };
 
-const primaryItems: NavItem[] = [
-  { href: "/chat", label: "Chat", icon: <ChatBubbleOutlineRounded /> },
-  { href: "/skills", label: "Skills", icon: <AutoAwesomeOutlined /> },
-  { href: "/documents", label: "Document", icon: <DescriptionOutlined /> },
-  { href: "/tasks", label: "Task Management", icon: <TaskAltRounded /> },
-  { href: "/finance", label: "Finance", icon: <AccountBalanceWalletOutlined /> },
-  { href: "/scrapers", label: "Scrapers", icon: <TravelExploreOutlined /> },
+// Sidebar sections, in order. Each section has a small header and a divider between sections.
+const sections: { title: string; items: NavItem[] }[] = [
+  {
+    title: "Tools",
+    items: [
+      { href: "/chat", label: "Chat", icon: <ChatBubbleOutlineRounded /> },
+      { href: "/skills", label: "Skills", icon: <AutoAwesomeOutlined /> },
+    ],
+  },
+  {
+    title: "Operational",
+    items: [
+      { href: "/tasks", label: "Task Management", icon: <TaskAltRounded /> },
+      { href: "/documents", label: "Document", icon: <DescriptionOutlined /> },
+      { href: "/finance", label: "Finance", icon: <AccountBalanceWalletOutlined /> },
+      { href: "/scrapers", label: "Scrapers", icon: <TravelExploreOutlined /> },
+    ],
+  },
 ];
+const primaryItems: NavItem[] = sections.flatMap((s) => s.items);
 
 const bottomItems: NavItem[] = [
   { href: "#feedback", label: "Submit feedback", icon: <FeedbackOutlined /> },
@@ -127,12 +139,22 @@ export function Sidebar({
 
   const content = (
     <>
-      {/* Overview at top */}
-      <List disablePadding component="nav">
-        {primaryItems.map((item) => (
-          <NavRow key={item.href} item={item} active={isActive(item.href)} />
-        ))}
-      </List>
+      {sections.map((section, i) => (
+        <Box key={section.title}>
+          {i > 0 && <Divider sx={{ borderColor: "#DADCE0", mx: 1, my: 1 }} />}
+          <Typography
+            component="h2"
+            sx={{ px: 2, pt: i > 0 ? 0.5 : 0, pb: 0.5, fontSize: "0.6875rem", fontWeight: 600, letterSpacing: ".08em", textTransform: "uppercase", color: "#5F6368" }}
+          >
+            {section.title}
+          </Typography>
+          <List disablePadding component="nav" aria-label={section.title}>
+            {section.items.map((item) => (
+              <NavRow key={item.href} item={item} active={isActive(item.href)} />
+            ))}
+          </List>
+        </Box>
+      ))}
 
 
       {/* Bottom items — pushed to bottom */}
