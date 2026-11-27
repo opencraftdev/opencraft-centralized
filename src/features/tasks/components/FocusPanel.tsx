@@ -21,12 +21,39 @@ export interface FocusData {
   doneWeek: number;
 }
 
-const TABS: { key: DueTab; label: string; empty: string }[] = [
-  { key: "late", label: "Terlambat", empty: "Tidak ada yang terlambat." },
-  { key: "today", label: "Hari ini", empty: "Tidak ada deadline hari ini." },
-  { key: "week", label: "Minggu ini", empty: "Minggu ini bebas deadline." },
-  { key: "next", label: "Minggu depan", empty: "Belum ada deadline minggu depan." },
+const TABS: { key: DueTab; label: string; empty: string; tone: string; soft: string }[] = [
+  { key: "late", label: "Terlambat", empty: "Tidak ada yang terlambat.", tone: "#B3261E", soft: "#FCE8E6" },
+  { key: "today", label: "Hari ini", empty: "Tidak ada deadline hari ini.", tone: "#B06000", soft: "#FEF0DB" },
+  { key: "week", label: "Minggu ini", empty: "Minggu ini bebas deadline.", tone: "#0B57D0", soft: "#E8F0FE" },
+  { key: "next", label: "Minggu depan", empty: "Belum ada deadline minggu depan.", tone: "#5F6368", soft: "#F1F3F4" },
 ];
+
+/** Filled duotone icons in the sidebar's style (light layer at 35% + strong layer), tinted per deadline. */
+function DeadlineIcon({ kind, color }: { kind: DueTab; color: string }) {
+  const b = { fill: color, opacity: 0.35 };
+  const a = { fill: color };
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={{ flexShrink: 0 }}>
+      {kind === "late" ? (
+        <>
+          <circle cx="12" cy="13" r="9.5" style={b} />
+          <rect x="10.8" y="7.5" width="2.4" height="7" rx="1.2" style={a} />
+          <circle cx="12" cy="17.6" r="1.4" style={a} />
+          <path d="M3.2 6.4 6.6 3a1.2 1.2 0 0 1 1.7 1.7L4.9 8.1a1.2 1.2 0 0 1-1.7-1.7zM20.8 6.4 17.4 3a1.2 1.2 0 0 0-1.7 1.7l3.4 3.4a1.2 1.2 0 0 0 1.7-1.7z" style={a} />
+        </>
+      ) : (
+        <>
+          <rect x="2.5" y="4" width="19" height="18" rx="3.5" style={b} />
+          <rect x="6.5" y="1.5" width="2.6" height="5.5" rx="1.3" style={a} />
+          <rect x="14.9" y="1.5" width="2.6" height="5.5" rx="1.3" style={a} />
+          {kind === "today" && <rect x="6.5" y="11" width="6" height="6" rx="1.6" style={a} />}
+          {kind === "week" && <rect x="5.5" y="12.5" width="13" height="4.4" rx="1.6" style={a} />}
+          {kind === "next" && <path d="M13.2 10.3a1.15 1.15 0 0 1 1.63 0l3.4 3.4a1.15 1.15 0 0 1 0 1.63l-3.4 3.4a1.15 1.15 0 0 1-1.63-1.63l1.44-1.44H7.3a1.15 1.15 0 0 1 0-2.3h7.34l-1.44-1.44a1.15 1.15 0 0 1 0-1.62z" style={a} />}
+        </>
+      )}
+    </svg>
+  );
+}
 const MAX_ROWS = 5;
 
 export function FocusPanel({ data, ctx }: { data: FocusData; ctx: TasksCtx }) {
@@ -43,12 +70,11 @@ export function FocusPanel({ data, ctx }: { data: FocusData; ctx: TasksCtx }) {
 
   return (
     <Box sx={{ px: { xs: 2, sm: 3 }, pt: 1.5, pb: 2.5, maxWidth: 980 }}>
-      {/* Deadline tabs as plain text */}
-      <Box role="tablist" aria-label="Deadline" sx={{ display: "flex", flexWrap: "wrap", gap: { xs: 1.5, sm: 2.25 }, mb: 0.5 }}>
+      {/* Deadline tabs: duotone icon (same style as the sidebar) + label + count, coloured underline when active */}
+      <Box role="tablist" aria-label="Deadline" sx={{ display: "flex", flexWrap: "wrap", columnGap: { xs: 2, sm: 3 }, rowGap: 0.5, borderBottom: "1px solid #EEF1F4", mb: 0.25 }}>
         {TABS.map((t) => {
           const on = t.key === tab;
           const n = data.lists[t.key].length;
-          const late = t.key === "late" && n > 0;
           return (
             <Box
               key={t.key}
@@ -58,23 +84,47 @@ export function FocusPanel({ data, ctx }: { data: FocusData; ctx: TasksCtx }) {
               aria-selected={on}
               onClick={() => setTab(t.key)}
               sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.875,
                 border: "none",
                 bgcolor: "transparent",
-                p: 0,
-                py: 0.25,
+                px: 0.25,
+                pt: 0.5,
+                pb: 1.1,
+                mb: "-1px",
+                borderBottom: "2px solid",
+                borderColor: on ? t.tone : "transparent",
                 cursor: "pointer",
                 fontFamily: "inherit",
                 fontSize: "0.875rem",
                 fontWeight: on ? 500 : 400,
                 whiteSpace: "nowrap",
-                color: on ? (late ? "#B3261E" : "#0B57D0") : late ? "#B3261E" : "#5F6368",
-                transition: "color 200ms",
-                "&:hover": { color: late ? "#B3261E" : "#0B57D0" },
+                color: on ? t.tone : "#444746",
+                transition: "color 200ms, border-color 200ms",
+                "&:hover": { color: t.tone },
                 "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: 2, borderRadius: "4px" },
               }}
             >
-              {t.label}{" "}
-              <Box component="span" sx={{ fontVariantNumeric: "tabular-nums" }}>
+              <DeadlineIcon kind={t.key} color={t.tone} />
+              {t.label}
+              <Box
+                component="span"
+                sx={{
+                  minWidth: 20,
+                  height: 20,
+                  px: 0.75,
+                  borderRadius: "9999px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "0.7188rem",
+                  fontWeight: 500,
+                  fontVariantNumeric: "tabular-nums",
+                  bgcolor: n ? t.soft : "#F1F3F4",
+                  color: n ? t.tone : "#9AA0A6",
+                }}
+              >
                 {n}
               </Box>
             </Box>
