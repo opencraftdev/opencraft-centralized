@@ -140,37 +140,3 @@ export function subscribeChats(myEmail: string, onChange: () => void, onShared: 
     void c.removeChannel(ch);
   };
 }
-
-// ── Groups (migration 030): each person's own folders in the chat history ──
-
-export interface ChatGroup {
-  id: string;
-  name: string;
-  sort: number;
-}
-
-/** The caller's groups and which chat sits in which (chat id → group id). Null when migration 030 isn't run yet. */
-export async function listChatGroups(): Promise<{ groups: ChatGroup[]; placement: Record<string, string> } | null> {
-  const [g, i] = await Promise.all([
-    sb().from("chat_groups").select("id,name,sort").order("sort").order("created_at"),
-    sb().from("chat_group_items").select("chat_id,group_id"),
-  ]);
-  if (g.error || i.error) return null;
-  const placement: Record<string, string> = {};
-  for (const r of (i.data ?? []) as { chat_id: string; group_id: string }[]) placement[r.chat_id] = r.group_id;
-  return { groups: (g.data ?? []) as ChatGroup[], placement };
-}
-export async function createChatGroup(name: string): Promise<ChatGroup> {
-  return check(await sb().from("chat_groups").insert({ name: name.trim() }).select("id,name,sort").single()) as ChatGroup;
-}
-export async function renameChatGroup(id: string, name: string) {
-  check(await sb().from("chat_groups").update({ name: name.trim() }).eq("id", id));
-}
-export async function deleteChatGroup(id: string) {
-  check(await sb().from("chat_groups").delete().eq("id", id));
-}
-/** Puts a chat in a group (null: back to "Terbaru"). */
-export async function setChatGroup(chatId: string, groupId: string | null) {
-  if (groupId) check(await sb().from("chat_group_items").upsert({ chat_id: chatId, group_id: groupId }, { onConflict: "email,chat_id" }));
-  else check(await sb().from("chat_group_items").delete().eq("chat_id", chatId));
-}
