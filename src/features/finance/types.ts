@@ -1,30 +1,44 @@
-export type ExpenseCategory =
-  | "infrastructure"
-  | "ai-tools"
-  | "software"
-  | "office"
-  | "marketing";
+// Finance book (docs/FINANCE.md): every income / expense is one row of `finance_entries`.
 
-export type ExpenseFrequency = "monthly" | "yearly" | "one-time";
+export type EntryKind = "income" | "expense";
 
-export type ExpenseStatus = "paid" | "pending";
-
-export type Expense = {
+export interface FinanceEntry {
   id: string;
-  /** Human-readable line item, e.g. "Vercel Pro hosting". */
-  item: string;
-  vendor: string;
-  category: ExpenseCategory;
-  frequency: ExpenseFrequency;
-  /** Normalised monthly cost in IDR (yearly costs are pre-divided by 12). */
-  amount: number;
-  /** Day of month the charge lands, 1–28. */
-  billingDay: number;
+  kind: EntryKind;
+  entry_date: string; // YYYY-MM-DD
+  description: string;
+  category: string;
+  amount: number; // whole rupiah
+  note: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+export type EntryInput = Pick<FinanceEntry, "kind" | "entry_date" | "description" | "category" | "amount" | "note">;
+
+// Categories from the team's spreadsheet ("Kategori" dropdown); income has its own list.
+export const CATEGORIES: Record<EntryKind, string[]> = {
+  expense: ["Gaji", "Operasional", "Software & Langganan", "Marketing", "Transport", "Lain-lain"],
+  income: ["Penjualan", "Jasa / Project", "Investasi / Modal", "Lain-lain"],
 };
 
-/**
- * An expense with its status resolved against the current billing cycle.
- * Status is not stored — it resets every month and is derived from where
- * today sits relative to each item's billing day.
- */
-export type ResolvedExpense = Expense & { status: ExpenseStatus };
+export const KIND_META: Record<EntryKind, { label: string; color: string; bg: string }> = {
+  income: { label: "Pemasukan", color: "#188038", bg: "#E6F4EA" },
+  expense: { label: "Pengeluaran", color: "#B3261E", bg: "#FCE8E6" },
+};
+
+export const MONTHS = [
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+];
+
+/** 2500000 → "Rp2.500.000" (as in the spreadsheet). */
+export function formatIDR(n: number): string {
+  return (n < 0 ? "-Rp" : "Rp") + Math.abs(Math.round(n)).toLocaleString("id-ID");
+}
+
+/** "2026-11-20" → "20/11/2026". */
+export function formatDate(d: string): string {
+  const [y, m, day] = d.split("-");
+  return `${day}/${m}/${y}`;
+}

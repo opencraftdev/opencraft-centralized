@@ -14,7 +14,7 @@ hidden). Safe to run more than once.
   - `tasks`: created (task / checklist item), status changed, PIC changed, details changed (title, notes, dates,
     priority, project, helpers; folded per task for 10 min), deleted. Link `/tasks?task=<id>`.
   - `task_comments`: new comment (mention tokens shown as `@Name`).
-  - `finance_expenses`: new expense, amount/active/name/billing day changed.
+  - `finance_entries`: new pemasukan / pengeluaran (docs/FINANCE.md). (`finance_expenses` triggers remain but the table is no longer used.)
   - `scraper_leads`: new leads, folded per hour ("12 lead baru dari Scrapers").
   - `drive_files`: task attachment, new ready document, document finished generating. Logos, profile photos and
     files mirrored from Google Drive are skipped.
