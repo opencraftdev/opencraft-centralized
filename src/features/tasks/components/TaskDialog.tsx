@@ -20,7 +20,7 @@ import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import SendRounded from "@mui/icons-material/SendRounded";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { formatRelative } from "@/features/drive/format";
-import { addComment, createTask, deleteComment, deleteTask, listComments, updateTask } from "../api";
+import { addComment, createTask, deleteComment, deleteTask, listComments, saveMember, updateTask } from "../api";
 import type { Task, TaskComment, TaskInput } from "../types";
 import { PRIORITIES, STATUSES } from "../types";
 import type { TasksCtx } from "./TasksApp";
@@ -74,6 +74,7 @@ export function TaskDialog({
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [comment, setComment] = useState("");
   const [newSub, setNewSub] = useState("");
+  const [newPerson, setNewPerson] = useState<string | null>(null); // typing a new member's name
 
   // The live copy (realtime / checkbox changes) of the task being edited.
   const live = task ? ctx.all.find((x) => x.id === task.id) ?? task : null;
@@ -85,6 +86,7 @@ export function TaskDialog({
     setConfirmDelete(false);
     setComment("");
     setNewSub("");
+    setNewPerson(null);
     setComments([]);
     if (task) listComments(task.id).then(setComments).catch(() => setComments([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,6 +97,20 @@ export function TaskDialog({
   const parent = form.parent_id ? ctx.all.find((x) => x.id === form.parent_id) : undefined;
   const subs = taskId ? ctx.childrenOf.get(taskId) ?? [] : [];
   const dateError = form.start_date && form.due_date && form.start_date > form.due_date ? "Mulai harus sebelum deadline" : "";
+
+  const addPerson = async () => {
+    const name = (newPerson ?? "").trim();
+    if (!name) return;
+    try {
+      const id = await saveMember({ name, initials: initialsOf(name), sort: ctx.members.length + 1 });
+      set("assignee_id", id);
+      setNewPerson(null);
+      toastSuccess(`${name} ditambahkan ke tim.`);
+      onChanged();
+    } catch (e) {
+      toastError((e as Error).message);
+    }
+  };
 
   const save = async () => {
     if (!form.title.trim()) return toastError("Judul tugas wajib diisi.");
@@ -318,7 +334,36 @@ export function TaskDialog({
           </Box>
           <Box>
             {label("PIC (penanggung jawab)")}
-            <Select fullWidth size="small" displayEmpty value={form.assignee_id ?? ""} onChange={(e) => set("assignee_id", e.target.value || null)} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
+            {newPerson !== null ? (
+              <Box sx={{ display: "flex", gap: 0.5 }}>
+                <TextField
+                  autoFocus
+                  fullWidth
+                  size="small"
+                  placeholder="Nama orang baru"
+                  value={newPerson}
+                  onChange={(e) => setNewPerson(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      void addPerson();
+                    }
+                    if (e.key === "Escape") {
+                      e.stopPropagation();
+                      setNewPerson(null);
+                    }
+                  }}
+                  sx={fieldSx}
+                />
+                <Button variant="contained" disableElevation disabled={!newPerson.trim()} onClick={() => void addPerson()} sx={{ borderRadius: "10px", minWidth: 0, px: 1.5 }}>
+                  Tambah
+                </Button>
+                <IconButton size="small" aria-label="Batal" onClick={() => setNewPerson(null)}>
+                  <CloseRounded sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Box>
+            ) : (
+            <Select fullWidth size="small" displayEmpty value={form.assignee_id ?? ""} onChange={(e) => (e.target.value === "__new" ? setNewPerson("") : set("assignee_id", e.target.value || null))} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
               <MenuItem value="">
                 <em>Belum ada</em>
               </MenuItem>
@@ -330,7 +375,11 @@ export function TaskDialog({
                   </Box>
                 </MenuItem>
               ))}
+              <MenuItem value="__new" sx={{ color: "#0B57D0", borderTop: "1px solid #EEF1F4" }}>
+                <AddRounded sx={{ fontSize: 18, mr: 1 }} /> Tambah orang baru…
+              </MenuItem>
             </Select>
+            )}
           </Box>
           <Box>
             {label("Dibantu oleh")}
@@ -460,4 +509,10 @@ function authorName(email: string | null, ctx: TasksCtx): string {
   if (!email) return "Seseorang";
   const m = ctx.members.find((x) => x.email === email);
   return m ? m.name : email.split("@")[0];
+}
+
+/** "Dimas Pratama" → "DP", "Raka" → "R". */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return (parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0][0]).toUpperCase();
 }

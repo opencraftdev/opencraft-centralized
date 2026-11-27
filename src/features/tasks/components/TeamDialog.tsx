@@ -66,7 +66,7 @@ export function TeamDialog({ open, members, projects, onClose, onChanged }: { op
                   <MemberAvatar member={m} size={32} />
                   <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500 }}>{m.name}{!m.active && " (nonaktif)"}</Typography>
-                    <Typography sx={{ fontSize: "0.75rem", color: "#5F6368" }}>{[m.role, m.email].filter(Boolean).join(" · ") || "—"}</Typography>
+                    <Typography sx={{ fontSize: "0.75rem", color: "#5F6368" }}>{m.role || "—"}</Typography>
                   </Box>
                 </Row>
               ),
@@ -162,7 +162,6 @@ function MemberForm({ initial, onDone }: { initial: Member | null; onDone: (save
     name: initial?.name ?? "",
     initials: initial?.initials ?? "",
     role: initial?.role ?? "",
-    email: initial?.email ?? "",
     goal: initial?.goal ?? "",
     color: initial?.color ?? MEMBER_COLORS[2],
     active: initial?.active ?? true,
@@ -175,9 +174,8 @@ function MemberForm({ initial, onDone }: { initial: Member | null; onDone: (save
       await saveMember({
         id: initial?.id,
         name: f.name.trim(),
-        initials: (f.initials.trim() || f.name.trim().slice(0, 1)).slice(0, 2).toUpperCase(),
+        initials: (f.initials.trim() || f.name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("")).slice(0, 2).toUpperCase(),
         role: f.role.trim(),
-        email: f.email.trim().toLowerCase() || null,
         goal: f.goal.trim(),
         color: f.color,
         active: f.active,
@@ -186,7 +184,7 @@ function MemberForm({ initial, onDone }: { initial: Member | null; onDone: (save
       onDone(true);
     } catch (e) {
       const msg = (e as Error).message;
-      toastError(msg.includes("duplicate") ? "Email itu sudah dipakai anggota lain." : msg);
+      toastError(msg);
     } finally {
       setSaving(false);
     }
@@ -198,7 +196,6 @@ function MemberForm({ initial, onDone }: { initial: Member | null; onDone: (save
         <TextField size="small" label="Inisial" value={f.initials} onChange={(e) => setF({ ...f, initials: e.target.value })} sx={{ ...fieldSx, width: 90 }} slotProps={{ htmlInput: { maxLength: 2 } }} />
       </Box>
       <TextField size="small" label="Peran" placeholder="mis. Desain · Branding" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} sx={fieldSx} />
-      <TextField size="small" label="Email login (opsional)" placeholder="nama@gmail.com" helperText="Kalau diisi, filter otomatis ke tugas orang ini saat dia login." value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} sx={fieldSx} />
       <TextField size="small" label="Target hasil (opsional)" placeholder="mis. Landing page online" value={f.goal} onChange={(e) => setF({ ...f, goal: e.target.value })} sx={fieldSx} />
       <Swatches colors={MEMBER_COLORS} value={f.color} onChange={(color) => setF({ ...f, color })} />
       {initial && (

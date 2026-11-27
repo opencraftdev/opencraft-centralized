@@ -1,14 +1,16 @@
 # Task Management (`/tasks`)
 
 The team's task board, replacing the "Timeline IoT" PDF plan (timeline + "Tugas per orang" checklist).
-Sidebar item **Task Management**. Migration `supabase/migrations/026_tasks.sql` (**not applied yet**; until it is,
-`/tasks` shows a "database belum siap" note). The migration also seeds the plan from 22 November 2026.
+Sidebar item **Task Management** (section Operational). Migration `supabase/migrations/026_tasks.sql` (run it in the
+Supabase SQL editor; until it is, `/tasks` shows a "database belum siap" note). It is safe to run more than once: it
+only creates what is missing and seeds the plan from 22 November 2026 only while `task_members` is empty.
 
 ## Data (RLS: `is_allowed_user()` — every allow-listed account reads and edits everything)
 
-- `task_members` — people tasks are assigned to: `name`, `initials`, `role`, `color`, optional `email` (when it
-  matches the login, the person filter defaults to that member), `goal` ("Hasil: …" on the person card), `active`.
-  Not tied to login accounts: one shared login can still assign work to everyone.
+- `task_members` — people tasks are assigned to, added by typing a name ("Tim & proyek", or "Tambah orang baru…"
+  in the PIC picker): `name`, `initials`, `role`, `color`, `goal` ("Hasil: …" on the person card), `active`.
+  Not tied to login accounts. `email` exists for later (when it matches the login, the person filter defaults to
+  that member) but the UI doesn't ask for it yet.
 - `task_projects` — `name`, `label` (e.g. "V1", "Supporting"), `color`, `status` `active|parked|done` (parked =
   hidden from pickers and the project filter).
 - `tasks` — `title`, `description`, `status` `todo|in_progress|review|done`, `priority` `low|medium|high|urgent`,

@@ -55,10 +55,15 @@ export async function deleteComment(id: string): Promise<void> {
   check(await sb().from("task_comments").delete().eq("id", id));
 }
 
-export async function saveMember(m: Partial<Member> & { name: string }): Promise<void> {
+/** Creates (no id) or updates a member; returns its id. */
+export async function saveMember(m: Partial<Member> & { name: string }): Promise<string> {
   const { id, ...rest } = m;
-  if (id) check(await sb().from("task_members").update(rest).eq("id", id));
-  else check(await sb().from("task_members").insert(rest));
+  if (id) {
+    check(await sb().from("task_members").update(rest).eq("id", id));
+    return id;
+  }
+  const row = check(await sb().from("task_members").insert(rest).select("id").single()) as { id: string };
+  return row.id;
 }
 
 export async function saveProject(p: Partial<Project> & { name: string }): Promise<void> {

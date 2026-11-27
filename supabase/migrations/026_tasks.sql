@@ -1,8 +1,9 @@
 -- Task Management (/tasks). Contract: docs/TASKS.md.
--- Not applied yet. Apply in the Supabase SQL editor (or `supabase db push`) before using /tasks.
+-- Safe to run more than once: only creates what is missing, never drops or changes existing data,
+-- and seeds the plan only when task_members is still empty.
 
 -- ── Team members (people tasks are assigned to; not tied to login accounts) ──
-create table public.task_members (
+create table if not exists public.task_members (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   initials text not null default '',          -- shown in the avatar (1–2 letters)
@@ -16,7 +17,7 @@ create table public.task_members (
 );
 
 -- ── Projects (group of tasks: Remeh, Keychain, Bisnis, …) ──
-create table public.task_projects (
+create table if not exists public.task_projects (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   label text not null default '',             -- small tag, e.g. "Supporting", "V1"
@@ -27,7 +28,7 @@ create table public.task_projects (
 );
 
 -- ── Tasks (parent_id set = a checklist item / subtask of another task) ──
-create table public.tasks (
+create table if not exists public.tasks (
   id uuid primary key default gen_random_uuid(),
   project_id uuid references public.task_projects(id) on delete set null,
   parent_id uuid references public.tasks(id) on delete cascade,
@@ -48,18 +49,18 @@ create table public.tasks (
   updated_at timestamptz not null default now(),
   check (start_date is null or due_date is null or start_date <= due_date)
 );
-create index on public.tasks (parent_id);
-create index on public.tasks (assignee_id);
-create index on public.tasks (due_date);
+create index if not exists tasks_parent_id_idx on public.tasks (parent_id);
+create index if not exists tasks_assignee_id_idx on public.tasks (assignee_id);
+create index if not exists tasks_due_date_idx on public.tasks (due_date);
 
-create table public.task_comments (
+create table if not exists public.task_comments (
   id uuid primary key default gen_random_uuid(),
   task_id uuid not null references public.tasks(id) on delete cascade,
   body text not null check (btrim(body) <> ''),
   author_email text default lower(auth.jwt() ->> 'email'),
   created_at timestamptz not null default now()
 );
-create index on public.task_comments (task_id, created_at);
+create index if not exists task_comments_task_id_created_at_idx on public.task_comments (task_id, created_at);
 
 -- updated_at + completed_at bookkeeping
 create or replace function public.tasks_touch() returns trigger
@@ -73,6 +74,7 @@ begin
   end if;
   return new;
 end $$;
+drop trigger if exists tasks_touch on public.tasks;
 create trigger tasks_touch before insert or update on public.tasks
   for each row execute function public.tasks_touch();
 
@@ -81,17 +83,29 @@ alter table public.task_members enable row level security;
 alter table public.task_projects enable row level security;
 alter table public.tasks enable row level security;
 alter table public.task_comments enable row level security;
+drop policy if exists task_members_allowed on public.task_members;
 create policy task_members_allowed on public.task_members for all to authenticated
   using (public.is_allowed_user()) with check (public.is_allowed_user());
+drop policy if exists task_projects_allowed on public.task_projects;
 create policy task_projects_allowed on public.task_projects for all to authenticated
   using (public.is_allowed_user()) with check (public.is_allowed_user());
+drop policy if exists tasks_allowed on public.tasks;
 create policy tasks_allowed on public.tasks for all to authenticated
   using (public.is_allowed_user()) with check (public.is_allowed_user());
+drop policy if exists task_comments_allowed on public.task_comments;
 create policy task_comments_allowed on public.task_comments for all to authenticated
   using (public.is_allowed_user()) with check (public.is_allowed_user());
 
 -- Live updates for everyone looking at /tasks
-alter publication supabase_realtime add table public.tasks, public.task_comments, public.task_members, public.task_projects;
+do $$
+declare t text;
+begin
+  foreach t in array array['tasks','task_comments','task_members','task_projects'] loop
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
 
 -- ── Seed: "Timeline IoT — rencana kerja per 22 November 2026" ──
 -- Minggu 1 = 23–29 Nov · Minggu 2 = 30 Nov–6 Des · Minggu 3 = 7–13 Des · Minggu 4 = 14–20 Des
@@ -101,6 +115,9 @@ declare
   p_remeh uuid; p_key uuid; p_bis uuid;
   t uuid;
 begin
+  if exists (select 1 from public.task_members) then
+    return; -- already seeded: never overwrite the team's data
+  end if;
   insert into public.task_members (name, initials, role, color, goal, sort) values
     ('Raka',   'RK', 'Lead · Bisnis',      '#1B2533', 'NIB, daftar harga, akun toko', 1) returning id into raka;
   insert into public.task_members (name, initials, role, color, goal, sort) values
