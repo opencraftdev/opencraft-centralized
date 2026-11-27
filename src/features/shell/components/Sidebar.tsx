@@ -13,8 +13,6 @@ import Typography from "@mui/material/Typography";
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
 import DescriptionOutlined from "@mui/icons-material/DescriptionOutlined";
-import FeedbackOutlined from "@mui/icons-material/FeedbackOutlined";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import AccountBalanceWalletOutlined from "@mui/icons-material/AccountBalanceWalletOutlined";
 import TravelExploreOutlined from "@mui/icons-material/TravelExploreOutlined";
 import TaskAltRounded from "@mui/icons-material/TaskAltRounded";
@@ -46,10 +44,6 @@ const sections: { title: string; items: NavItem[] }[] = [
 ];
 const primaryItems: NavItem[] = sections.flatMap((s) => s.items);
 
-const bottomItems: NavItem[] = [
-  { href: "#feedback", label: "Submit feedback", icon: <FeedbackOutlined /> },
-  { href: "#about", label: "About OpenCraft", icon: <InfoOutlined /> },
-];
 
 function NavRow({
   item,
@@ -110,7 +104,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
 
-  const navHrefs = [...primaryItems, ...bottomItems]
+  const navHrefs = primaryItems
     .map((i) => i.href)
     .filter((h) => !h.startsWith("#"));
 
@@ -157,43 +151,6 @@ export function Sidebar({
       ))}
 
 
-      {/* Bottom items — pushed to bottom */}
-      <Box sx={{ mt: "auto", pt: 1 }}>
-        <Divider sx={{ borderColor: "#DADCE0", mx: 1, mb: 1 }} />
-        <List disablePadding component="nav">
-          {bottomItems.map((item) => (
-            <NavRow key={item.href} item={item} active={isActive(item.href)} />
-          ))}
-        </List>
-
-        {/* Footer */}
-        <Box sx={{ display: "flex", gap: 2, px: 2, py: 1.5 }}>
-          <Typography
-            component="a"
-            href="#"
-            sx={{
-              fontSize: "0.75rem",
-              color: "#757575",
-              textDecoration: "none",
-              "&:hover": { textDecoration: "underline" },
-            }}
-          >
-            Privacy
-          </Typography>
-          <Typography
-            component="a"
-            href="#"
-            sx={{
-              fontSize: "0.75rem",
-              color: "#757575",
-              textDecoration: "none",
-              "&:hover": { textDecoration: "underline" },
-            }}
-          >
-            Terms
-          </Typography>
-        </Box>
-      </Box>
     </>
   );
 
