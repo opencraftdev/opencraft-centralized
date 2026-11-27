@@ -24,6 +24,7 @@ import { fileIcon } from "@/features/drive/components/DriveItems";
 import { formatBytes, formatDateTime } from "@/features/drive/format";
 import type { SkillSummary } from "@/features/skills/api";
 import type { Chat, ChatAttachment, ChatMessage, ChatStep } from "../types";
+import { QuoteBlock, splitQuote } from "./Quote";
 import { ChatMarkdown } from "./Markdown";
 import { FoldedSteps, LiveSteps } from "./Steps";
 import { SkillChip, splitSkill } from "./Composer";
@@ -54,7 +55,8 @@ const actionSx = { color: "#444746", width: 32, height: 32, "&:hover": { bgcolor
 
 /** The user's text; a leading "/name" of a known skill shows as its chip. */
 function UserText({ content, skills }: { content: string; skills: SkillSummary[] }) {
-  const { skill, text } = splitSkill(content, skills);
+  const { skill, text: afterSkill } = splitSkill(content, skills);
+  const { quote, rest: text } = splitQuote(afterSkill);
   return (
     <>
       {skill && (
@@ -62,6 +64,7 @@ function UserText({ content, skills }: { content: string; skills: SkillSummary[]
           <SkillChip skill={skill} />
         </Box>
       )}
+      {quote && <QuoteBlock text={quote} />}
       {text.trim() && text}
     </>
   );
@@ -169,7 +172,7 @@ export function AssistantMessage({
   const text = m.content?.trim() ?? "";
   const atts = m.attachments ?? [];
   return (
-    <Box sx={{ minWidth: 0, "&:hover .msg-time": { opacity: 1 } }}>
+    <Box data-answer sx={{ minWidth: 0, "&:hover .msg-time": { opacity: 1 } }}>
       {text && <ChatMarkdown text={text} />}
       {m.stopped && (
         <Box sx={{ mt: text ? 1.5 : 0, display: "inline-flex", alignItems: "center", gap: 0.75, color: "#444746", fontSize: "0.875rem" }}>

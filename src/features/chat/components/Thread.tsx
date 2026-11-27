@@ -17,6 +17,7 @@ import type { SkillSummary } from "@/features/skills/api";
 import { fetchChat, fetchFiles, fetchMessages, retryChat, sendMessage, sendPendingNow, stopChat } from "../api";
 import { isRunning, type Chat, type ChatListItem, type ChatMessage } from "../types";
 import { Composer, type ComposerHandle } from "./Composer";
+import { QuoteChip, SelectionReply, withQuote } from "./Quote";
 import { AssistantMessage, LiveAnswer, PendingMessages, UserBubble } from "./Messages";
 import { ChatMenu, SidebarIcon, type ChatAction } from "./ChatList";
 
@@ -186,9 +187,11 @@ export function Thread({
     await reload();
     onChangedRef.current();
   };
+  const [quote, setQuote] = useState<string | null>(null);
   const send = async (text: string) => {
     try {
-      await sendMessage(chatId, text);
+      await sendMessage(chatId, withQuote(text, quote));
+      setQuote(null);
       await after();
       return true;
     } catch (e) {
@@ -327,9 +330,18 @@ export function Thread({
         )}
       </Box>
 
+      <SelectionReply
+        scope={scroller}
+        onReply={(t) => {
+          setQuote(t);
+          composer.current?.focus();
+        }}
+      />
+
       {state !== "missing" && (
         <Box sx={{ px: { xs: 1, sm: 3 }, pb: 1, pt: 0.5, flexShrink: 0 }}>
           <Box sx={{ maxWidth: COLUMN, mx: "auto" }}>
+            {quote && <QuoteChip text={quote} onClear={() => setQuote(null)} />}
             <Composer
               ref={composer}
               draftId={chatId}
