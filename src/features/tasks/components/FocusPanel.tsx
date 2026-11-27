@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography";
 import type { Task } from "../types";
 import type { TasksCtx } from "./TasksApp";
 import { DueChip, MemberAvatar, ProjectMark } from "./bits";
+import { AutoHeight } from "@/components/ui/AutoHeight";
 
 // Header summary of /tasks (option "3B"): deadline tabs (Terlambat · Hari ini · Minggu ini · Minggu depan) with the
 // tasks in each, and the overall numbers as rows with small bars.
@@ -100,6 +101,7 @@ export function FocusPanel({ data, ctx }: { data: FocusData; ctx: TasksCtx }) {
           <Typography sx={{ fontSize: "0.9375rem", color: "#444746" }}>{meta.label.toLowerCase()}</Typography>
         </Box>
 
+        <AutoHeight>
         <Box key={tab} sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
           {list.length === 0 ? (
             <Typography sx={{ fontSize: "0.875rem", color: "#5F6368", textAlign: "center", py: 1.5, bgcolor: "#fff", borderRadius: "10px", animation: "oc-rise 300ms both" }}>{meta.empty}</Typography>
@@ -110,6 +112,7 @@ export function FocusPanel({ data, ctx }: { data: FocusData; ctx: TasksCtx }) {
             <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368", textAlign: "center" }}>dan {list.length - MAX_ROWS} lainnya</Typography>
           )}
         </Box>
+        </AutoHeight>
       </Box>
 
       {/* Numbers */}

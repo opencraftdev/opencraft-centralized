@@ -131,14 +131,38 @@ export function PreviewDialog({
             </Center>
           </Box>
         )}
-        <Box
-          component="iframe"
-          key={gid}
-          src={driveContentUrl(file.id)}
-          title={file.name}
-          onLoad={() => setFrameLoading(false)}
-          sx={{ position: "relative", width: "100%", height: "100%", border: "none", bgcolor: "transparent", display: "block" }}
-        />
+        {/^image\/(png|jpeg|gif|webp|avif|bmp)/.test(file.mime_type ?? "") ? (
+          // Images: fit the whole picture inside the preview area.
+          <Box
+            component="img"
+            key={gid}
+            src={driveContentUrl(file.id)}
+            alt={file.name}
+            onLoad={() => setFrameLoading(false)}
+            onError={() => setFrameLoading(false)}
+            sx={{ position: "relative", width: "100%", height: "100%", objectFit: "contain", display: "block", p: 2, boxSizing: "border-box" }}
+          />
+        ) : (file.mime_type ?? "").startsWith("video/") ? (
+          <Box
+            component="video"
+            key={gid}
+            src={driveContentUrl(file.id)}
+            controls
+            playsInline
+            onLoadedData={() => setFrameLoading(false)}
+            onError={() => setFrameLoading(false)}
+            sx={{ position: "relative", width: "100%", height: "100%", objectFit: "contain", display: "block", bgcolor: "#000" }}
+          />
+        ) : (
+          <Box
+            component="iframe"
+            key={gid}
+            src={driveContentUrl(file.id)}
+            title={file.name}
+            onLoad={() => setFrameLoading(false)}
+            sx={{ position: "relative", width: "100%", height: "100%", border: "none", bgcolor: "transparent", display: "block" }}
+          />
+        )}
       </Box>
     );
   } else if (gid) {

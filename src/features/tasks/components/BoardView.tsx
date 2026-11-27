@@ -10,7 +10,7 @@ import type { Task, TaskStatus } from "../types";
 import { STATUSES } from "../types";
 import { EASE_OUT, SPRING } from "@/components/ui/motion";
 import type { TasksCtx } from "./TasksApp";
-import { AvatarStack, DueChip, PriorityText, ProgressBar, ProjectTag } from "./bits";
+import { AvatarStack, CommentCount, DueChip, PriorityText, ProgressBar, ProjectTag } from "./bits";
 
 // Board: one column per status, top-level tasks as cards. Drag a card to another column to change its status.
 
@@ -135,6 +135,7 @@ function Card({ task: t, ctx, dragging, onDragStart, onDragEnd }: { task: Task; 
       {/* People · priority */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         <AvatarStack ids={[t.assignee_id, ...t.helper_ids]} members={ctx.memberById} size={24} />
+        <CommentCount count={ctx.commentCount(t.id)} />
         <Box sx={{ flex: 1 }} />
         <PriorityText priority={t.priority} />
       </Box>

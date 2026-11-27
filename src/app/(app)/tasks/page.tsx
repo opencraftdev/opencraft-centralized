@@ -3,17 +3,19 @@ import Typography from "@mui/material/Typography";
 import { createClient } from "@/lib/supabase/server";
 import { TasksApp } from "@/features/tasks/components/TasksApp";
 import type { Member, Project, Task } from "@/features/tasks/types";
+import { countComments } from "@/features/tasks/counts";
 
 export const dynamic = "force-dynamic";
 
 // Task Management (docs/TASKS.md).
 export default async function TasksPage() {
   const supabase = await createClient();
-  const [{ data: auth }, m, p, t] = await Promise.all([
+  const [{ data: auth }, m, p, t, cm] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("task_members").select("*").order("sort").order("name"),
     supabase.from("task_projects").select("*").order("sort").order("name"),
     supabase.from("tasks").select("*").order("sort").order("created_at"),
+    supabase.from("task_comments").select("task_id"),
   ]);
 
   const err = m.error ?? p.error ?? t.error;
@@ -34,7 +36,7 @@ export default async function TasksPage() {
 
   return (
     <TasksApp
-      initial={{ members: (m.data ?? []) as Member[], projects: (p.data ?? []) as Project[], tasks: (t.data ?? []) as Task[] }}
+      initial={{ members: (m.data ?? []) as Member[], projects: (p.data ?? []) as Project[], tasks: (t.data ?? []) as Task[], commentCounts: countComments(cm.data as { task_id: string }[] | null) }}
       userEmail={auth.user?.email ?? ""}
     />
   );

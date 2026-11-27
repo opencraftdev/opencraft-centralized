@@ -13,9 +13,11 @@ import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import InputBase from "@mui/material/InputBase";
 import SendRounded from "@mui/icons-material/SendRounded";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import { formatRelative } from "@/features/drive/format";
 import { driveContentUrl } from "@/lib/drive/links";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
+import { AutoHeight } from "@/components/ui/AutoHeight";
 import { addComment, updateTask } from "@/features/tasks/api";
 import {
   AREA_LABEL,
@@ -144,33 +146,24 @@ export function NotificationBell() {
     }
   };
 
-  /** Quick actions per kind (option 5): act right in the sheet, or open the page. */
+  /** Quick actions per kind (option 5), shown as text buttons. "Buka" sits on the right of every item. */
   const actions = (n: AppNotification): { label: string; primary?: boolean; run: () => void }[] => {
-    const open = { label: "Buka", run: () => go(n) };
     const read = { label: "Tandai dibaca", run: () => markRead(n) };
     switch (n.kind) {
       case "task_comment":
-        return [{ label: "Balas", primary: true, run: () => { setReplyTo(n.id); setReply(""); } }, read, open];
+        return [{ label: "Balas", primary: true, run: () => { setReplyTo(n.id); setReply(""); } }, read];
       case "task_assigned":
       case "task_created":
       case "task_updated":
-        return [{ label: "Buka tugas", primary: true, run: () => go(n) }, { label: "Tandai selesai", run: () => void finishTask(n) }, read];
-      case "task_status":
-      case "task_attachment":
-        return [{ label: "Buka tugas", primary: true, run: () => go(n) }, read];
-      case "lead_new":
-        return [{ label: n.count > 1 ? `Lihat ${n.count} lead` : "Lihat lead", primary: true, run: () => go(n) }, read];
-      case "expense_new":
-      case "expense_updated":
-        return [{ label: "Lihat di Finance", primary: true, run: () => go(n) }, { label: "Oke", run: () => markRead(n) }];
+        return [{ label: "Tandai selesai", primary: true, run: () => void finishTask(n) }, read];
       case "doc_new":
       case "doc_ready":
         return [
           { label: "Unduh", primary: true, run: () => { if (n.ref_id) window.open(driveContentUrl(n.ref_id, true), "_blank", "noopener"); markRead(n); } },
-          open,
+          read,
         ];
       default:
-        return [{ label: "Oke", primary: true, run: () => markRead(n) }];
+        return [read];
     }
   };
 
@@ -232,7 +225,7 @@ export function NotificationBell() {
             <CloseRounded />
           </IconButton>
         </Box>
-        <Box sx={{ display: "flex", gap: 0.75, px: 2.5, pb: 1.5, overflowX: "auto", scrollbarWidth: "none" }}>
+        <Box sx={{ display: "flex", gap: 0.75, px: 2.5, pb: 1.5 }}>
           {FILTERS.map((f) => {
             const on = f.key === filter;
             return (
@@ -242,7 +235,7 @@ export function NotificationBell() {
                 type="button"
                 onClick={() => setFilter(f.key)}
                 aria-pressed={on}
-                sx={{ border: "1px solid", borderColor: on ? "#0B57D0" : "#C4C7C5", bgcolor: on ? "#D3E3FD" : "transparent", color: on ? "#0B57D0" : "#444746", borderRadius: "9999px", px: 1.5, height: 30, fontSize: "0.8125rem", fontWeight: on ? 600 : 500, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+                sx={{ flex: "1 1 auto", minWidth: 0, border: "1px solid", borderColor: on ? "#0B57D0" : "#C4C7C5", bgcolor: on ? "#D3E3FD" : "transparent", color: on ? "#0B57D0" : "#444746", borderRadius: "9999px", px: 1, height: 30, fontSize: "0.8125rem", fontWeight: on ? 600 : 500, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", transition: "background-color 150ms, border-color 150ms" }}
               >
                 {f.label}
               </Box>
@@ -306,63 +299,55 @@ export function NotificationBell() {
                     <Typography suppressHydrationWarning sx={{ fontSize: "0.75rem", color: "#5F6368", mt: 0.25 }}>
                       {AREA_LABEL[n.area]} · {formatRelative(n.updated_at, now)}
                     </Typography>
+                    <AutoHeight duration={0.28}>
                     {expanded === n.id && (
-                      <Box data-qa sx={{ mt: 1, animation: `${rise} 240ms cubic-bezier(0.22,1,0.36,1) both`, cursor: "default" }}>
+                      <Box data-qa sx={{ mt: 0.75, animation: `${rise} 240ms cubic-bezier(0.22,1,0.36,1) both`, cursor: "default" }}>
                         {replyTo === n.id ? (
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, border: "1px solid #C4C7C5", borderRadius: "9999px", pl: 1.5, pr: 0.5 }}>
-                            <InputBase
-                              autoFocus
-                              fullWidth
-                              value={reply}
-                              onChange={(e) => setReply(e.target.value)}
-                              onKeyDown={(e) => {
-                                e.stopPropagation();
-                                if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                                  e.preventDefault();
-                                  void sendReply(n);
-                                }
-                                if (e.key === "Escape") setReplyTo(null);
-                              }}
-                              placeholder="Tulis balasan…"
-                              sx={{ fontSize: "0.8125rem", py: 0.5 }}
-                              inputProps={{ "aria-label": "Balas komentar" }}
-                            />
-                            <IconButton size="small" aria-label="Kirim balasan" disabled={!reply.trim()} onClick={() => void sendReply(n)} sx={{ color: "#0B57D0" }}>
-                              <SendRounded sx={{ fontSize: 18 }} />
-                            </IconButton>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            <Tooltip title="Kembali">
+                              <IconButton size="small" aria-label="Kembali" onClick={() => setReplyTo(null)} sx={{ color: "#444746", ml: -0.75 }}>
+                                <ArrowBackRounded sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </Tooltip>
+                            <Box sx={{ flex: 1, display: "flex", alignItems: "center", gap: 0.5, border: "1px solid #C4C7C5", borderRadius: "9999px", pl: 1.5, pr: 0.5, "&:focus-within": { borderColor: "#0B57D0" } }}>
+                              <InputBase
+                                autoFocus
+                                fullWidth
+                                value={reply}
+                                onChange={(e) => setReply(e.target.value)}
+                                onKeyDown={(e) => {
+                                  e.stopPropagation();
+                                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                                    e.preventDefault();
+                                    void sendReply(n);
+                                  }
+                                  if (e.key === "Escape") setReplyTo(null);
+                                }}
+                                placeholder="Tulis balasan…"
+                                sx={{ fontSize: "0.8125rem", py: 0.5 }}
+                                inputProps={{ "aria-label": "Balas komentar" }}
+                              />
+                              <IconButton size="small" aria-label="Kirim balasan" disabled={!reply.trim()} onClick={() => void sendReply(n)} sx={{ color: "#0B57D0" }}>
+                                <SendRounded sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </Box>
                           </Box>
                         ) : (
-                          <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+                          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
                             {actions(n).map((a) => (
-                              <Box
-                                key={a.label}
-                                component="button"
-                                type="button"
-                                onClick={a.run}
-                                sx={{
-                                  border: a.primary ? "none" : "1px solid #C4C7C5",
-                                  bgcolor: a.primary ? "#0B57D0" : "#fff",
-                                  color: a.primary ? "#fff" : "#444746",
-                                  borderRadius: "9999px",
-                                  px: 1.5,
-                                  height: 30,
-                                  fontSize: "0.8125rem",
-                                  fontWeight: 600,
-                                  fontFamily: "inherit",
-                                  cursor: "pointer",
-                                  transition: "transform 160ms cubic-bezier(0.22,1,0.36,1), background-color 150ms",
-                                  "&:hover": { bgcolor: a.primary ? "#0A4DBA" : "#F0F4F9" },
-                                  "&:active": { transform: "scale(0.97)" },
-                                }}
-                              >
-                                {a.label}
-                              </Box>
+                              <TextAction key={a.label} label={a.label} primary={a.primary} onClick={a.run} />
                             ))}
                           </Box>
                         )}
                       </Box>
                     )}
+                    </AutoHeight>
                   </Box>
+                  {n.link && (
+                    <Box data-qa sx={{ alignSelf: "center", flexShrink: 0 }}>
+                      <TextAction label="Buka" primary onClick={() => go(n)} />
+                    </Box>
+                  )}
                 </Box>
               );
             })
@@ -375,5 +360,36 @@ export function NotificationBell() {
         </Box>
       </Drawer>
     </>
+  );
+}
+
+/** Text button with an underline that draws in on hover (same as "Lihat Detail"). */
+function TextAction({ label, primary, onClick }: { label: string; primary?: boolean; onClick: () => void }) {
+  return (
+    <Box
+      component="button"
+      type="button"
+      onClick={onClick}
+      sx={{
+        p: 0,
+        border: "none",
+        bgcolor: "transparent",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        fontSize: "0.8125rem",
+        fontWeight: 600,
+        color: primary ? "#0B57D0" : "#444746",
+        whiteSpace: "nowrap",
+        backgroundImage: "linear-gradient(currentColor, currentColor)",
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "0 100%",
+        backgroundSize: "0% 1.5px",
+        transition: "background-size 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "&:hover, &:focus-visible": { backgroundSize: "100% 1.5px" },
+        "&:focus-visible": { outline: "none" },
+      }}
+    >
+      {label}
+    </Box>
   );
 }

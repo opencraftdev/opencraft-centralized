@@ -18,6 +18,7 @@ import ColorizeRounded from "@mui/icons-material/ColorizeRounded";
 import UploadRounded from "@mui/icons-material/UploadRounded";
 import WarningRounded from "@mui/icons-material/WarningRounded";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
+import { AutoHeight } from "@/components/ui/AutoHeight";
 import { driveContentUrl } from "@/lib/drive/links";
 import { saveMember, saveProject } from "../api";
 import { imageSize, uploadImage } from "../attachments";
@@ -91,6 +92,7 @@ export function TeamDialog({
         {tabBtn("projects", "Project")}
       </Box>
       <Box sx={{ px: 3, pb: 3, overflowY: "auto" }}>
+        <AutoHeight>
         {tab === "members" ? (
           <>
             {members.map((m) =>
@@ -143,6 +145,7 @@ export function TeamDialog({
             )}
           </>
         )}
+        </AutoHeight>
       </Box>
     </Dialog>
   );
@@ -368,10 +371,6 @@ function MemberForm({ initial, onDone }: { initial: Member | null; onDone: (save
       </Box>
       <TextField size="small" label="Peran" placeholder="mis. Desain · Branding" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} sx={fieldSx} />
       <TextField size="small" label="Target hasil (opsional)" placeholder="mis. Landing page online" value={f.goal} onChange={(e) => setF({ ...f, goal: e.target.value })} sx={fieldSx} />
-      <Box>
-        {label("Warna avatar (tanpa foto)")}
-        <ColorPicker colors={MEMBER_COLORS} value={f.color} onChange={(color) => setF({ ...f, color })} />
-      </Box>
       {initial && (
         <Box component="label" sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: "0.875rem" }}>
           <Switch size="small" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> Aktif (muncul di pilihan PIC)

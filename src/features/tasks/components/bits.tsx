@@ -4,6 +4,7 @@ import Box from "@mui/material/Box";
 import Tooltip from "@mui/material/Tooltip";
 import FlagRounded from "@mui/icons-material/FlagRounded";
 import EventRounded from "@mui/icons-material/EventRounded";
+import ChatBubbleRounded from "@mui/icons-material/ChatBubbleRounded";
 import type { Member, Project, TaskPriority, TaskStatus } from "../types";
 import { priorityMeta, statusMeta } from "../types";
 import { DUE_COLORS, dueInfo } from "../dates";
@@ -19,8 +20,11 @@ export function textOn(hex: string): string {
   return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#1F1F1F" : "#FFFFFF";
 }
 
+// One neutral grey for everyone (a profile photo replaces it), so boards don't get too colourful.
+const AVATAR_BG = "#E3E5E8";
+
 export function MemberAvatar({ member, size = 24, ring }: { member: Member | undefined; size?: number; ring?: string }) {
-  const bg = member?.color ?? "#E3E3E3";
+  const bg = AVATAR_BG;
   const label = member ? (member.initials || member.name.slice(0, 1)).toUpperCase() : "?";
   const photo = member?.photo_file_id ? driveContentUrl(member.photo_file_id) : null;
   return (
@@ -170,6 +174,21 @@ export function ProgressBar({ done, total }: { done: number; total: number }) {
       <Box component="span" sx={{ fontSize: "0.75rem", color: "#5F6368", fontVariantNumeric: "tabular-nums" }}>
         {done}/{total}
       </Box>
+    </Box>
+  );
+}
+
+/** Small "3 komentar" note; renders nothing when there are no comments. */
+export function CommentCount({ count }: { count: number }) {
+  if (!count) return null;
+  return (
+    <Box
+      component="span"
+      aria-label={`${count} komentar`}
+      sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: "#5F6368", fontSize: "0.75rem", whiteSpace: "nowrap", flexShrink: 0 }}
+    >
+      <ChatBubbleRounded sx={{ fontSize: 13, color: "#9AA0A6" }} />
+      {count} komentar
     </Box>
   );
 }

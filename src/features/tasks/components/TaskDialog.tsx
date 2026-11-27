@@ -25,11 +25,12 @@ import { addComment, createTask, deleteComment, deleteTask, listComments, saveMe
 import type { Task, TaskComment, TaskInput } from "../types";
 import { PRIORITIES, STATUSES } from "../types";
 import type { TasksCtx } from "./TasksApp";
-import { DueChip, MemberAvatar } from "./bits";
+import { CommentCount, DueChip, MemberAvatar } from "./bits";
 import { PROJECT_COLORS } from "./TeamDialog";
 import { AttachmentGrid, AttachPicker, DropZone, PendingFiles } from "./Attachments";
 import { commentIdOf, listAttachments, removeAttachment, uploadAttachments } from "../attachments";
 import { Linkify } from "@/components/ui/Linkify";
+import { AutoHeight, SwapIn } from "@/components/ui/AutoHeight";
 import { CommentBody, MentionInput, type MentionInputHandle } from "./Mentions";
 import { ProjectMark } from "./bits";
 import { PreviewDialog } from "@/features/drive/components/PreviewDialog";
@@ -95,6 +96,12 @@ export function TaskDialog({
   // The live copy (realtime / checkbox changes) of the task being edited.
   const live = task ? ctx.all.find((x) => x.id === task.id) ?? task : null;
   const taskId = task?.id ?? null;
+  // Slide direction: into a checklist item = forward, back to its parent = back.
+  const prevTask = useRef<Task | null>(null);
+  const swapDir: 1 | -1 | 0 = !task || !prevTask.current ? 0 : task.parent_id === prevTask.current.id ? 1 : prevTask.current.parent_id === task.id ? -1 : 0;
+  useEffect(() => {
+    prevTask.current = open ? task : null;
+  }, [open, task]);
 
   useEffect(() => {
     if (!open) return;
@@ -228,6 +235,7 @@ export function TaskDialog({
     try {
       const id = await addComment(live.id, text || "Lampiran");
       setComments(await listComments(live.id));
+      onChanged();
       if (picked.length) await upload(picked, id);
     } catch (e) {
       toastError((e as Error).message);
@@ -265,7 +273,11 @@ export function TaskDialog({
         </IconButton>
       </Box>
 
-      <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 3, px: 3, pt: 1, pb: 2, overflowY: "auto" }}>
+      <Box sx={{ overflowY: "auto", flex: "1 1 auto" }}>
+      {/* Height glides and content slides in when switching task ↔ checklist item (no jump). */}
+      <AutoHeight>
+      <SwapIn id={taskId ?? "new"} dir={swapDir}>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 3, px: 3, pt: 1, pb: 2 }}>
         {/* Main */}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <InputBase
@@ -346,6 +358,9 @@ export function TaskDialog({
                       <Checkbox size="small" checked={d} onChange={(e) => ctx.patch(s, { status: e.target.checked ? "done" : "todo" })} slotProps={{ input: { "aria-label": `Selesai: ${s.title}` } }} />
                       <Box component="button" type="button" onClick={() => onOpenTask(s)} sx={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", bgcolor: "transparent", fontFamily: "inherit", cursor: "pointer", py: 1, fontSize: "0.875rem", color: d ? "#5F6368" : "#1F1F1F", textDecoration: d ? "line-through" : "none" }}>
                         {s.title}
+                      </Box>
+                      <Box sx={{ display: { xs: "none", sm: "inline-flex" }, mr: 0.5 }}>
+                        <CommentCount count={ctx.commentCount(s.id)} />
                       </Box>
                       {!d && (
                         <Box sx={{ display: { xs: "none", sm: "inline-flex" } }}>
@@ -428,7 +443,7 @@ export function TaskDialog({
                         className="c-del"
                         size="small"
                         aria-label="Hapus komentar"
-                        onClick={() => deleteComment(c.id).then(() => setComments((l) => l.filter((x) => x.id !== c.id))).catch((e) => toastError((e as Error).message))}
+                        onClick={() => deleteComment(c.id).then(() => { setComments((l) => l.filter((x) => x.id !== c.id)); onChanged(); }).catch((e) => toastError((e as Error).message))}
                         sx={{ opacity: { xs: 1, sm: 0 }, p: 0.25 }}
                       >
                         <DeleteRounded sx={{ fontSize: 16 }} />
@@ -649,6 +664,9 @@ export function TaskDialog({
             </Select>
           </Box>
         </Box>
+      </Box>
+      </SwapIn>
+      </AutoHeight>
       </Box>
 
       {/* Footer */}

@@ -1,6 +1,9 @@
 // Browser-side reads/writes for /tasks (docs/TASKS.md). RLS: is_allowed_user() — the whole team edits everything.
 import { createClient } from "@/lib/supabase/client";
 import type { Member, Project, Task, TaskComment, TaskInput } from "./types";
+import { countComments } from "./counts";
+
+export { countComments };
 
 const sb = () => createClient();
 
@@ -13,19 +16,24 @@ export interface TaskData {
   members: Member[];
   projects: Project[];
   tasks: Task[];
+  /** Comment count per task id (tasks without comments are absent). */
+  commentCounts?: Record<string, number>;
 }
+
 
 export async function loadTaskData(): Promise<TaskData> {
   const c = sb();
-  const [m, p, t] = await Promise.all([
+  const [m, p, t, cm] = await Promise.all([
     c.from("task_members").select("*").order("sort").order("name"),
     c.from("task_projects").select("*").order("sort").order("name"),
     c.from("tasks").select("*").order("sort").order("created_at"),
+    c.from("task_comments").select("task_id"),
   ]);
   return {
     members: check(m) as Member[],
     projects: check(p) as Project[],
     tasks: check(t) as Task[],
+    commentCounts: countComments(cm.data as { task_id: string }[] | null),
   };
 }
 
@@ -86,6 +94,7 @@ export function subscribeTasks(onChange: () => void): () => void {
     .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "task_members" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "task_projects" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "task_comments" }, onChange)
     .subscribe();
   return () => {
     void c.removeChannel(ch);
