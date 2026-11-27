@@ -10,9 +10,10 @@ import type { SkillSummary } from "@/features/skills/api";
 import { Composer, draftKey, splitSkill, type ComposerHandle } from "./Composer";
 import { SidebarIcon } from "./ChatList";
 import { COLUMN } from "./Thread";
+import { ChatDemo } from "./ChatDemo";
 
-// An empty new chat (docs/CHAT.md → "UI"), like Gemini's start screen: a big centred greeting, the composer, and
-// the enabled skills as suggestion rows under it (click → the composer gets "/name ").
+// An empty new chat (docs/CHAT.md → "UI"): a greeting with a looping example conversation (ChatDemo) in the middle,
+// and the composer at the bottom with the enabled skills as chips above it (click → the composer gets "/name ").
 
 export const NEW_DRAFT = "new";
 
@@ -52,9 +53,9 @@ export function NewChat({
           </Tooltip>
         )}
       </Box>
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", px: { xs: 1.5, sm: 3 }, pb: 3 }}>
-        {/* margin auto centres the block vertically yet lets it scroll when the keyboard leaves little room */}
-        <Box sx={{ my: "auto", width: "100%", maxWidth: COLUMN, mx: "auto", pb: { xs: 2, sm: 8 } }}>
+      {/* Middle: greeting + a looping example conversation showing how to use the chat */}
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", px: { xs: 1.5, sm: 3 } }}>
+        <Box sx={{ my: "auto", width: "100%", maxWidth: COLUMN, mx: "auto", py: 2 }}>
           <Typography
             component="h1"
             sx={{
@@ -64,22 +65,23 @@ export function NewChat({
               lineHeight: 1.25,
               letterSpacing: "-0.01em",
               color: "#1F1F1F",
-              mb: { xs: 3, sm: 4 },
+              mb: 1,
             }}
           >
             Mulai dari mana?
           </Typography>
-          <Composer
-            ref={composer}
-            draftId={NEW_DRAFT}
-            skills={skills}
-            placeholder="Ketik / untuk skill dan lainnya"
-            autoFocus
-            menuBelow
-            onSend={onSend}
-          />
+          <Typography sx={{ textAlign: "center", fontSize: "0.875rem", color: "#5F6368", mb: { xs: 3, sm: 4 } }}>
+            Tanya apa saja, atau ketik <b>/</b> untuk memakai skill. Contohnya seperti ini:
+          </Typography>
+          <ChatDemo skill={skills[0]?.name ?? null} />
+        </Box>
+      </Box>
+
+      {/* Bottom: skill shortcuts + the composer, where it stays once the chat starts */}
+      <Box sx={{ px: { xs: 1, sm: 3 }, pb: 1, pt: 0.5, flexShrink: 0 }}>
+        <Box sx={{ maxWidth: COLUMN, mx: "auto" }}>
           {skills.length > 0 && (
-            <Box component="ul" aria-label="Saran skill" sx={{ listStyle: "none", m: 0, mt: 2.5, px: { xs: 0, sm: 2.5 }, display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <Box component="ul" aria-label="Saran skill" sx={{ listStyle: "none", m: 0, mb: 1, p: 0, display: "flex", flexWrap: "wrap", gap: 1 }}>
               {skills.map((s) => (
                 <li key={s.name}>
                   <Box
@@ -90,22 +92,22 @@ export function NewChat({
                     sx={{
                       display: "inline-flex",
                       alignItems: "center",
-                      gap: 1.5,
+                      gap: 0.75,
                       maxWidth: "100%",
-                      height: 44,
+                      height: 34,
                       px: 1.5,
-                      border: "none",
+                      border: "1px solid #E3E3E3",
                       borderRadius: "9999px",
-                      bgcolor: "transparent",
+                      bgcolor: "#fff",
                       color: "#1F1F1F",
                       fontFamily: "inherit",
-                      fontSize: "1rem",
+                      fontSize: "0.875rem",
                       cursor: "pointer",
                       "&:hover": { bgcolor: "#F0F4F9" },
                       "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
                     }}
                   >
-                    <AutoAwesomeRounded sx={{ fontSize: 20, color: "#444746", flexShrink: 0 }} />
+                    <AutoAwesomeRounded sx={{ fontSize: 16, color: "#444746", flexShrink: 0 }} />
                     <Box component="span" sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {s.title}
                     </Box>
@@ -114,6 +116,10 @@ export function NewChat({
               ))}
             </Box>
           )}
+          <Composer ref={composer} draftId={NEW_DRAFT} skills={skills} placeholder="Ketik / untuk skill dan lainnya" autoFocus onSend={onSend} />
+          <Typography sx={{ textAlign: "center", fontSize: "0.75rem", color: "#444746", mt: 1, lineHeight: 1.5 }}>
+            AI bisa membuat kesalahan, periksa kembali hasilnya.
+          </Typography>
         </Box>
       </Box>
     </Box>

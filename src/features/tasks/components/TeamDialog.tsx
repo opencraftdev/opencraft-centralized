@@ -371,6 +371,10 @@ function MemberForm({ initial, onDone }: { initial: Member | null; onDone: (save
       </Box>
       <TextField size="small" label="Peran" placeholder="mis. Desain · Branding" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} sx={fieldSx} />
       <TextField size="small" label="Target hasil (opsional)" placeholder="mis. Landing page online" value={f.goal} onChange={(e) => setF({ ...f, goal: e.target.value })} sx={fieldSx} />
+      <Box>
+        {label("Warna avatar (tanpa foto)")}
+        <ColorPicker colors={MEMBER_COLORS} value={f.color} onChange={(color) => setF({ ...f, color })} />
+      </Box>
       {initial && (
         <Box component="label" sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: "0.875rem" }}>
           <Switch size="small" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> Aktif (muncul di pilihan PIC)

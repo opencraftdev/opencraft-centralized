@@ -8,7 +8,7 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import type { Member, Task } from "../types";
 import { dueInfo, fmtRange, fmtShort } from "../dates";
 import type { TasksCtx } from "./TasksApp";
-import { DueChip, MemberAvatar, ProgressBar } from "./bits";
+import { DueChip, MemberAvatar, ProgressBar, textOn } from "./bits";
 
 // Per orang: one card per team member with their own checklist (like "Tugas per orang" in the plan PDF).
 // Shows the "leaf" tasks a person is PIC of — subtasks, and tasks without subtasks — grouped by period.
@@ -107,7 +107,7 @@ function PersonCard({ member, tasks, all, ctx, index = 0 }: { member: Member | n
       </Box>
 
       {member?.goal && (
-        <Box sx={{ m: 1.5, mt: 0, px: 1.5, py: 1, borderRadius: "10px", bgcolor: "#F1F3F4", fontSize: "0.75rem", color: "#1F1F1F" }}>
+        <Box sx={{ m: 1.5, mt: 0, px: 1.5, py: 1, borderRadius: "10px", bgcolor: textOn(member.color) === "#FFFFFF" ? "#EEF1F4" : `${member.color}66`, fontSize: "0.75rem", color: "#1F1F1F" }}>
           <b>Hasil:</b> {member.goal}
         </Box>
       )}

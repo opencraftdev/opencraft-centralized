@@ -20,11 +20,8 @@ export function textOn(hex: string): string {
   return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#1F1F1F" : "#FFFFFF";
 }
 
-// One neutral grey for everyone (a profile photo replaces it), so boards don't get too colourful.
-const AVATAR_BG = "#E3E5E8";
-
 export function MemberAvatar({ member, size = 24, ring }: { member: Member | undefined; size?: number; ring?: string }) {
-  const bg = AVATAR_BG;
+  const bg = member?.color ?? "#E3E3E3";
   const label = member ? (member.initials || member.name.slice(0, 1)).toUpperCase() : "?";
   const photo = member?.photo_file_id ? driveContentUrl(member.photo_file_id) : null;
   return (
