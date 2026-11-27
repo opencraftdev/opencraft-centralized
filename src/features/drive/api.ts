@@ -60,7 +60,8 @@ export const deleteForever = (kind: ItemKind, id: string) => driveItems({ op: "d
 
 // Upload straight to Google Drive: server opens a resumable session in the folder's Google folder,
 // the browser PUTs the bytes there, then the row is stored with the Google file id.
-export async function uploadFile(file: File, folderId: string | null, userId: string) {
+/** Returns the drive_files row id. `metadata` is stored on the row (e.g. which task a file is attached to). */
+export async function uploadFile(file: File, folderId: string | null, userId: string, metadata?: Record<string, unknown>): Promise<string> {
   const mime = file.type || "application/octet-stream";
   const { uploadUrl } = await postJson<{ uploadUrl: string }>("/api/drive/upload", {
     name: file.name,
@@ -81,14 +82,16 @@ export async function uploadFile(file: File, folderId: string | null, userId: st
     source: "upload",
     status: "ready",
     created_by: userId,
+    ...(metadata ? { metadata } : {}),
   };
-  let res = await sb().from("drive_files").insert(row);
+  let res = await sb().from("drive_files").insert(row).select("id").single();
   // The worker's Google→dashboard sync may have picked the new file up first (as source='google'): take that row over.
-  if (res.error?.code === "23505") res = await sb().from("drive_files").update(row).eq("google_file_id", g.id);
+  if (res.error?.code === "23505") res = await sb().from("drive_files").update(row).eq("google_file_id", g.id).select("id").single();
   if (res.error) {
     await driveItems({ op: "discardUpload", googleFileId: g.id }).catch(() => {});
     throw new Error(res.error.message);
   }
+  return (res.data as { id: string }).id;
 }
 
 export const DOC_TYPE_LABEL: Record<DriveDocType, string> = {

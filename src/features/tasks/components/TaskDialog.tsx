@@ -26,6 +26,11 @@ import { PRIORITIES, STATUSES } from "../types";
 import type { TasksCtx } from "./TasksApp";
 import { DueChip, MemberAvatar } from "./bits";
 import { PROJECT_COLORS } from "./TeamDialog";
+import { AttachmentGrid, AttachPicker, DropZone, PendingFiles } from "./Attachments";
+import { commentIdOf, listAttachments, removeAttachment, uploadAttachments } from "../attachments";
+import { Linkify } from "@/components/ui/Linkify";
+import { PreviewDialog } from "@/features/drive/components/PreviewDialog";
+import type { DriveFile } from "@/lib/drive/types";
 
 // Create / edit one task: details on the right, checklist (subtasks) and comments on the left.
 
@@ -77,6 +82,11 @@ export function TaskDialog({
   const [newSub, setNewSub] = useState("");
   const [newPerson, setNewPerson] = useState<string | null>(null); // typing a new member's name
   const [newProject, setNewProject] = useState<string | null>(null); // typing a new project's name
+  const [files, setFiles] = useState<DriveFile[]>([]); // attachments of this task and its comments
+  const [pending, setPending] = useState<File[]>([]); // picked for the next comment, not uploaded yet
+  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
+  const [preview, setPreview] = useState<DriveFile | null>(null);
+  const [editingNote, setEditingNote] = useState(false);
 
   // The live copy (realtime / checkbox changes) of the task being edited.
   const live = task ? ctx.all.find((x) => x.id === task.id) ?? task : null;
@@ -91,7 +101,14 @@ export function TaskDialog({
     setNewPerson(null);
     setNewProject(null);
     setComments([]);
-    if (task) listComments(task.id).then(setComments).catch(() => setComments([]));
+    setFiles([]);
+    setPending([]);
+    setUploading(null);
+    setEditingNote(!task || !task.description.trim());
+    if (task) {
+      listComments(task.id).then(setComments).catch(() => setComments([]));
+      listAttachments(task.id).then(setFiles).catch(() => setFiles([]));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, taskId]);
 
@@ -181,15 +198,44 @@ export function TaskDialog({
     }
   };
 
-  const sendComment = async () => {
-    const body = comment.trim();
-    if (!body || !live) return;
-    setComment("");
+  const reloadFiles = async () => {
+    if (live) setFiles(await listAttachments(live.id).catch(() => files));
+  };
+
+  const upload = async (picked: File[], commentId?: string) => {
+    if (!live || picked.length === 0) return;
     try {
-      await addComment(live.id, body);
+      await uploadAttachments(picked, { taskId: live.id, commentId }, (done, total) => setUploading({ done, total }));
+    } catch (e) {
+      toastError(`Upload gagal: ${(e as Error).message}`);
+    } finally {
+      setUploading(null);
+      await reloadFiles();
+    }
+  };
+
+  const sendComment = async () => {
+    const text = comment.trim();
+    const picked = pending;
+    if ((!text && picked.length === 0) || !live || uploading) return;
+    setComment("");
+    setPending([]);
+    try {
+      const id = await addComment(live.id, text || "Lampiran");
       setComments(await listComments(live.id));
+      if (picked.length) await upload(picked, id);
     } catch (e) {
       toastError((e as Error).message);
+    }
+  };
+
+  const removeFile = async (f: DriveFile) => {
+    setFiles((l) => l.filter((x) => x.id !== f.id));
+    try {
+      await removeAttachment(f.id);
+    } catch (e) {
+      toastError((e as Error).message);
+      await reloadFiles();
     }
   };
 
@@ -227,16 +273,61 @@ export function TaskDialog({
             sx={{ fontSize: "1.375rem", fontWeight: 500, color: "#1F1F1F", mb: 1.5 }}
             inputProps={{ "aria-label": "Judul tugas" }}
           />
-          {label("Catatan")}
-          <TextField
-            fullWidth
-            multiline
-            minRows={3}
-            value={form.description}
-            onChange={(e) => set("description", e.target.value)}
-            placeholder="Detail, link, atau hasil yang diharapkan…"
-            sx={fieldSx}
-          />
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            {label("Catatan")}
+            <Box sx={{ flex: 1 }} />
+            {!editingNote && (
+              <Button size="small" onClick={() => setEditingNote(true)} sx={{ borderRadius: "9999px", minWidth: 0, py: 0, mb: 0.5, fontSize: "0.75rem" }}>
+                Ubah
+              </Button>
+            )}
+          </Box>
+          {editingNote ? (
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              autoFocus={!!live && !!form.description}
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              placeholder="Detail, link, atau hasil yang diharapkan…"
+              sx={fieldSx}
+            />
+          ) : (
+            <Box
+              onClick={() => setEditingNote(true)}
+              sx={{ border: "1px solid #E0E3E7", borderRadius: "10px", px: 1.75, py: 1.25, minHeight: 72, fontSize: "0.875rem", color: "#1F1F1F", whiteSpace: "pre-wrap", overflowWrap: "anywhere", cursor: "text", "&:hover": { borderColor: "#A8C7FA" } }}
+            >
+              <Linkify text={form.description} />
+            </Box>
+          )}
+
+          {/* Attachments on the task itself */}
+          <Box sx={{ mt: 2.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              {label(`Lampiran${files.filter((f) => !commentIdOf(f)).length ? ` · ${files.filter((f) => !commentIdOf(f)).length}` : ""}`)}
+              <Box sx={{ flex: 1 }} />
+              {live && <AttachPicker onPick={(l) => void upload(l)} disabled={!!uploading} />}
+            </Box>
+            {live ? (
+              <DropZone onDrop={(l) => void upload(l)} disabled={!!uploading}>
+                {files.some((f) => !commentIdOf(f)) ? (
+                  <AttachmentGrid files={files.filter((f) => !commentIdOf(f))} onOpen={setPreview} onRemove={(f) => void removeFile(f)} />
+                ) : (
+                  <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368", border: "1px dashed #C4C7C5", borderRadius: "12px", px: 1.75, py: 1.5 }}>
+                    Tarik file, gambar, atau video ke sini, atau klik “Tambah lampiran”.
+                  </Typography>
+                )}
+              </DropZone>
+            ) : (
+              <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368" }}>Buat tugasnya dulu, lalu lampiran bisa ditambahkan.</Typography>
+            )}
+            {uploading && (
+              <Typography sx={{ fontSize: "0.75rem", color: "#0B57D0", mt: 0.75 }}>
+                Mengunggah {uploading.done + 1 > uploading.total ? uploading.total : uploading.done + 1} dari {uploading.total} file…
+              </Typography>
+            )}
+          </Box>
 
           {/* Checklist */}
           {live && !live.parent_id && (
@@ -318,10 +409,23 @@ export function TaskDialog({
                         <DeleteRounded sx={{ fontSize: 16 }} />
                       </IconButton>
                     </Box>
-                    <Typography sx={{ fontSize: "0.875rem", color: "#1F1F1F", whiteSpace: "pre-wrap", mt: 0.25 }}>{c.body}</Typography>
+                    {!(c.body === "Lampiran" && files.some((f) => commentIdOf(f) === c.id)) && (
+                      <Typography sx={{ fontSize: "0.875rem", color: "#1F1F1F", whiteSpace: "pre-wrap", overflowWrap: "anywhere", mt: 0.25 }}>
+                        <Linkify text={c.body} />
+                      </Typography>
+                    )}
+                    {files.some((f) => commentIdOf(f) === c.id) && (
+                      <Box sx={{ mt: 0.75 }}>
+                        <AttachmentGrid files={files.filter((f) => commentIdOf(f) === c.id)} size={72} onOpen={setPreview} onRemove={(f) => void removeFile(f)} />
+                      </Box>
+                    )}
                   </Box>
                 ))}
-                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1, border: "1px solid #C4C7C5", borderRadius: "12px", pl: 1.5, pr: 0.5, py: 0.5 }}>
+                <DropZone onDrop={(l) => setPending((p) => [...p, ...l])}>
+                <Box sx={{ border: "1px solid #C4C7C5", borderRadius: "12px" }}>
+                <PendingFiles files={pending} onRemove={(i) => setPending((p) => p.filter((_, j) => j !== i))} />
+                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.5, pl: 0.5, pr: 0.5, py: 0.5 }}>
+                  <AttachPicker variant="icon" onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
                   <InputBase
                     fullWidth
                     multiline
@@ -337,10 +441,12 @@ export function TaskDialog({
                     placeholder="Tulis update atau pertanyaan…"
                     sx={{ fontSize: "0.875rem", py: 0.75 }}
                   />
-                  <IconButton aria-label="Kirim komentar" onClick={() => void sendComment()} disabled={!comment.trim()} sx={{ color: "#0B57D0" }}>
+                  <IconButton aria-label="Kirim komentar" onClick={() => void sendComment()} disabled={(!comment.trim() && pending.length === 0) || !!uploading} sx={{ color: "#0B57D0" }}>
                     <SendRounded sx={{ fontSize: 20 }} />
                   </IconButton>
                 </Box>
+                </Box>
+                </DropZone>
               </Box>
             </Box>
           )}
@@ -551,6 +657,7 @@ export function TaskDialog({
           {live ? "Simpan" : "Buat tugas"}
         </Button>
       </Box>
+      <PreviewDialog file={preview} onClose={() => setPreview(null)} onChanged={() => void reloadFiles()} />
     </Dialog>
   );
 }

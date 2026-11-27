@@ -56,6 +56,7 @@ export interface DriveFile {
   finished_at: string | null; // worker: when the last run ended
   chat_id?: string | null; // source='chat': the chat that attached it (migration 025)
   chat_path?: string | null; // source='chat': server path the agent attached
+  metadata?: Record<string, unknown> | null; // free-form; e.g. {task_id, comment_id} for Task Management attachments
   starred: boolean;
   trashed_at: string | null;
   created_by: string | null;
