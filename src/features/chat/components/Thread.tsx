@@ -8,7 +8,6 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import ChatBubbleRounded from "@mui/icons-material/ChatBubbleRounded";
-import EditRounded from "@mui/icons-material/EditRounded";
 import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import PersonAddRounded from "@mui/icons-material/PersonAddRounded";
 import { nameOf, personFor, useAccount } from "@/features/accounts/account";
@@ -23,7 +22,7 @@ import { isRunning, participants, type Chat, type ChatListItem, type ChatMessage
 import { Composer, type ComposerHandle } from "./Composer";
 import { QuoteChip, SelectionReply, withQuote } from "./Quote";
 import { AssistantMessage, LiveAnswer, PendingMessages, UserBubble } from "./Messages";
-import { ChatMenu, SidebarIcon, type ChatAction } from "./ChatList";
+import { ChatMenu, ChatNavButtons, type ChatAction } from "./ChatList";
 
 // One chat (docs/CHAT.md → "UI" → Thread). The chat row + new messages are polled every 1.5 s while a run is queued
 // or running (the worker writes run_steps / stream_text at most every ~1.5 s); otherwise the list's poll (updated_at /
@@ -59,6 +58,7 @@ export function Thread({
   skills,
   onOpenList,
   onNew,
+  historyOpen,
   onChanged,
   onAction,
   people,
@@ -66,8 +66,9 @@ export function Thread({
   chatId: string;
   listed: ChatListItem | null; // this chat's row in the (polled) list
   skills: SkillSummary[];
-  onOpenList?: () => void; // the chat list is hidden (drawer on a phone, collapsed on desktop)
-  onNew?: () => void; // a "Chat baru" button in the top bar (when the list is hidden)
+  onOpenList: (anchor: HTMLElement) => void; // the "Riwayat chat" button: list as a popover (drawer on a phone)
+  onNew: () => void;
+  historyOpen?: boolean;
   onChanged: () => void; // refresh the list
   onAction: (action: ChatAction, chat: ChatListItem) => void;
   people: Member[]; // team members with a login (names + photos)
@@ -257,17 +258,11 @@ export function Thread({
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: onOpenList ? 1 : 2.5, pr: 1, minHeight: 56, flexShrink: 0 }}>
-        {onOpenList && (
-          <Tooltip title="Daftar chat">
-            <IconButton onClick={onOpenList} aria-label="Buka daftar chat" sx={{ color: "#444746" }}>
-              <SidebarIcon />
-            </IconButton>
-          </Tooltip>
-        )}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 1, pr: 1, minHeight: 56, flexShrink: 0 }}>
+        <ChatNavButtons onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
         <Typography
           component="h1"
-          sx={{ flex: 1, minWidth: 0, pl: onOpenList ? 0.5 : 0, fontSize: "1rem", fontWeight: 400, color: "#1F1F1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+          sx={{ flex: 1, minWidth: 0, pl: 1, fontSize: "1rem", fontWeight: 400, color: "#1F1F1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
         >
           {state === "loading" && !title ? "Memuat…" : title || "Chat baru"}
         </Typography>
@@ -325,13 +320,6 @@ export function Thread({
                 Bagikan
               </Box>
             </Box>
-          </Tooltip>
-        )}
-        {onNew && (
-          <Tooltip title="Chat baru">
-            <IconButton aria-label="Chat baru" onClick={onNew} sx={{ color: "#444746" }}>
-              <EditRounded sx={{ fontSize: 22 }} />
-            </IconButton>
           </Tooltip>
         )}
         {(listed || chat) && (

@@ -2,13 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import type { SkillSummary } from "@/features/skills/api";
 import { Composer, draftKey, splitSkill, type ComposerHandle } from "./Composer";
-import { SidebarIcon } from "./ChatList";
+import { ChatNavButtons } from "./ChatList";
 import { COLUMN } from "./Thread";
 import { ChatDemo } from "./ChatDemo";
 
@@ -21,11 +19,15 @@ export function NewChat({
   skills,
   prefillSkill,
   onOpenList,
+  onNew,
+  historyOpen,
   onSend,
 }: {
   skills: SkillSummary[];
   prefillSkill: string | null; // /chat?skill=<name>
-  onOpenList?: () => void; // the chat list is hidden (drawer on a phone, collapsed on desktop)
+  onOpenList: (anchor: HTMLElement) => void; // the "Riwayat chat" button: list as a popover (drawer on a phone)
+  onNew: () => void;
+  historyOpen?: boolean;
   onSend: (text: string) => Promise<boolean>;
 }) {
   const composer = useRef<ComposerHandle>(null);
@@ -45,13 +47,7 @@ export function NewChat({
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 1, minHeight: 56, flexShrink: 0 }}>
-        {onOpenList && (
-          <Tooltip title="Daftar chat">
-            <IconButton onClick={onOpenList} aria-label="Buka daftar chat" sx={{ color: "#444746" }}>
-              <SidebarIcon />
-            </IconButton>
-          </Tooltip>
-        )}
+        <ChatNavButtons onHistory={onOpenList} onNew={onNew} historyOpen={historyOpen} />
       </Box>
       {/* Middle: greeting + a looping example conversation showing how to use the chat */}
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", px: { xs: 1.5, sm: 3 } }}>

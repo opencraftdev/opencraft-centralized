@@ -18,6 +18,8 @@ import EditRounded from "@mui/icons-material/EditRounded";
 import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import PushPinRounded from "@mui/icons-material/PushPinRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
+import HistoryRounded from "@mui/icons-material/HistoryRounded";
+import AddRounded from "@mui/icons-material/AddRounded";
 import ViewSidebarRounded from "@mui/icons-material/ViewSidebarRounded";
 import GroupRounded from "@mui/icons-material/GroupRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
@@ -115,6 +117,30 @@ export function SidebarIcon() {
   return <ViewSidebarRounded sx={{ fontSize: 22, transform: "scaleX(-1)" }} />;
 }
 
+/** Top-left of the chat card: Riwayat chat (opens the list) and Chat baru (+), labelled on hover. */
+export function ChatNavButtons({ onHistory, onNew, historyOpen }: { onHistory: (anchor: HTMLElement) => void; onNew: () => void; historyOpen?: boolean }) {
+  return (
+    <>
+      <Tooltip title="Riwayat chat">
+        <IconButton
+          aria-label="Riwayat chat"
+          aria-haspopup="dialog"
+          aria-expanded={historyOpen}
+          onClick={(e) => onHistory(e.currentTarget)}
+          sx={{ ...iconBtn, ...(historyOpen ? { bgcolor: "#D3E3FD", color: "#041E49", "&:hover": { bgcolor: "#D3E3FD" } } : {}) }}
+        >
+          <HistoryRounded sx={{ fontSize: 22 }} />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title="Chat baru">
+        <IconButton aria-label="Chat baru" onClick={onNew} sx={iconBtn}>
+          <AddRounded sx={{ fontSize: 24 }} />
+        </IconButton>
+      </Tooltip>
+    </>
+  );
+}
+
 const iconBtn = { color: "#444746", width: 40, height: 40, "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } } as const;
 
 export function ChatList({
@@ -126,6 +152,7 @@ export function ChatList({
   onAction,
   onCollapse,
   collapseLabel,
+  popover,
 }: {
   chats: ChatListItem[];
   activeId: string | null;
@@ -135,9 +162,11 @@ export function ChatList({
   onAction: (action: ChatAction, chat: ChatListItem) => void;
   onCollapse?: () => void;
   collapseLabel?: string;
+  /** Shown in the "Riwayat chat" popover: white, search open, no "Chat baru" row (the header has a + button). */
+  popover?: boolean;
 }) {
   const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
+  const [searching, setSearching] = useState(Boolean(popover));
   const [menu, setMenu] = useState<{ anchor: HTMLElement; chat: ChatListItem } | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const shown = useMemo(() => {
@@ -156,20 +185,22 @@ export function ChatList({
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, bgcolor: "#F0F4F9" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 2, pr: 1, pt: 1, pb: 1, minHeight: 56 }}>
-        <Typography component="h2" sx={{ flex: 1, fontSize: "1.25rem", color: "#1F1F1F", letterSpacing: 0 }}>
-          Chat
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, bgcolor: popover ? "#fff" : "#F0F4F9" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 2, pr: 1, pt: 1, pb: popover ? 0.5 : 1, minHeight: popover ? 48 : 56 }}>
+        <Typography component="h2" sx={{ flex: 1, fontSize: popover ? "1rem" : "1.25rem", fontWeight: popover ? 500 : 400, color: "#1F1F1F", letterSpacing: 0 }}>
+          {popover ? "Riwayat chat" : "Chat"}
         </Typography>
+        {!popover && (
         <Tooltip title="Cari chat">
           <IconButton aria-label="Cari chat" aria-pressed={searching} onClick={toggleSearch} sx={iconBtn}>
             <SearchRounded sx={{ fontSize: 22 }} />
           </IconButton>
         </Tooltip>
+        )}
         {onCollapse && (
           <Tooltip title={collapseLabel ?? "Sembunyikan"}>
             <IconButton aria-label={collapseLabel ?? "Sembunyikan"} onClick={onCollapse} sx={iconBtn}>
-              <SidebarIcon />
+              {popover ? <CloseRounded sx={{ fontSize: 22 }} /> : <SidebarIcon />}
             </IconButton>
           </Tooltip>
         )}
@@ -186,7 +217,7 @@ export function ChatList({
               pl: 1.75,
               pr: 0.5,
               borderRadius: "9999px",
-              bgcolor: "#fff",
+              bgcolor: popover ? "#F0F4F9" : "#fff",
               "&:focus-within": { boxShadow: "inset 0 0 0 1px #0B57D0" },
             }}
           >
@@ -202,14 +233,16 @@ export function ChatList({
               inputProps={{ "aria-label": "Cari chat" }}
               sx={{ flex: 1, fontSize: "0.875rem", color: "#1F1F1F" }}
             />
-            <IconButton size="small" aria-label="Tutup pencarian" onClick={toggleSearch} sx={{ color: "#444746" }}>
-              <CloseRounded sx={{ fontSize: 18 }} />
-            </IconButton>
+            {!popover && (
+              <IconButton size="small" aria-label="Tutup pencarian" onClick={toggleSearch} sx={{ color: "#444746" }}>
+                <CloseRounded sx={{ fontSize: 18 }} />
+              </IconButton>
+            )}
           </Box>
         </Box>
       )}
 
-      <Box sx={{ px: 1 }}>
+      <Box sx={{ px: 1, display: popover ? "none" : "block" }}>
         <Box
           component="button"
           type="button"
@@ -240,7 +273,7 @@ export function ChatList({
         </Box>
       </Box>
 
-      <Typography sx={{ px: 2.5, pt: 2.5, pb: 1, fontSize: "0.875rem", fontWeight: 500, color: "#444746" }}>
+      <Typography sx={{ px: 2.5, pt: popover ? 1 : 2.5, pb: 1, fontSize: "0.875rem", fontWeight: 500, color: "#444746" }}>
         {query.trim() ? "Hasil pencarian" : "Terbaru"}
       </Typography>
 
