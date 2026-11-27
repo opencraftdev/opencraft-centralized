@@ -66,6 +66,8 @@ export interface MentionInputHandle {
   serialize: () => string;
   reset: () => void;
   focus: () => void;
+  /** Starts editing a stored text: tokens become plain "@Label" again (and are remembered for serialize). */
+  load: (stored: string) => void;
 }
 
 export const MentionInput = forwardRef<MentionInputHandle, {
@@ -75,7 +77,12 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   ctx: TasksCtx;
   currentTaskId?: string;
   placeholder?: string;
-}>(function MentionInput({ value, onChange, onSubmit, ctx, currentTaskId, placeholder }, ref) {
+  minRows?: number;
+  newlineOnEnter?: boolean; // Enter adds a line (brief) instead of sending (comment)
+  popupBelow?: boolean; // the @ list opens under the box
+  inputSx?: object;
+  ariaLabel?: string;
+}>(function MentionInput({ value, onChange, onSubmit, ctx, currentTaskId, placeholder, minRows, newlineOnEnter, popupBelow, inputSx, ariaLabel }, ref) {
   const input = useRef<HTMLTextAreaElement | null>(null);
   const [picked, setPicked] = useState<Option[]>([]);
   const [query, setQuery] = useState<{ text: string; start: number } | null>(null);
@@ -83,6 +90,16 @@ export const MentionInput = forwardRef<MentionInputHandle, {
 
   useImperativeHandle(ref, () => ({
     focus: () => input.current?.focus(),
+    load: (stored: string) => {
+      const opts: Option[] = [];
+      const plain = stored.replace(TOKEN_RE, (_m, label: string, kind: Kind, id: string) => {
+        opts.push({ kind, id, label });
+        return `@${label}`;
+      });
+      setPicked(opts);
+      setQuery(null);
+      onChange(plain);
+    },
     serialize: () => {
       let s = value;
       for (const o of picked) {
@@ -145,7 +162,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
         inputRef={input}
         fullWidth
         multiline
-        maxRows={6}
+        maxRows={newlineOnEnter ? 24 : 6}
         value={value}
         onChange={(e) => {
           onChange(e.target.value);
@@ -160,19 +177,20 @@ export const MentionInput = forwardRef<MentionInputHandle, {
             if ((e.key === "Enter" || e.key === "Tab") && !e.nativeEvent.isComposing) return (e.preventDefault(), choose(options[active]));
             if (e.key === "Escape") return (e.preventDefault(), e.stopPropagation(), setQuery(null));
           }
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+          if (!newlineOnEnter && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             onSubmit();
           }
         }}
         placeholder={placeholder}
-        sx={{ fontSize: "0.875rem", py: 0.75 }}
-        inputProps={{ "aria-label": "Tulis komentar", "aria-autocomplete": "list", "aria-expanded": open }}
+        minRows={minRows}
+        sx={{ fontSize: "0.875rem", py: 0.75, ...inputSx }}
+        inputProps={{ "aria-label": ariaLabel ?? "Tulis komentar", "aria-autocomplete": "list", "aria-expanded": open }}
       />
       {open && (
         <Box
           role="listbox"
-          sx={{ position: "absolute", left: -8, bottom: "calc(100% + 10px)", width: "min(360px, 90vw)", maxHeight: 300, overflowY: "auto", bgcolor: "#fff", borderRadius: "14px", boxShadow: "0 4px 24px rgba(60,64,67,.22)", py: 0.75, zIndex: 10, animation: "oc-pop-in 200ms cubic-bezier(0.22, 1, 0.36, 1)" }}
+          sx={{ position: "absolute", left: -8, ...(popupBelow ? { top: "calc(100% + 6px)" } : { bottom: "calc(100% + 10px)" }), width: "min(360px, 90vw)", maxHeight: 300, overflowY: "auto", bgcolor: "#fff", borderRadius: "14px", boxShadow: "0 4px 24px rgba(60,64,67,.22)", py: 0.75, zIndex: 10, animation: "oc-pop-in 200ms cubic-bezier(0.22, 1, 0.36, 1)" }}
         >
           {options.map((o, i) => (
             <Box key={`${o.kind}-${o.id}`}>
