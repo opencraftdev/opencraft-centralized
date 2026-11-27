@@ -242,7 +242,7 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
           </Box>
           <Box sx={{ display: "flex", gap: 1, flexShrink: 0 }}>
             <Button variant="outlined" startIcon={<GroupsRounded />} onClick={() => setTeamOpen(true)} sx={{ borderRadius: "9999px", borderColor: "#C4C7C5", color: "#444746" }}>
-              Tim & proyek
+              Tim & project
             </Button>
             <Button variant="contained" disableElevation startIcon={<AddRounded />} onClick={() => ctx.create({})} sx={{ borderRadius: "9999px" }}>
               Tugas baru
@@ -320,8 +320,8 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
               </MenuItem>
             ))}
           </Select>
-          <Select size="small" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} sx={selectSx} aria-label="Filter proyek">
-            <MenuItem value="all">Semua proyek</MenuItem>
+          <Select size="small" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} sx={selectSx} aria-label="Filter project">
+            <MenuItem value="all">Semua project</MenuItem>
             {activeProjects.map((p) => (
               <MenuItem key={p.id} value={p.id}>
                 {p.name}

@@ -66,10 +66,15 @@ export async function saveMember(m: Partial<Member> & { name: string }): Promise
   return row.id;
 }
 
-export async function saveProject(p: Partial<Project> & { name: string }): Promise<void> {
+/** Creates (no id) or updates a project; returns its id. */
+export async function saveProject(p: Partial<Project> & { name: string }): Promise<string> {
   const { id, ...rest } = p;
-  if (id) check(await sb().from("task_projects").update(rest).eq("id", id));
-  else check(await sb().from("task_projects").insert(rest));
+  if (id) {
+    check(await sb().from("task_projects").update(rest).eq("id", id));
+    return id;
+  }
+  const row = check(await sb().from("task_projects").insert(rest).select("id").single()) as { id: string };
+  return row.id;
 }
 
 /** Calls onChange whenever any task table changes (other team members' edits). Returns unsubscribe. */

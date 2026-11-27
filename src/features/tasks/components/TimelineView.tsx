@@ -104,7 +104,7 @@ export function TimelineView({ ctx }: { ctx: TasksCtx }) {
                         {g.project.label}
                       </Box>
                     )}
-                    <Typography sx={{ fontSize: "1rem", fontWeight: 600, color: "#1F1F1F" }}>{g.project?.name ?? "Tanpa proyek"}</Typography>
+                    <Typography sx={{ fontSize: "1rem", fontWeight: 600, color: "#1F1F1F" }}>{g.project?.name ?? "Tanpa project"}</Typography>
                   </Box>
                   <Box sx={{ flex: 1, position: "relative" }}>{grid}</Box>
                 </Box>
