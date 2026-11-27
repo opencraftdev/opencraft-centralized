@@ -16,6 +16,7 @@ import SearchRounded from "@mui/icons-material/SearchRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import { logout } from "@/features/auth/actions";
+import { NotificationBell } from "@/features/notifications/NotificationBell";
 
 export function TopBar({
   userEmail,
@@ -123,6 +124,11 @@ export function TopBar({
               "& ::placeholder": { color: "#474747", opacity: 0.6 },
             }}
           />
+        </Box>
+
+        {/* Notifications */}
+        <Box sx={{ ml: 1 }}>
+          <NotificationBell />
         </Box>
 
         {/* Account avatar */}

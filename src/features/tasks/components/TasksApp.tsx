@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import InputBase from "@mui/material/InputBase";
@@ -95,6 +96,19 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
       if (me) setMemberFilter(me.id);
     }
   }, [initial.members, userEmail]);
+
+  // Deep link from a notification: /tasks?task=<id> opens that task.
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const linked = params.get("task");
+  useEffect(() => {
+    if (!linked) return;
+    const t = data.tasks.find((x) => x.id === linked);
+    if (t) setDialog({ task: t });
+    router.replace(pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linked]);
 
   const refresh = useCallback(async () => {
     try {
