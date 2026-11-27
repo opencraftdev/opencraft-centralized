@@ -14,6 +14,7 @@ import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import GroupsRounded from "@mui/icons-material/GroupsRounded";
+import FolderRounded from "@mui/icons-material/FolderRounded";
 import ViewKanbanRounded from "@mui/icons-material/ViewKanbanRounded";
 import ViewTimelineRounded from "@mui/icons-material/ViewTimelineRounded";
 import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
@@ -28,6 +29,7 @@ import { PeopleView } from "./PeopleView";
 import { TaskDialog } from "./TaskDialog";
 import { TeamDialog } from "./TeamDialog";
 import { FocusPanel } from "./FocusPanel";
+import { MemberAvatar, ProjectMark } from "./bits";
 
 // /tasks (docs/TASKS.md): the team's task board. Three views over the same tasks: Board (status columns),
 // Timeline (weeks, like the "Timeline IoT" PDF) and Per orang (checklist per person).
@@ -78,6 +80,9 @@ function lsSet(k: string, v: string) {
     /* ignore */
   }
 }
+
+// Filter options: icon/photo + name, also shown in the closed select.
+const optSx = { display: "flex", alignItems: "center", gap: 1.25, fontSize: "0.875rem" } as const;
 
 export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail: string }) {
   const [data, setData] = useState<TaskData>(initial);
@@ -345,17 +350,27 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
             <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari tugas…" sx={{ flex: 1, fontSize: "0.875rem" }} inputProps={{ "aria-label": "Cari tugas" }} />
           </Box>
           <Select size="small" value={memberFilter} onChange={(e) => changeMember(e.target.value)} sx={selectSx} aria-label="Filter orang">
-            <MenuItem value="all">Semua orang</MenuItem>
+            <MenuItem value="all" sx={optSx}>
+              <GroupsRounded sx={{ fontSize: 20, color: "#5F6368" }} />
+              Semua orang
+            </MenuItem>
             {data.members.filter((m) => m.active).map((m) => (
-              <MenuItem key={m.id} value={m.id}>
+              <MenuItem key={m.id} value={m.id} sx={optSx}>
+                <MemberAvatar member={m} size={20} />
                 {m.name}
               </MenuItem>
             ))}
           </Select>
           <Select size="small" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} sx={selectSx} aria-label="Filter project">
-            <MenuItem value="all">Semua project</MenuItem>
+            <MenuItem value="all" sx={optSx}>
+              <FolderRounded sx={{ fontSize: 18, color: "#5F6368" }} />
+              Semua project
+            </MenuItem>
             {activeProjects.map((p) => (
-              <MenuItem key={p.id} value={p.id}>
+              <MenuItem key={p.id} value={p.id} sx={optSx}>
+                <Box sx={{ width: 20, display: "inline-flex", justifyContent: "center" }}>
+                  <ProjectMark project={p} size={16} />
+                </Box>
                 {p.name}
               </MenuItem>
             ))}
@@ -401,6 +416,7 @@ const selectSx = {
   fontSize: "0.8125rem",
   minWidth: 140,
   bgcolor: "#fff",
+  "& .MuiSelect-select": { display: "flex", alignItems: "center", gap: 1, fontSize: "0.8125rem" },
   "& .MuiOutlinedInput-notchedOutline": { borderColor: "#C4C7C5" },
 } as const;
 
