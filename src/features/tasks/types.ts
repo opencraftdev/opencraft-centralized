@@ -56,11 +56,12 @@ export interface TaskComment {
   created_at: string;
 }
 
-export const STATUSES: { value: TaskStatus; label: string; color: string; bg: string }[] = [
-  { value: "todo", label: "Belum mulai", color: "#5F6368", bg: "#F1F3F4" },
-  { value: "in_progress", label: "Dikerjakan", color: "#0B57D0", bg: "#D3E3FD" },
-  { value: "review", label: "Review", color: "#8E4B00", bg: "#FFE8C2" },
-  { value: "done", label: "Selesai", color: "#146C2E", bg: "#C4EED0" },
+// dot: the light colour used for status dots; color + bg: text and fill of status pills (darker, readable).
+export const STATUSES: { value: TaskStatus; label: string; dot: string; color: string; bg: string }[] = [
+  { value: "todo", label: "To do", dot: "#BDC1C6", color: "#5F6368", bg: "#F1F3F4" },
+  { value: "in_progress", label: "Progress", dot: "#FDD663", color: "#8A5A00", bg: "#FEF7E0" },
+  { value: "review", label: "Review", dot: "#FA903E", color: "#A14A00", bg: "#FEEFE3" },
+  { value: "done", label: "Done", dot: "#81C995", color: "#146C2E", bg: "#E6F4EA" },
 ];
 
 export const PRIORITIES: { value: TaskPriority; label: string; color: string }[] = [

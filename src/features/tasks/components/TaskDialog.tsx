@@ -494,7 +494,7 @@ export function TaskDialog({
               {STATUSES.map((s) => (
                 <MenuItem key={s.value} value={s.value}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: s.color }} />
+                    <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: s.dot }} />
                     {s.label}
                   </Box>
                 </MenuItem>

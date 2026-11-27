@@ -151,7 +151,7 @@ export function TeamDialog({
   );
 }
 
-const PROJECT_STATUS: Record<ProjectStatus, string> = { active: "Aktif", parked: "On Hold", done: "Selesai" };
+const PROJECT_STATUS: Record<ProjectStatus, string> = { active: "Aktif", parked: "On Hold", done: "Done" };
 
 function Row({ children, onEdit, muted }: { children: React.ReactNode; onEdit: () => void; muted?: boolean }) {
   return (
@@ -488,7 +488,7 @@ function ProjectForm({ initial, onDone }: { initial: Project | null; onDone: (sa
         <Select size="small" fullWidth value={f.status} onChange={(e) => setF({ ...f, status: e.target.value as ProjectStatus })} sx={{ borderRadius: "10px", fontSize: "0.875rem" }}>
           <MenuItem value="active">Aktif</MenuItem>
           <MenuItem value="parked">On Hold (disembunyikan dari pilihan)</MenuItem>
-          <MenuItem value="done">Selesai</MenuItem>
+          <MenuItem value="done">Done</MenuItem>
         </Select>
       </Box>
 

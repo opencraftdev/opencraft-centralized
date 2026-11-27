@@ -101,7 +101,7 @@ export function BoardView({ ctx, onQuickAdd }: { ctx: TasksCtx; onQuickAdd: (tit
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 0.75, pt: 0.5, pb: 1 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: s.color }} />
+              <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: s.dot }} />
               <Typography sx={{ fontSize: "0.875rem", fontWeight: 600, color: "#1F1F1F" }}>{s.label}</Typography>
               <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368" }}>{items.length}</Typography>
             </Box>

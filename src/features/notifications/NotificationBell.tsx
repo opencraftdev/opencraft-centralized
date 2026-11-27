@@ -140,7 +140,7 @@ export function NotificationBell() {
     try {
       await updateTask(n.ref_id, { status: "done" });
       markRead(n);
-      toastSuccess("Tugas ditandai selesai.");
+      toastSuccess("Tugas ditandai Done.");
     } catch (e) {
       toastError((e as Error).message);
     }
@@ -155,7 +155,7 @@ export function NotificationBell() {
       case "task_assigned":
       case "task_created":
       case "task_updated":
-        return [{ label: "Tandai selesai", primary: true, run: () => void finishTask(n) }, read];
+        return [{ label: "Tandai Done", primary: true, run: () => void finishTask(n) }, read];
       case "doc_new":
       case "doc_ready":
         return [

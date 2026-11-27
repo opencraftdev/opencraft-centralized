@@ -362,7 +362,7 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
           </Select>
           <FormControlLabel
             control={<Switch size="small" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />}
-            label="Sembunyikan selesai"
+            label="Sembunyikan Done"
             sx={{ m: 0, ml: 0.5, "& .MuiFormControlLabel-label": { fontSize: "0.8125rem", color: "#444746" } }}
           />
         </Box>
