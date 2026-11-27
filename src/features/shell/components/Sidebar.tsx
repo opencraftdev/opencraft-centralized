@@ -11,19 +11,18 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import Divider from "@mui/material/Divider";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
-import ChatBubbleRounded from "@mui/icons-material/ChatBubbleRounded";
-import DescriptionRounded from "@mui/icons-material/DescriptionRounded";
-import AccountBalanceWalletRounded from "@mui/icons-material/AccountBalanceWalletRounded";
-import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
-import AssignmentTurnedInRounded from "@mui/icons-material/AssignmentTurnedInRounded";
 import { EASE_OUT_CSS, SPRING } from "@/components/ui/motion";
 import { NavLinkLoading } from "./loading-context";
+import { ChatIcon, DocsIcon, FinanceIcon, ScrapersIcon, SkillsIcon, TasksIcon } from "./NavIcons";
 
 export const SIDEBAR_WIDTH = 280;
 export const SIDEBAR_MINI_WIDTH = 72;
 const TOPBAR_HEIGHT = 64;
 const WIDTH_TRANSITION = `width 280ms ${EASE_OUT_CSS}`;
+const SPRING_CSS = "cubic-bezier(0.34, 1.56, 0.64, 1)";
+// Icon colours: soft blue at rest, logo blue on hover / when active.
+const IDLE = { "--a": "#5A86C2", "--b": "#CFE0F7" } as const;
+const LIVE = { "--a": "#0457AB", "--b": "#8CC0F5" } as const;
 
 type NavItem = { href: string; label: string; icon: React.ReactNode };
 
@@ -32,17 +31,17 @@ const sections: { title: string; items: NavItem[] }[] = [
   {
     title: "Tools",
     items: [
-      { href: "/chat", label: "Chat", icon: <ChatBubbleRounded /> },
-      { href: "/skills", label: "Skills", icon: <AutoAwesomeRounded /> },
+      { href: "/chat", label: "Chat", icon: <ChatIcon /> },
+      { href: "/skills", label: "Skills", icon: <SkillsIcon /> },
     ],
   },
   {
     title: "Operational",
     items: [
-      { href: "/tasks", label: "Task Management", icon: <AssignmentTurnedInRounded /> },
-      { href: "/documents", label: "Document", icon: <DescriptionRounded /> },
-      { href: "/finance", label: "Finance", icon: <AccountBalanceWalletRounded /> },
-      { href: "/scrapers", label: "Scrapers", icon: <TravelExploreRounded /> },
+      { href: "/tasks", label: "Task Management", icon: <TasksIcon /> },
+      { href: "/documents", label: "Document", icon: <DocsIcon /> },
+      { href: "/finance", label: "Finance", icon: <FinanceIcon /> },
+      { href: "/scrapers", label: "Scrapers", icon: <ScrapersIcon /> },
     ],
   },
 ];
@@ -63,20 +62,36 @@ function NavRow({ item, active, mini, pillId }: { item: NavItem; active: boolean
         color: active ? "#0B57D0" : "#444746",
         bgcolor: "transparent !important",
         overflow: "hidden",
-        "&:hover .nav-hover": { opacity: 1 },
+        ...(active ? LIVE : IDLE),
+        "& .ic-a": { fill: "var(--a)", transition: "fill 250ms" },
+        "& .ic-b": { fill: "var(--b)", transition: "fill 250ms" },
+        "& .nav-ic": { display: "block", transition: `transform 380ms ${SPRING_CSS}` },
+        "&:hover": LIVE,
+        "&:hover .nav-ic": { transform: "translateY(-1px) rotate(-8deg)" },
+        "&:hover .nav-wave": { transform: "none" },
       }}
     >
-      {/* Hover tint */}
-      <Box className="nav-hover" sx={{ position: "absolute", inset: 0, borderRadius: "inherit", bgcolor: "rgba(68,71,70,0.08)", opacity: 0, transition: "opacity 150ms" }} />
+      {/* Hover: a soft blue gradient flows in from the left */}
+      <Box
+        className="nav-wave"
+        sx={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: "inherit",
+          background: "linear-gradient(90deg, rgba(38,140,239,.20), rgba(42,176,207,.10) 55%, rgba(38,140,239,0) 90%)",
+          transform: "translateX(-101%)",
+          transition: `transform 420ms ${EASE_OUT_CSS}`,
+        }}
+      />
       {/* Active pill: one shared element that glides between rows */}
       {active && (
         <motion.span
           layoutId={pillId}
           transition={SPRING}
-          style={{ position: "absolute", inset: 0, borderRadius: 9999, background: "#C2E7FF" }}
+          style={{ position: "absolute", inset: 0, borderRadius: 9999, background: "linear-gradient(90deg, #C2E7FF, #D9ECFF 70%, #E6F1FF)" }}
         />
       )}
-      <ListItemIcon sx={{ position: "relative", minWidth: 0, mr: 2, color: "inherit", "& .MuiSvgIcon-root": { fontSize: 24 } }}>{item.icon}</ListItemIcon>
+      <ListItemIcon sx={{ position: "relative", minWidth: 0, mr: 2, color: "inherit" }}>{item.icon}</ListItemIcon>
       <Box
         component="span"
         sx={{
