@@ -24,6 +24,8 @@ import { fileIcon } from "@/features/drive/components/DriveItems";
 import { formatBytes, formatDateTime } from "@/features/drive/format";
 import type { SkillSummary } from "@/features/skills/api";
 import type { Chat, ChatAttachment, ChatMessage, ChatStep } from "../types";
+import type { Member } from "@/features/tasks/types";
+import { MemberAvatar } from "@/features/tasks/components/bits";
 import { QuoteBlock, splitQuote } from "./Quote";
 import { ChatMarkdown } from "./Markdown";
 import { FoldedSteps, LiveSteps } from "./Steps";
@@ -70,9 +72,23 @@ function UserText({ content, skills }: { content: string; skills: SkillSummary[]
   );
 }
 
-export function UserBubble({ m, skills }: { m: ChatMessage; skills: SkillSummary[] }) {
+export function UserBubble({
+  m,
+  skills,
+  author,
+}: {
+  m: ChatMessage;
+  skills: SkillSummary[];
+  author?: { name: string; member?: Member }; // shown in a shared chat
+}) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", "&:hover .msg-time": { opacity: 1 } }}>
+      {author && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5, px: 0.5 }}>
+          <Typography sx={{ fontSize: "0.75rem", fontWeight: 500, color: "#444746" }}>{author.name}</Typography>
+          <MemberAvatar member={author.member} size={20} />
+        </Box>
+      )}
       <Box sx={{ maxWidth: "min(85%, 600px)", bgcolor: "#E9EEF6", color: "#1F1F1F", borderRadius: "24px 4px 24px 24px", px: 2, py: 1.5, ...textSx }}>
         <UserText content={m.content} skills={skills} />
       </Box>

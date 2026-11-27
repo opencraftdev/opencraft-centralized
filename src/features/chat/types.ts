@@ -23,6 +23,8 @@ export interface ChatListItem {
   pinned: boolean;
   created_at: string;
   updated_at: string;
+  owner_email: string; // the person whose chat it is (migration 029)
+  chat_members?: { email: string }[]; // people it was shared with (besides the owner)
 }
 
 /** The open chat, incl. the live columns the worker writes while a run goes. */
@@ -45,10 +47,17 @@ export interface ChatMessage {
   stopped: boolean;
   error: string | null;
   attachments: ChatAttachment[] | null;
+  author_email: string | null; // who sent a user message (migration 029)
   created_at: string;
 }
 
 export const isRunning = (c: { status: ChatStatus }) => c.status === "queued" || c.status === "running";
 
 /** Columns the chat list selects. */
-export const LIST_COLUMNS = "id,title,status,pinned,created_at,updated_at";
+export const LIST_COLUMNS = "id,title,status,pinned,created_at,updated_at,owner_email,chat_members(email)";
+
+/** Everyone in a chat: the owner first, then the people it was shared with. */
+export const participants = (c: Pick<ChatListItem, "owner_email" | "chat_members">): string[] => [
+  c.owner_email,
+  ...(c.chat_members ?? []).map((m) => m.email).filter((e) => e !== c.owner_email),
+];

@@ -9,15 +9,19 @@ import { EASE_OUT, EASE_OUT_CSS } from "@/components/ui/motion";
 import { TopBar } from "./TopBar";
 import { Sidebar, SIDEBAR_MINI_WIDTH, SIDEBAR_WIDTH } from "./Sidebar";
 import { LoadingContext } from "./loading-context";
+import { AccountContext } from "@/features/accounts/account";
+import type { Member } from "@/features/tasks/types";
 
 const TOPBAR_HEIGHT = 64;
 const LS_MINI = "shell.sidebarMini";
 
 export function AppShell({
   userEmail,
+  me = null,
   children,
 }: {
   userEmail: string;
+  me?: Member | null;
   children: React.ReactNode;
 }) {
   // Counter so concurrent loaders (route transition + page fetch) compose
@@ -56,6 +60,7 @@ export function AppShell({
   const sidebarW = mini ? SIDEBAR_MINI_WIDTH : SIDEBAR_WIDTH;
 
   return (
+    <AccountContext.Provider value={{ email: userEmail, me }}>
     <MotionConfig reducedMotion="user">
       <LoadingContext.Provider value={{ isLoading, startLoading, stopLoading }}>
         {/* Shell is exactly one viewport tall and never scrolls itself, so the
@@ -111,5 +116,6 @@ export function AppShell({
         </Box>
       </LoadingContext.Provider>
     </MotionConfig>
+    </AccountContext.Provider>
   );
 }

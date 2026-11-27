@@ -10,6 +10,9 @@ Reference: trina-ax `web/src/components/chat/{Messages,Steps,Composer,QueuedMess
 
 ## Data (Supabase `wdzmuniyqqyngzckeoph`, RLS: `is_allowed_user()`)
 
+> Since migration 029: chats are per person (`owner_email`) and can be shared (`chat_members`). See
+> [ACCOUNTS.md](ACCOUNTS.md).
+
 - `skills` — `name` (slug, folder name and `/name`), `title`, `description` (one sentence: when to use it),
   `body` (SKILL.md Markdown), `enabled`, `updated_at`. Seeded with `opencraft-document` (SPH / MoU / Deck).
 - `chats` — `title`, `status` `idle|queued|running|failed`, `session_id` (cc-gateway session), `consumed_at`,

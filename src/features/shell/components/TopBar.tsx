@@ -16,7 +16,11 @@ import SearchRounded from "@mui/icons-material/SearchRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import { logout } from "@/features/auth/actions";
+import ManageAccountsRounded from "@mui/icons-material/ManageAccountsRounded";
 import { NotificationBell } from "@/features/notifications/NotificationBell";
+import { useAccount } from "@/features/accounts/account";
+import { ProfileDialog } from "@/features/accounts/ProfileDialog";
+import { MemberAvatar } from "@/features/tasks/components/bits";
 
 export function TopBar({
   userEmail,
@@ -31,9 +35,11 @@ export function TopBar({
 }) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const { me } = useAccount();
   const initial = userEmail.charAt(0).toUpperCase() || "O";
   const username = userEmail.split("@")[0] || "there";
-  const displayName = username.charAt(0).toUpperCase() + username.slice(1);
+  const displayName = me?.name ?? username.charAt(0).toUpperCase() + username.slice(1);
 
   return (
     <AppBar
@@ -131,7 +137,18 @@ export function TopBar({
           <NotificationBell />
         </Box>
 
-        {/* Account avatar */}
+        {/* Account avatar: the profile photo / initials when this login has a profile */}
+        {me ? (
+          <Box
+            component="button"
+            type="button"
+            aria-label={`Akun ${me.name}`}
+            onClick={(e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget)}
+            sx={{ ml: 1, mr: 1, p: 0, border: "none", bgcolor: "transparent", borderRadius: "50%", cursor: "pointer", display: "inline-flex", transition: "box-shadow 200ms", "&:hover": { boxShadow: "0 0 0 3px rgba(26,115,232,0.2)" } }}
+          >
+            <MemberAvatar member={me} size={32} />
+          </Box>
+        ) : (
         <Avatar
           onClick={(e) => setAnchorEl(e.currentTarget)}
           sx={{
@@ -150,6 +167,7 @@ export function TopBar({
         >
           {initial}
         </Avatar>
+        )}
 
         <Popover
           open={open}
@@ -187,6 +205,9 @@ export function TopBar({
 
             {/* Large avatar */}
             <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
+              {me ? (
+                <MemberAvatar member={me} size={80} />
+              ) : (
               <Avatar
                 sx={{
                   width: 80,
@@ -199,6 +220,7 @@ export function TopBar({
               >
                 {initial}
               </Avatar>
+              )}
             </Box>
 
             {/* Greeting */}
@@ -213,9 +235,39 @@ export function TopBar({
             >
               Hi, {displayName}!
             </Typography>
+            {me?.role && (
+              <Typography sx={{ mt: 0.25, textAlign: "center", fontSize: "0.875rem", color: "#5E5E5E" }}>{me.role}</Typography>
+            )}
 
-            {/* Sign out button — pill */}
-            <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+            {/* Edit profile + sign out — pills */}
+            <Box sx={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 1, mt: 3 }}>
+              <Box
+                component="button"
+                type="button"
+                onClick={() => {
+                  setAnchorEl(null);
+                  setProfileOpen(true);
+                }}
+                sx={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 1,
+                  height: 40,
+                  px: 3,
+                  borderRadius: "20px",
+                  border: "1px solid #DADCE0",
+                  bgcolor: "#fff",
+                  color: "#0B57D0",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  "&:hover": { bgcolor: "#F6FAFE" },
+                }}
+              >
+                <ManageAccountsRounded sx={{ fontSize: 18 }} />
+                {me ? "Edit profil" : "Buat profil"}
+              </Box>
               <Box
                 component="form"
                 action={logout}
@@ -289,6 +341,8 @@ export function TopBar({
           </Box>
         </Popover>
       </Toolbar>
+
+      <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
 
       {/* Global loading bar — pinned to the bottom edge of the navbar */}
       {loading && (

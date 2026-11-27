@@ -4,13 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
-import { toastError, toastSuccess } from "@/components/ui/Toast";
+import { toastError, toastInfo, toastSuccess } from "@/components/ui/Toast";
+import { nameOf, useAccount, usePeople } from "@/features/accounts/account";
 import { ConfirmDialog, NameDialog } from "@/features/drive/components/DriveDialogs";
 import { listEnabledSkills, type SkillSummary } from "@/features/skills/api";
-import { listChats, renameChat, sendMessage, setChatPinned, trashChat } from "../api";
+import { listChats, removeChatMember, renameChat, sendMessage, setChatPinned, subscribeChats, trashChat } from "../api";
 import type { ChatListItem } from "../types";
 import { ChatList, type ChatAction } from "./ChatList";
 import { NewChat } from "./NewChat";
+import { ShareDialog } from "./ShareDialog";
 import { Thread } from "./Thread";
 
 // /chat (docs/CHAT.md → "UI"), laid out like Gemini's web chat (light): the chat list is a #F0F4F9 side column
@@ -52,6 +54,9 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
   const [collapsed, setCollapsed] = useState(false);
   const [renaming, setRenaming] = useState<ChatListItem | null>(null);
   const [deleting, setDeleting] = useState<ChatListItem | null>(null);
+  const [sharing, setSharing] = useState<string | null>(null); // chat id
+  const { email: myEmail } = useAccount();
+  const people = usePeople();
   const { ref, narrow } = useNarrow<HTMLDivElement>();
 
   const refresh = useCallback(async () => {
@@ -62,7 +67,29 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
     }
   }, []);
 
-  // list every ~5 s while the tab is visible; skills again when the tab comes back (edited on /skills meanwhile)
+  // live (Supabase realtime): someone shared a chat with me, wrote in a shared chat, renamed it… (debounced)
+  const peopleRef = useRef(people);
+  peopleRef.current = people;
+  useEffect(() => {
+    if (!myEmail) return;
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const soon = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => void refresh(), 300);
+    };
+    const unsub = subscribeChats(myEmail, soon, async ({ chat_id, added_by }) => {
+      const list = await listChats().catch(() => null);
+      if (list) setChats(list);
+      const c = list?.find((x) => x.id === chat_id);
+      toastInfo(`${nameOf(added_by, peopleRef.current)} membagikan chat${c ? ` "${c.title}"` : ""} denganmu`);
+    });
+    return () => {
+      if (t) clearTimeout(t);
+      unsub();
+    };
+  }, [myEmail, refresh]);
+
+  // list every ~5 s while the tab is visible (fallback when realtime drops); skills again when the tab comes back (edited on /skills meanwhile)
   useEffect(() => {
     const t = setInterval(() => {
       if (!document.hidden) void refresh();
@@ -116,6 +143,7 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
 
   const onAction = (action: ChatAction, c: ChatListItem) => {
     if (action === "rename") setRenaming(c);
+    else if (action === "share") setSharing(c.id);
     else if (action === "delete") setDeleting(c);
     else
       void setChatPinned(c.id, !c.pinned)
@@ -166,6 +194,7 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
               onNew={listShown ? undefined : newChat}
               onChanged={refresh}
               onAction={onAction}
+              people={people}
             />
           ) : (
             <NewChat skills={skills} prefillSkill={prefillSkill} onOpenList={openList} onSend={create} />
@@ -201,22 +230,47 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
           setRenaming(null);
         }}
       />
+      <ShareDialog
+        chat={sharing ? chats.find((c) => c.id === sharing) ?? null : null}
+        people={people}
+        onClose={() => setSharing(null)}
+        onChanged={refresh}
+        onLeft={(c) => {
+          setSharing(null);
+          if (c.id === chatId) go("/chat", true);
+        }}
+      />
       <ConfirmDialog
         open={Boolean(deleting)}
-        title="Hapus chat?"
+        title={deleting && deleting.owner_email !== myEmail ? "Keluar dari chat?" : "Hapus chat?"}
         body={
-          <>
-            <b>{deleting?.title}</b> akan dihapus dari daftar chat. File yang pernah dilampirkan tetap ada di Document.
-          </>
+          deleting && deleting.owner_email !== myEmail ? (
+            <>
+              <b>{deleting.title}</b> hilang dari daftarmu. Chat ini tetap ada untuk {nameOf(deleting.owner_email, people)} dan anggota lain.
+            </>
+          ) : (deleting?.chat_members?.length ?? 0) > 0 ? (
+            <>
+              <b>{deleting?.title}</b> akan dihapus untuk semua anggota chat ini. File yang pernah dilampirkan tetap ada di Document.
+            </>
+          ) : (
+            <>
+              <b>{deleting?.title}</b> akan dihapus dari daftar chat. File yang pernah dilampirkan tetap ada di Document.
+            </>
+          )
         }
-        confirmLabel="Hapus"
+        confirmLabel={deleting && deleting.owner_email !== myEmail ? "Keluar" : "Hapus"}
         onClose={() => setDeleting(null)}
         onConfirm={async () => {
           const c = deleting;
           if (c) {
             try {
-              await trashChat(c.id);
-              toastSuccess("Chat dihapus");
+              if (c.owner_email === myEmail) {
+                await trashChat(c.id);
+                toastSuccess("Chat dihapus");
+              } else {
+                await removeChatMember(c.id, myEmail);
+                toastSuccess("Kamu keluar dari chat");
+              }
               if (c.id === chatId) go("/chat", true);
             } catch (e) {
               toastError((e as Error).message);

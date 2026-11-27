@@ -12,7 +12,7 @@ function check<T>(res: { data: T; error: { message: string } | null }): T {
 }
 
 const CHAT_COLUMNS = `${LIST_COLUMNS},consumed_at,run_steps,stream_text,started_at,cancel_requested_at,error_msg`;
-const MESSAGE_COLUMNS = "id,chat_id,role,content,steps,duration_ms,stopped,error,attachments,created_at";
+const MESSAGE_COLUMNS = "id,chat_id,role,content,steps,duration_ms,stopped,error,attachments,author_email,created_at";
 
 export async function listChats(): Promise<ChatListItem[]> {
   return check(
@@ -102,4 +102,41 @@ export async function trashChat(id: string) {
 export async function fetchFiles(ids: string[]): Promise<DriveFile[]> {
   if (!ids.length) return [];
   return check(await sb().from("drive_files").select("*").in("id", ids)) as DriveFile[];
+}
+
+// ── Sharing (docs/ACCOUNTS.md → "Shared chats"): added = in, nothing to accept ──
+
+/** Adds people to a chat (anyone in the chat may). */
+export async function addChatMembers(chatId: string, emails: string[]) {
+  if (!emails.length) return;
+  check(
+    await sb()
+      .from("chat_members")
+      .upsert(emails.map((email) => ({ chat_id: chatId, email: email.toLowerCase() })), { onConflict: "chat_id,email", ignoreDuplicates: true }),
+  );
+}
+
+/** Removes a person (the owner may remove anyone; a member may remove themselves = leave). */
+export async function removeChatMember(chatId: string, email: string) {
+  check(await sb().from("chat_members").delete().eq("chat_id", chatId).eq("email", email.toLowerCase()));
+}
+
+/** Live chat list: `onChange` on any visible change to chats / members / messages; `onShared` when someone adds
+ * `myEmail` to a chat. Returns unsubscribe. */
+export function subscribeChats(myEmail: string, onChange: () => void, onShared: (row: { chat_id: string; added_by: string | null }) => void) {
+  const c = sb();
+  const ch = c
+    .channel(`chats-live-${myEmail}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "chats" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "chat_members" }, (p) => {
+      onChange();
+      const row = p.new as { chat_id?: string; email?: string; added_by?: string | null };
+      if (p.eventType === "INSERT" && row.chat_id && row.email === myEmail && row.added_by !== myEmail)
+        onShared({ chat_id: row.chat_id, added_by: row.added_by ?? null });
+    })
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, onChange)
+    .subscribe();
+  return () => {
+    void c.removeChannel(ch);
+  };
 }

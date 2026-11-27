@@ -19,14 +19,18 @@ import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import PushPinRounded from "@mui/icons-material/PushPinRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import ViewSidebarRounded from "@mui/icons-material/ViewSidebarRounded";
-import type { ChatListItem, ChatStatus } from "../types";
+import GroupRounded from "@mui/icons-material/GroupRounded";
+import LogoutRounded from "@mui/icons-material/LogoutRounded";
+import PersonAddRounded from "@mui/icons-material/PersonAddRounded";
+import { useAccount } from "@/features/accounts/account";
+import { participants, type ChatListItem, type ChatStatus } from "../types";
 
 // Left pane of /chat (docs/CHAT.md → "UI"), styled like Gemini's sidebar (light): "Chat baru" row, search toggle,
 // "Terbaru" with single-line titles as pills; pinned first, then newest; ⋮ row menu.
 
-export type ChatAction = "rename" | "pin" | "delete";
+export type ChatAction = "rename" | "pin" | "share" | "delete";
 
-/** Ganti nama / Sematkan / Hapus — the row menu and the thread header's menu. */
+/** Ganti nama / Sematkan / Bagikan / Hapus (owner) or Keluar (member) — the row menu and the thread header's menu. */
 export function ChatMenu({
   anchor,
   chat,
@@ -38,6 +42,8 @@ export function ChatMenu({
   onClose: () => void;
   onAction: (action: ChatAction, chat: ChatListItem) => void;
 }) {
+  const { email } = useAccount();
+  const owner = !chat || chat.owner_email === email;
   const act = (a: ChatAction) => {
     onClose();
     if (chat) onAction(a, chat);
@@ -61,12 +67,18 @@ export function ChatMenu({
         <ListItemIcon>{chat?.pinned ? <PushPinRounded fontSize="small" /> : <PushPinRounded fontSize="small" />}</ListItemIcon>
         <ListItemText>{chat?.pinned ? "Lepas sematan" : "Sematkan"}</ListItemText>
       </MenuItem>
+      <MenuItem onClick={() => act("share")}>
+        <ListItemIcon>
+          <PersonAddRounded fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Bagikan</ListItemText>
+      </MenuItem>
       <Divider />
       <MenuItem onClick={() => act("delete")} sx={{ color: "#B3261E" }}>
         <ListItemIcon>
-          <DeleteRounded fontSize="small" sx={{ color: "#B3261E" }} />
+          {owner ? <DeleteRounded fontSize="small" sx={{ color: "#B3261E" }} /> : <LogoutRounded fontSize="small" sx={{ color: "#B3261E" }} />}
         </ListItemIcon>
-        <ListItemText>Hapus</ListItemText>
+        <ListItemText>{owner ? "Hapus" : "Keluar dari chat"}</ListItemText>
       </MenuItem>
     </Menu>
   );
@@ -301,6 +313,11 @@ export function ChatList({
                   >
                     {c.title || "Chat baru"}
                   </Typography>
+                  {participants(c).length > 1 && (
+                    <Tooltip title={`Dibagikan · ${participants(c).length} orang`}>
+                      <GroupRounded aria-label="Chat bersama" sx={{ fontSize: 16, color: active ? "#041E49" : "#5E5E5E", flexShrink: 0 }} />
+                    </Tooltip>
+                  )}
                   <Box className="row-dot" component="span" sx={{ display: "inline-flex", pr: 0.75 }}>
                     <StatusDot status={c.status} />
                   </Box>

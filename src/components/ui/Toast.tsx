@@ -19,6 +19,7 @@ export function toast(type: ToastType, text: string) {
 }
 export const toastSuccess = (text: string) => toast("success", text);
 export const toastError   = (text: string) => toast("error", text);
+export const toastInfo    = (text: string) => toast("info", text);
 
 export function ToastProvider() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);

@@ -9,8 +9,8 @@ only creates what is missing and seeds the plan from 22 November 2026 only while
 
 - `task_members` — people tasks are assigned to, added by typing a name ("Tim & project", or "Tambah orang baru…"
   in the PIC picker): `name`, `initials`, `role`, `color`, `goal` ("Hasil: …" on the person card), `active`.
-  Not tied to login accounts. `email` exists for later (when it matches the login, the person filter defaults to
-  that member) but the UI doesn't ask for it yet.
+  `email` links a member to a login (migration 029, [ACCOUNTS.md](ACCOUNTS.md)): it is that login's profile, the
+  person filter defaults to it, and comments show its name. Set as "Email login" in the member form.
 - `task_projects` (shown as "Project"; also created from "Tambah project baru…" in the task dialog) — `name`, `label` (e.g. "V1", "Supporting"), `color`, `status` `active|parked|done` (parked =
   hidden from pickers and the project filter).
 - `tasks` — `title`, `description`, `status` `todo|in_progress|review|done`, `priority` `low|medium|high|urgent`,

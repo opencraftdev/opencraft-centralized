@@ -10,12 +10,16 @@ import Typography from "@mui/material/Typography";
 import ChatBubbleRounded from "@mui/icons-material/ChatBubbleRounded";
 import EditRounded from "@mui/icons-material/EditRounded";
 import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
+import PersonAddRounded from "@mui/icons-material/PersonAddRounded";
+import { nameOf, personFor, useAccount } from "@/features/accounts/account";
+import { MemberAvatar } from "@/features/tasks/components/bits";
+import type { Member } from "@/features/tasks/types";
 import type { DriveFile } from "@/lib/drive/types";
 import { toastError } from "@/components/ui/Toast";
 import { PreviewDialog } from "@/features/drive/components/PreviewDialog";
 import type { SkillSummary } from "@/features/skills/api";
 import { fetchChat, fetchFiles, fetchMessages, retryChat, sendMessage, sendPendingNow, stopChat } from "../api";
-import { isRunning, type Chat, type ChatListItem, type ChatMessage } from "../types";
+import { isRunning, participants, type Chat, type ChatListItem, type ChatMessage } from "../types";
 import { Composer, type ComposerHandle } from "./Composer";
 import { QuoteChip, SelectionReply, withQuote } from "./Quote";
 import { AssistantMessage, LiveAnswer, PendingMessages, UserBubble } from "./Messages";
@@ -57,6 +61,7 @@ export function Thread({
   onNew,
   onChanged,
   onAction,
+  people,
 }: {
   chatId: string;
   listed: ChatListItem | null; // this chat's row in the (polled) list
@@ -65,7 +70,9 @@ export function Thread({
   onNew?: () => void; // a "Chat baru" button in the top bar (when the list is hidden)
   onChanged: () => void; // refresh the list
   onAction: (action: ChatAction, chat: ChatListItem) => void;
+  people: Member[]; // team members with a login (names + photos)
 }) {
+  const { email: myEmail } = useAccount();
   const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "missing">("loading");
@@ -239,6 +246,13 @@ export function Thread({
   }, [state, messages.length, chat?.status, chat?.stream_text, chat?.run_steps?.length, pending.length]);
 
   const title = listed?.title ?? chat?.title ?? "";
+  const row = listed ?? chat;
+  const inChat = row ? participants(row) : [];
+  const shared = inChat.length > 1;
+  const author = (m: ChatMessage) =>
+    shared && m.author_email
+      ? { name: m.author_email === myEmail ? "Kamu" : nameOf(m.author_email, people), member: personFor(m.author_email, people) }
+      : undefined;
   const previewFile = previewId ? files.get(previewId) ?? null : null;
 
   return (
@@ -269,6 +283,49 @@ export function Thread({
               {chat?.status === "queued" ? "Menunggu giliran" : "Sedang menjawab"}
             </Typography>
           </Box>
+        )}
+        {row && (
+          <Tooltip title={shared ? `Dibagikan: ${inChat.map((e) => nameOf(e, people)).join(", ")}` : "Bagikan chat"}>
+            <Box
+              component="button"
+              type="button"
+              aria-label="Bagikan chat"
+              onClick={() => onAction("share", row)}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.75,
+                height: 36,
+                pl: shared ? 0.75 : 1,
+                pr: 1.25,
+                mr: 0.5,
+                border: "1px solid #C4C7C5",
+                borderRadius: "9999px",
+                bgcolor: "#fff",
+                color: "#0B57D0",
+                fontFamily: "inherit",
+                fontSize: "0.8125rem",
+                fontWeight: 500,
+                cursor: "pointer",
+                flexShrink: 0,
+                "&:hover": { bgcolor: "#F6FAFE" },
+                "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: 2 },
+              }}
+            >
+              {shared ? (
+                <Box sx={{ display: "inline-flex", "& > *:not(:first-of-type)": { ml: "-6px" } }}>
+                  {inChat.slice(0, 4).map((e) => (
+                    <MemberAvatar key={e} member={personFor(e, people)} size={24} ring="#fff" />
+                  ))}
+                </Box>
+              ) : (
+                <PersonAddRounded sx={{ fontSize: 18 }} />
+              )}
+              <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                Bagikan
+              </Box>
+            </Box>
+          </Tooltip>
         )}
         {onNew && (
           <Tooltip title="Chat baru">
@@ -310,7 +367,7 @@ export function Thread({
           <Box sx={{ maxWidth: COLUMN, mx: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
             {shown.map((m) =>
               m.role === "user" ? (
-                <UserBubble key={m.id} m={m} skills={skills} />
+                <UserBubble key={m.id} m={m} skills={skills} author={author(m)} />
               ) : (
                 <AssistantMessage
                   key={m.id}

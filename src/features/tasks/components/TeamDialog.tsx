@@ -325,7 +325,8 @@ function FormBox({ children, onCancel, onSave, saving }: { children: React.React
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
-function MemberForm({ initial, onDone }: { initial: Member | null; onDone: (saved: boolean) => void }) {
+/** Add / edit a person. Also the "Edit profil" form of the account menu (`lockEmail`: the login email is fixed). */
+export function MemberForm({ initial, onDone, lockEmail }: { initial: Member | null; onDone: (saved: boolean) => void; lockEmail?: string }) {
   const [f, setF] = useState({
     name: initial?.name ?? "",
     initials: initial?.initials ?? "",
@@ -334,10 +335,13 @@ function MemberForm({ initial, onDone }: { initial: Member | null; onDone: (save
     color: initial?.color ?? MEMBER_COLORS[2],
     active: initial?.active ?? true,
     photo: initial?.photo_file_id ?? null,
+    email: lockEmail ?? initial?.email ?? "",
   });
   const [saving, setSaving] = useState(false);
   const save = async () => {
     if (!f.name.trim()) return toastError("Nama wajib diisi.");
+    const email = f.email.trim().toLowerCase();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toastError("Email login tidak valid.");
     setSaving(true);
     try {
       const photoChanged = (initial?.photo_file_id ?? null) !== f.photo;
@@ -349,6 +353,7 @@ function MemberForm({ initial, onDone }: { initial: Member | null; onDone: (save
         goal: f.goal.trim(),
         color: f.color,
         active: f.active,
+        email: email || null,
         ...(photoChanged ? { photo_file_id: f.photo } : {}),
       });
       toastSuccess("Anggota disimpan.");
@@ -369,13 +374,23 @@ function MemberForm({ initial, onDone }: { initial: Member | null; onDone: (save
         <TextField size="small" label="Nama" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} sx={{ ...fieldSx, flex: 1 }} autoFocus={!initial} />
         <TextField size="small" label="Inisial" value={f.initials} onChange={(e) => setF({ ...f, initials: e.target.value })} sx={{ ...fieldSx, width: 90 }} slotProps={{ htmlInput: { maxLength: 2 } }} />
       </Box>
+      <TextField
+        size="small"
+        label="Email login (Google)"
+        placeholder="nama@gmail.com"
+        value={f.email}
+        disabled={Boolean(lockEmail)}
+        onChange={(e) => setF({ ...f, email: e.target.value })}
+        helperText={lockEmail ? "Profil ini terhubung ke akun yang sedang masuk." : "Hubungkan ke akun login: chat, komentar & filter tugas memakai profil ini."}
+        sx={fieldSx}
+      />
       <TextField size="small" label="Peran" placeholder="mis. Desain · Branding" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} sx={fieldSx} />
       <TextField size="small" label="Target hasil (opsional)" placeholder="mis. Landing page online" value={f.goal} onChange={(e) => setF({ ...f, goal: e.target.value })} sx={fieldSx} />
       <Box>
         {label("Warna avatar (tanpa foto)")}
         <ColorPicker colors={MEMBER_COLORS} value={f.color} onChange={(color) => setF({ ...f, color })} />
       </Box>
-      {initial && (
+      {initial && !lockEmail && (
         <Box component="label" sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: "0.875rem" }}>
           <Switch size="small" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> Aktif (muncul di pilihan PIC)
         </Box>
@@ -490,6 +505,7 @@ function ProjectForm({ initial, onDone }: { initial: Project | null; onDone: (sa
 
 /** The icon/photo columns come with migration 027: say so instead of a raw Postgres error. */
 function friendly(msg: string): string {
+  if (/task_members_email_key|duplicate key/i.test(msg)) return "Email login itu sudah dipakai anggota lain.";
   if (/emoji|logo_file_id|photo_file_id/.test(msg) && /column|schema cache/i.test(msg))
     return "Database belum diperbarui untuk ikon/foto. Jalankan SQL 027_tasks_icons_photos di Supabase dulu.";
   return msg;
