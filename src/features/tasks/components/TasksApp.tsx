@@ -26,6 +26,7 @@ import { TimelineView } from "./TimelineView";
 import { PeopleView } from "./PeopleView";
 import { TaskDialog } from "./TaskDialog";
 import { TeamDialog } from "./TeamDialog";
+import { FocusPanel } from "./FocusPanel";
 
 // /tasks (docs/TASKS.md): the team's task board. Three views over the same tasks: Board (status columns),
 // Timeline (weeks, like the "Timeline IoT" PDF) and Per orang (checklist per person).
@@ -190,7 +191,16 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
         (projectFilter === "all" || t.project_id === projectFilter),
     );
     const open = mine.filter((t) => t.status !== "done");
+    const byDue = (a: Task, b: Task) => (a.due_date ?? "").localeCompare(b.due_date ?? "") || a.sort - b.sort;
+    const weekEnd = addDays(weekStart, 6);
+    const lists = {
+      late: open.filter((t) => t.due_date && t.due_date < today).sort(byDue),
+      today: open.filter((t) => t.due_date === today).sort(byDue),
+      week: open.filter((t) => t.due_date && t.due_date >= today && t.due_date <= weekEnd).sort(byDue),
+      next: open.filter((t) => t.due_date && t.due_date > weekEnd && t.due_date <= addDays(weekEnd, 7)).sort(byDue),
+    };
     return {
+      lists,
       open: open.length,
       // A checklist item counts as "being worked on" when it, or the task it belongs to, is in progress / review.
       doing: open.filter((t) => {
@@ -252,14 +262,8 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
           </Box>
         </Box>
 
-        {/* Stats */}
-        <Box sx={{ display: "flex", gap: 1, px: { xs: 2, sm: 3 }, pb: 1.5, overflowX: "auto", scrollbarWidth: "none" }}>
-          <Stat label="Belum selesai" value={stats.open} />
-          <Stat label="Sedang dikerjakan" value={stats.doing} color="#0B57D0" />
-          <Stat label="Deadline minggu ini" value={stats.dueWeek} color="#8E4B00" />
-          <Stat label="Terlambat" value={stats.overdue} color={stats.overdue ? "#B3261E" : undefined} />
-          <Stat label="Selesai minggu ini" value={stats.doneWeek} color="#146C2E" />
-        </Box>
+        {/* Summary: deadline tabs + numbers */}
+        <FocusPanel data={stats} ctx={ctx} />
 
         {/* Toolbar */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: { xs: 2, sm: 3 }, py: 1.25, borderTop: "1px solid #E0E3E7", borderBottom: "1px solid #E0E3E7", flexWrap: "wrap" }}>
@@ -374,11 +378,3 @@ const selectSx = {
   "& .MuiOutlinedInput-notchedOutline": { borderColor: "#C4C7C5" },
 } as const;
 
-function Stat({ label, value, color }: { label: string; value: number; color?: string }) {
-  return (
-    <Box sx={{ flex: "1 0 120px", minWidth: 120, border: "1px solid #E0E3E7", borderRadius: "12px", px: 1.75, py: 1.25 }}>
-      <Typography sx={{ fontSize: "0.75rem", color: "#5F6368" }}>{label}</Typography>
-      <Typography sx={{ fontSize: "1.375rem", fontWeight: 600, color: color ?? "#1F1F1F", lineHeight: 1.3, fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
-    </Box>
-  );
-}
