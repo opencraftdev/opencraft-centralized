@@ -10,6 +10,7 @@ import InputBase from "@mui/material/InputBase";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import CloseRounded from "@mui/icons-material/CloseRounded";
@@ -36,7 +37,7 @@ import ReplyRounded from "@mui/icons-material/ReplyRounded";
 import { useAccount } from "@/features/accounts/account";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { formatRelative } from "@/features/drive/format";
-import { addComment, createTask, deleteComment, deleteTask, listComments, saveMember, saveProject, updateTask } from "../api";
+import { addComment, createTask, deleteComment, updateComment, deleteTask, listComments, saveMember, saveProject, updateTask } from "../api";
 import type { Task, TaskComment, TaskInput } from "../types";
 import { PRIORITIES, STATUSES } from "../types";
 import type { TasksCtx } from "./TasksApp";
@@ -103,6 +104,8 @@ export function TaskDialog({
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [comment, setComment] = useState("");
   const [replyTo, setReplyTo] = useState<TaskComment | null>(null); // WhatsApp-style reply to one comment
+  const [editing, setEditing] = useState<{ id: string; replyId: string | null; text: string } | null>(null);
+  const editRef = useRef<MentionInputHandle>(null);
   const [newSub, setNewSub] = useState("");
   const [newPerson, setNewPerson] = useState<string | null>(null); // typing a new member's name
   const [newProject, setNewProject] = useState<string | null>(null); // typing a new project's name
@@ -281,6 +284,30 @@ export function TaskDialog({
       if (picked.length) await upload(picked, id);
     } catch (e) {
       toastError((e as Error).message);
+    }
+  };
+
+  const startEdit = (c: TaskComment) => {
+    const { replyId, text } = splitReply(c.body);
+    setEditing({ id: c.id, replyId, text });
+    requestAnimationFrame(() => {
+      editRef.current?.load(text);
+      editRef.current?.focus();
+    });
+  };
+  const saveEdit = async () => {
+    const e = editing;
+    if (!e) return;
+    const text = (editRef.current?.serialize() ?? e.text).trim();
+    if (!text) return;
+    const body = withReply(text, e.replyId);
+    setEditing(null);
+    setComments((l) => l.map((x) => (x.id === e.id ? { ...x, body } : x)));
+    try {
+      await updateComment(e.id, body);
+    } catch (err) {
+      toastError((err as Error).message);
+      if (live) setComments(await listComments(live.id).catch(() => comments));
     }
   };
 
@@ -778,42 +805,29 @@ export function TaskDialog({
                       <Typography sx={{ fontSize: "0.6875rem", color: "#80868B" }}>
                         {mine ? "Kamu" : authorName(c.author_email, ctx)} · {formatRelative(c.created_at)}
                       </Typography>
-                      <IconButton
-                        className="c-del"
-                        size="small"
-                        aria-label="Balas komentar"
-                        onClick={() => {
-                          setReplyTo(c);
-                          requestAnimationFrame(() => mention.current?.focus());
-                        }}
-                        sx={{ opacity: { xs: 1, sm: 0 }, p: 0.25, color: "#80868B", "&:hover": { color: "#0B57D0" } }}
-                      >
-                        <ReplyRounded sx={{ fontSize: 15 }} />
-                      </IconButton>
-                      <IconButton
-                        className="c-del"
-                        size="small"
-                        aria-label="Hapus komentar"
-                        onClick={() =>
-                          setAsk({
-                            title: "Hapus komentar?",
-                            body: <>Komentar ini{cfiles.length ? ` dan ${cfiles.length} lampirannya` : ""} akan dihapus untuk semua orang. Tindakan ini tidak bisa dibatalkan.</>,
-                            label: "Hapus komentar",
-                            run: () =>
-                              deleteComment(c.id)
-                                .then(() => {
-                                  setComments((l) => l.filter((x) => x.id !== c.id));
-                                  onChanged();
-                                })
-                                .catch((e) => toastError((e as Error).message)),
-                          })
-                        }
-                        sx={{ opacity: { xs: 1, sm: 0 }, p: 0.25, color: "#80868B" }}
-                      >
-                        <DeleteRounded sx={{ fontSize: 14 }} />
-                      </IconButton>
                     </Box>
-                    {(!onlyFiles || replyId) && (
+                    {editing?.id === c.id ? (
+                      <Box sx={{ width: { xs: 260, sm: 340 }, maxWidth: "100%", border: "1px solid #0B57D0", boxShadow: "0 0 0 1px #0B57D0", borderRadius: "14px", bgcolor: "#fff", px: 1.25, pt: 0.25, pb: 0.75 }}>
+                        <MentionInput
+                          ref={editRef}
+                          value={editing.text}
+                          onChange={(v) => setEditing((e) => (e ? { ...e, text: v } : e))}
+                          onSubmit={() => void saveEdit()}
+                          ctx={ctx}
+                          currentTaskId={live?.id}
+                          ariaLabel="Edit komentar"
+                          placeholder="Edit komentar…"
+                        />
+                        <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5, mt: 0.25 }}>
+                          <Button size="small" onClick={() => setEditing(null)} sx={{ borderRadius: "9999px", color: "#444746", minWidth: 0, px: 1.25, fontSize: "0.75rem" }}>
+                            Batal
+                          </Button>
+                          <Button size="small" variant="contained" disableElevation disabled={!editing.text.trim()} onClick={() => void saveEdit()} sx={{ borderRadius: "9999px", minWidth: 0, px: 1.5, fontSize: "0.75rem" }}>
+                            Simpan
+                          </Button>
+                        </Box>
+                      </Box>
+                    ) : (!onlyFiles || replyId) && (
                       <Box
                         sx={{
                           bgcolor: mine ? "#0B57D0" : "#fff",
@@ -865,6 +879,38 @@ export function TaskDialog({
                     {cfiles.length > 0 && (
                       <Box sx={{ mt: 0.75 }}>
                         <AttachmentGrid files={cfiles} size={72} onOpen={(f) => openPreview(f, cfiles)} onRemove={askRemoveFile} />
+                      </Box>
+                    )}
+                    {editing?.id !== c.id && (
+                      <Box sx={{ display: "flex", alignSelf: "flex-end", gap: 0.25, mt: 0.25, mr: -0.25 }}>
+                        <CommentAction label="Balas" onClick={() => { setReplyTo(c); requestAnimationFrame(() => mention.current?.focus()); }}>
+                          <ReplyRounded sx={{ fontSize: 15 }} />
+                        </CommentAction>
+                        {mine && !onlyFiles && (
+                          <CommentAction label="Edit" onClick={() => startEdit(c)}>
+                            <EditRounded sx={{ fontSize: 14 }} />
+                          </CommentAction>
+                        )}
+                        <CommentAction
+                          label="Hapus"
+                          danger
+                          onClick={() =>
+                            setAsk({
+                              title: "Hapus komentar?",
+                              body: <>Komentar ini{cfiles.length ? ` dan ${cfiles.length} lampirannya` : ""} akan dihapus untuk semua orang. Tindakan ini tidak bisa dibatalkan.</>,
+                              label: "Hapus komentar",
+                              run: () =>
+                                deleteComment(c.id)
+                                  .then(() => {
+                                    setComments((l) => l.filter((x) => x.id !== c.id));
+                                    onChanged();
+                                  })
+                                  .catch((e) => toastError((e as Error).message)),
+                            })
+                          }
+                        >
+                          <DeleteRounded sx={{ fontSize: 14 }} />
+                        </CommentAction>
                       </Box>
                     )}
                   </Box>
@@ -1081,6 +1127,23 @@ function flashComment(id: string) {
   el.scrollIntoView({ behavior: "smooth", block: "center" });
   el.classList.add("flash");
   setTimeout(() => el.classList.remove("flash"), 1200);
+}
+
+/** Small action under a comment bubble (shows on hover; always on touch screens). */
+function CommentAction({ label, onClick, danger, children }: { label: string; onClick: () => void; danger?: boolean; children: React.ReactNode }) {
+  return (
+    <Tooltip title={label}>
+      <IconButton
+        className="c-del"
+        size="small"
+        aria-label={`${label} komentar`}
+        onClick={onClick}
+        sx={{ opacity: { xs: 1, sm: 0 }, p: 0.4, color: "#80868B", transition: "opacity 150ms, color 150ms", "&:hover": { color: danger ? "#B3261E" : "#0B57D0" } }}
+      >
+        {children}
+      </IconButton>
+    </Tooltip>
+  );
 }
 
 function memberOf(email: string | null, ctx: TasksCtx) {

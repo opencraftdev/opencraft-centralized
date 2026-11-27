@@ -60,6 +60,10 @@ export async function addComment(taskId: string, body: string): Promise<string> 
   return row.id;
 }
 
+export async function updateComment(id: string, body: string): Promise<void> {
+  check(await sb().from("task_comments").update({ body }).eq("id", id));
+}
+
 export async function deleteComment(id: string): Promise<void> {
   check(await sb().from("task_comments").delete().eq("id", id));
 }
