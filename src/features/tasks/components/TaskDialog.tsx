@@ -1003,8 +1003,8 @@ export function TaskDialog({
                           ctx={ctx}
                           currentTaskId={live?.id}
                           ariaLabel="Edit komentar"
-                          popupBelow
-                          maxRows={22}
+                          maxRows={12}
+                          inputSx={{ fontSize: "0.8125rem", lineHeight: 1.45 }}
                           placeholder="Edit komentar…"
                         />
                         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5, mt: 0.25 }}>

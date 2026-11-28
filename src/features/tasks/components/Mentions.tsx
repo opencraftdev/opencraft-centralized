@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import AssignmentRounded from "@mui/icons-material/AssignmentRounded";
@@ -523,6 +523,32 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   };
 
   const open = query !== null && options.length > 0;
+  // Place the @ list next to the caret, on the side with room inside the scrolling panel (so it never gets cut off)
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; maxH: number }>({ maxH: 300 });
+  useLayoutEffect(() => {
+    if (!open) return;
+    const el = root.current;
+    const box = el?.parentElement;
+    if (!el || !box) return;
+    const sel = window.getSelection();
+    let caret = sel?.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
+    if (!caret || (!caret.height && !caret.top)) caret = el.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    let clip = { top: 0, bottom: window.innerHeight };
+    for (let p = box.parentElement; p; p = p.parentElement) {
+      const oy = getComputedStyle(p).overflowY;
+      if (oy === "auto" || oy === "scroll" || oy === "hidden") {
+        const r = p.getBoundingClientRect();
+        clip = { top: Math.max(0, r.top), bottom: Math.min(window.innerHeight, r.bottom) };
+        break;
+      }
+    }
+    const below = clip.bottom - caret.bottom - 12;
+    const above = caret.top - clip.top - 12;
+    const goBelow = popupBelow ? below >= 200 || below >= above : below >= 200 && below > above;
+    setPos(goBelow ? { top: caret.bottom - b.top + 6, maxH: Math.max(140, Math.min(300, below)) } : { bottom: b.bottom - caret.top + 6, maxH: Math.max(140, Math.min(300, above)) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, query?.text]);
   const groupTitle: Record<Kind, string> = { member: "Orang", task: "Task", project: "Project" };
   const empty = !stripFormat(value).trim() && !hasBlocks;
   const lineH = 1.5;
@@ -643,7 +669,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
       {open && (
         <Box
           role="listbox"
-          sx={{ position: "absolute", left: -8, ...(popupBelow ? { top: "calc(100% + 6px)" } : { bottom: "calc(100% + 10px)" }), width: "min(360px, 90vw)", maxHeight: 300, overflowY: "auto", bgcolor: "#fff", borderRadius: "14px", boxShadow: "0 4px 24px rgba(60,64,67,.22)", py: 0.75, zIndex: 10, animation: "oc-pop-in 200ms cubic-bezier(0.22, 1, 0.36, 1)" }}
+          sx={{ position: "absolute", left: -8, ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }), width: "min(360px, 90vw)", maxHeight: pos.maxH, overflowY: "auto", bgcolor: "#fff", borderRadius: "14px", boxShadow: "0 4px 24px rgba(60,64,67,.22)", py: 0.75, zIndex: 10, animation: "oc-pop-in 200ms cubic-bezier(0.22, 1, 0.36, 1)" }}
         >
           {options.map((o, i) => (
             <Box key={`${o.kind}-${o.id}`}>
