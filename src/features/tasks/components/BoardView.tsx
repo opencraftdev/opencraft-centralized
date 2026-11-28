@@ -6,6 +6,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import type { Task, TaskStatus } from "../types";
+import { picsOf, projectsOf } from "../types";
 import { STATUSES } from "../types";
 import { EASE_OUT, SPRING } from "@/components/ui/motion";
 import type { TasksCtx } from "./TasksApp";
@@ -162,7 +163,8 @@ function Card({ task: t, ctx, dragging, onDragStart, onDragEnd }: { task: Task; 
   const subs = ctx.childrenOf.get(t.id) ?? [];
   const done = subs.filter((x) => x.status === "done").length;
   const isDone = t.status === "done";
-  const project = t.project_id ? ctx.projectById.get(t.project_id) : undefined;
+  const projIds = projectsOf(t).filter((id) => ctx.projectById.has(id));
+  const project = projIds[0] ? ctx.projectById.get(projIds[0]) : undefined;
   return (
     <Box
       component="button"
@@ -201,6 +203,7 @@ function Card({ task: t, ctx, dragging, onDragStart, onDragEnd }: { task: Task; 
               <Box component="span" sx={{ fontSize: "0.75rem", fontWeight: 500, color: "#5F6368", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                 {project.name}
               </Box>
+              {projIds.length > 1 && <Box component="span" sx={{ fontSize: "0.6875rem", fontWeight: 600, color: "#80868B", flexShrink: 0 }}>+{projIds.length - 1}</Box>}
             </>
           )}
           <Box sx={{ flex: 1 }} />
@@ -215,7 +218,7 @@ function Card({ task: t, ctx, dragging, onDragStart, onDragEnd }: { task: Task; 
       </Box>
       {/* Footer: people · deadline · comments */}
       <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1.25, rowGap: 0.5, px: 1.5, py: 0.875, borderTop: "1px solid #F1F3F4", minWidth: 0 }}>
-        <AvatarStack ids={[t.assignee_id, ...t.helper_ids]} members={ctx.memberById} size={24} />
+        <AvatarStack ids={[...picsOf(t), ...t.helper_ids]} members={ctx.memberById} size={24} />
         <DueText due={t.due_date} done={isDone} />
         <Box sx={{ flex: 1 }} />
         <CommentCount count={ctx.commentTotal(t.id)} />

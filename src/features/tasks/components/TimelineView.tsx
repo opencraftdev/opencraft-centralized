@@ -12,6 +12,7 @@ import CheckRounded from "@mui/icons-material/CheckRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
 import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
 import type { Project, Task } from "../types";
+import { picsOf, projectsOf } from "../types";
 import { addDays, diffDays, fmtRange, fmtShort, startOfWeek, todayISO } from "../dates";
 import type { TasksCtx } from "./TasksApp";
 import { AvatarStack, ProjectMark } from "./bits";
@@ -60,10 +61,10 @@ export function TimelineView({ ctx }: { ctx: TasksCtx }) {
   const top = ctx.all.filter((t) => !t.parent_id && ctx.visible(t));
   const groups: { project: Project | null; tasks: Task[] }[] = [];
   for (const p of ctx.projects) {
-    const tasks = top.filter((t) => t.project_id === p.id);
+    const tasks = top.filter((t) => projectsOf(t).includes(p.id));
     if (tasks.length) groups.push({ project: p, tasks });
   }
-  const loose = top.filter((t) => !t.project_id || !ctx.projectById.has(t.project_id));
+  const loose = top.filter((t) => !projectsOf(t).some((id) => ctx.projectById.has(id)));
   if (loose.length) groups.push({ project: null, tasks: loose });
   for (const g of groups) g.tasks.sort((a, b) => (a.start_date ?? a.due_date ?? "9999").localeCompare(b.start_date ?? b.due_date ?? "9999") || a.sort - b.sort);
 
@@ -300,7 +301,7 @@ function Ribbon({ task: t, ctx, from, days, color }: { task: Task; ctx: TasksCtx
             "&:hover": { filter: "brightness(0.97)", boxShadow: overdue ? "inset 0 0 0 2px #C5221F, 0 1px 3px rgba(60,64,67,.2)" : "0 1px 3px rgba(60,64,67,.2)" },
           }}
         >
-          <AvatarStack ids={[t.assignee_id, ...t.helper_ids]} members={ctx.memberById} size={22} ring="#fff" />
+          <AvatarStack ids={[...picsOf(t), ...t.helper_ids]} members={ctx.memberById} size={22} ring="#fff" />
           <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "inherit", textDecoration: done ? "line-through" : "none", minWidth: 0 }}>{t.title}</Typography>
           <Box sx={{ flex: 1 }} />
           {done ? <CheckRounded sx={{ fontSize: 16 }} /> : subs.length > 0 && <Typography sx={{ fontSize: "0.6875rem", fontWeight: 600, color: "inherit", opacity: 0.75, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{subsDone}/{subs.length}</Typography>}

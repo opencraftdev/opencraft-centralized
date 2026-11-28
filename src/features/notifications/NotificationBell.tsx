@@ -157,7 +157,7 @@ function highlightMe(text: string, name: string): React.ReactNode {
   );
 }
 
-type Involve = { id: string; parent_id: string | null; assignee_id: string | null; helper_ids: string[] | null };
+type Involve = { id: string; parent_id: string | null; assignee_id: string | null; helper_ids: string[] | null; pic_ids?: string[] | null };
 
 /** Which notifications this person sees at all (see the header). */
 function kindOf(n: AppNotification): "hidden" | "related" | "all" {
@@ -239,7 +239,7 @@ export function NotificationBell() {
     let off = false;
     (async () => {
       const sb = createClient();
-      const cols = "id,parent_id,assignee_id,helper_ids";
+      const cols = "*"; // pic_ids only exists after migration 033
       const { data } = await sb.from("tasks").select(cols).in("id", refKey.split(","));
       const map = new Map<string, Involve>((data ?? []).map((r) => [r.id as string, r as Involve]));
       const parents = [...new Set([...map.values()].map((r) => r.parent_id).filter((x): x is string => !!x && !map.has(x)))];
@@ -269,7 +269,7 @@ export function NotificationBell() {
       if (!me) return true; // no profile linked to this login: show everything rather than nothing
       const t = n.ref_id ? tasks?.get(n.ref_id) : undefined;
       if (!t) return false;
-      const isMine = (x: Involve | undefined) => !!x && (x.assignee_id === me.id || (x.helper_ids ?? []).includes(me.id));
+      const isMine = (x: Involve | undefined) => !!x && (x.assignee_id === me.id || (x.pic_ids ?? []).includes(me.id) || (x.helper_ids ?? []).includes(me.id));
       return isMine(t) || isMine(t.parent_id ? tasks?.get(t.parent_id) : undefined);
     },
     [me, tasks],
