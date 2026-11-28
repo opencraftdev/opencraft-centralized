@@ -49,7 +49,8 @@ import { commentIdOf, listAttachments, removeAttachment, uploadAttachments, type
 import { SwapIn } from "@/components/ui/AutoHeight";
 import { DatePill } from "./DatePicker";
 import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
-import { CommentBody, MentionInput, type MentionInputHandle } from "./Mentions";
+import { CommentBody, MentionInput, stripFormat, type MentionInputHandle } from "./Mentions";
+import { FormatBar } from "./FormatBar";
 import { ProjectMark } from "./bits";
 import { PreviewDialog } from "@/features/drive/components/PreviewDialog";
 import type { DriveFile } from "@/lib/drive/types";
@@ -673,9 +674,14 @@ export function TaskDialog({
                               disabled={!!uploading}
                             />
                             <AttachPicker variant="icon" label="Lampirkan file lain" icon={<AttachFileRounded sx={{ fontSize: 20 }} />} onPick={(l) => void upload(l)} disabled={!!uploading} />
+                            <Box sx={{ width: "1px", height: 20, bgcolor: "#E0E3E7", mx: 0.5 }} />
+                            <FormatBar target={brief} />
                           </>
                         ) : (
-                          <Typography sx={{ fontSize: "0.75rem", color: "#80868B", px: 1, py: 0.75 }}>Buat tugasnya dulu, lalu file bisa dilampirkan.</Typography>
+                          <>
+                            <FormatBar target={brief} />
+                            <Typography sx={{ fontSize: "0.75rem", color: "#80868B", px: 1, py: 0.75 }}>Buat tugasnya dulu, lalu file bisa dilampirkan.</Typography>
+                          </>
                         )}
                       </Box>
                     </Box>
@@ -980,7 +986,12 @@ export function TaskDialog({
                     />
                   </Box>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, px: 0.75, pb: 0.75 }}>
-                    <AttachPicker variant="icon" onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
+                    <AttachPicker variant="icon" accept="image/*" label="Lampirkan gambar" icon={<ImageRounded sx={{ fontSize: 20 }} />} onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
+                    <AttachPicker variant="icon" accept="video/*" label="Lampirkan video" icon={<VideocamRounded sx={{ fontSize: 20 }} />} onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
+                    <AttachPicker variant="icon" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt" label="Lampirkan dokumen (PDF, Word, Excel, PPT)" icon={<DescriptionRounded sx={{ fontSize: 20 }} />} onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
+                    <AttachPicker variant="icon" label="Lampirkan file lain" icon={<AttachFileRounded sx={{ fontSize: 20 }} />} onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
+                    <Box sx={{ width: "1px", height: 20, bgcolor: "#E0E3E7", mx: 0.5 }} />
+                    <FormatBar target={mention} />
                     <Box sx={{ flex: 1 }} />
                     <Button
                       size="small"
@@ -1147,7 +1158,7 @@ function splitReply(body: string): { replyId: string | null; text: string } {
 }
 /** Comment text for quotes: no reply marker, mentions as "@Name". */
 function plainComment(body: string) {
-  const t = splitReply(body).text.replace(/@\[([^\]]+)\]\((member|task|project):[0-9a-f-]+\)/g, "@$1");
+  const t = stripFormat(splitReply(body).text).replace(/@\[([^\]]+)\]\((member|task|project):[0-9a-f-]+\)/g, "@$1");
   return t === "Lampiran" ? "📎 Lampiran" : t;
 }
 /** Scrolls to a comment and flashes it. */

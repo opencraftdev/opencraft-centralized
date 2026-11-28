@@ -18,19 +18,91 @@ type Option = { kind: Kind; id: string; label: string; sub?: string };
 
 const TOKEN_RE = /@\[([^\]\n]{1,120})\]\((member|task|project):([0-9a-f-]{36})\)/g;
 
-/** Renders a comment body: mention chips + clickable links. */
+/** Renders a comment body: [b]/[i]/[u]/[c=#hex] formatting, mention chips + clickable links. */
 export function CommentBody({ text, ctx, onOpenTask }: { text: string; ctx: TasksCtx; onOpenTask: (t: Task) => void }) {
+  return <>{renderRich(text, (t, k) => renderPlain(t, k, ctx, onOpenTask), "r")}</>;
+}
+
+function renderPlain(text: string, keyBase: string, ctx: TasksCtx, onOpenTask: (t: Task) => void) {
   const out: React.ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(TOKEN_RE)) {
     const start = m.index ?? 0;
-    if (start > last) out.push(<Linkify key={`t${last}`} text={text.slice(last, start)} />);
+    if (start > last) out.push(<Linkify key={`${keyBase}t${last}`} text={text.slice(last, start)} />);
     const [, label, kind, id] = m;
-    out.push(<Chip key={`m${start}`} kind={kind as Kind} id={id} label={label} ctx={ctx} onOpenTask={onOpenTask} />);
+    out.push(<Chip key={`${keyBase}m${start}`} kind={kind as Kind} id={id} label={label} ctx={ctx} onOpenTask={onOpenTask} />);
     last = start + m[0].length;
   }
-  if (last < text.length) out.push(<Linkify key={`t${last}`} text={text.slice(last)} />);
-  return <>{out}</>;
+  if (last < text.length) out.push(<Linkify key={`${keyBase}t${last}`} text={text.slice(last)} />);
+  return out;
+}
+
+// ---- Text formatting -------------------------------------------------------------------------
+// Stored as light tags so plain text stays readable: [b]tebal[/b], [i]miring[/i], [u]garis bawah[/u],
+// [c=#D93025]warna[/c]. Tags can nest; an unmatched tag is shown as typed.
+
+const OPEN_RE = /(?<!@)\[(b|i|u|c=#[0-9a-fA-F]{6})\]/g;
+
+export const TEXT_COLORS = [
+  { c: "#D93025", n: "Merah" },
+  { c: "#E37400", n: "Oranye" },
+  { c: "#188038", n: "Hijau" },
+  { c: "#0B57D0", n: "Biru" },
+  { c: "#9334E6", n: "Ungu" },
+  { c: "#5F6368", n: "Abu" },
+];
+
+/** Text without formatting tags (for one-line previews and notifications). */
+export function stripFormat(s: string) {
+  return s.replace(/(?<!@)\[(?:\/?(?:b|i|u|c)|c=#[0-9a-fA-F]{6})\]/g, "");
+}
+
+function renderRich(text: string, plain: (t: string, key: string) => React.ReactNode[], key: string): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  let pos = 0;
+  OPEN_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  const re = new RegExp(OPEN_RE.source, "g");
+  while ((m = re.exec(text))) {
+    const tag = m[1].startsWith("c=") ? "c" : m[1];
+    // find the matching close, counting nested tags of the same kind
+    const openRe = tag === "c" ? /\[c=#[0-9a-fA-F]{6}\]/g : new RegExp(`\\[${tag}\\]`, "g");
+    const close = `[/${tag}]`;
+    let depth = 1;
+    let i = m.index + m[0].length;
+    let end = -1;
+    while (i <= text.length) {
+      const c = text.indexOf(close, i);
+      if (c < 0) break;
+      openRe.lastIndex = i;
+      const o = openRe.exec(text);
+      if (o && o.index < c) {
+        depth++;
+        i = o.index + o[0].length;
+        continue;
+      }
+      depth--;
+      if (depth === 0) {
+        end = c;
+        break;
+      }
+      i = c + close.length;
+    }
+    if (end < 0) continue; // unmatched: leave it as text
+    if (m.index > pos) out.push(...plain(text.slice(pos, m.index), `${key}p${pos}`));
+    const inner = renderRich(text.slice(m.index + m[0].length, end), plain, `${key}-${m.index}`);
+    const style: React.CSSProperties =
+      tag === "b" ? { fontWeight: 700 } : tag === "i" ? { fontStyle: "italic" } : tag === "u" ? { textDecoration: "underline", textUnderlineOffset: 2 } : { color: m[1].slice(2) };
+    out.push(
+      <span key={`${key}f${m.index}`} style={style}>
+        {inner}
+      </span>,
+    );
+    pos = end + close.length;
+    re.lastIndex = pos;
+  }
+  if (pos < text.length) out.push(...plain(text.slice(pos), `${key}p${pos}`));
+  return out;
 }
 
 function Chip({ kind, id, label, ctx, onOpenTask }: { kind: Kind; id: string; label: string; ctx: TasksCtx; onOpenTask: (t: Task) => void }) {
@@ -68,6 +140,8 @@ export interface MentionInputHandle {
   focus: () => void;
   /** Starts editing a stored text: tokens become plain "@Label" again (and are remembered for serialize). */
   load: (stored: string) => void;
+  /** Wraps the selected text in formatting tags (or inserts an empty pair at the caret). */
+  format: (open: string, close: string) => void;
 }
 
 export const MentionInput = forwardRef<MentionInputHandle, {
@@ -88,7 +162,21 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   const [query, setQuery] = useState<{ text: string; start: number } | null>(null);
   const [active, setActive] = useState(0);
 
+  const format = (open: string, close: string) => {
+    const el = input.current;
+    const a = el?.selectionStart ?? value.length;
+    const b = el?.selectionEnd ?? value.length;
+    const next = value.slice(0, a) + open + value.slice(a, b) + close + value.slice(b);
+    onChange(next);
+    requestAnimationFrame(() => {
+      el?.focus();
+      if (a === b) el?.setSelectionRange(a + open.length, a + open.length);
+      else el?.setSelectionRange(a + open.length, b + open.length);
+    });
+  };
+
   useImperativeHandle(ref, () => ({
+    format,
     focus: () => input.current?.focus(),
     load: (stored: string) => {
       const opts: Option[] = [];
@@ -176,6 +264,11 @@ export const MentionInput = forwardRef<MentionInputHandle, {
             if (e.key === "ArrowUp") return (e.preventDefault(), setActive((a) => (a - 1 + options.length) % options.length));
             if ((e.key === "Enter" || e.key === "Tab") && !e.nativeEvent.isComposing) return (e.preventDefault(), choose(options[active]));
             if (e.key === "Escape") return (e.preventDefault(), e.stopPropagation(), setQuery(null));
+          }
+          if ((e.ctrlKey || e.metaKey) && !e.altKey && ["b", "i", "u"].includes(e.key.toLowerCase())) {
+            e.preventDefault();
+            const k = e.key.toLowerCase();
+            return format(`[${k}]`, `[/${k}]`);
           }
           if (!newlineOnEnter && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();

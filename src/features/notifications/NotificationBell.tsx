@@ -61,7 +61,7 @@ const STATUS_WORD: Record<string, string> = { selesai: "Done", "sedang dikerjaka
 /** "Raka" + "memperbarui tugas" + "SMM OCRAFT" + a sub line, from the trigger's title/body (migration 028). */
 function describe(n: AppNotification): { verb: string; obj: string; sub: string } {
   const t = n.title;
-  const body = n.body.replace(/^\[\[reply:[0-9a-f-]+\]\]\s*/, "");
+  const body = n.body.replace(/^\[\[reply:[0-9a-f-]+\]\]\s*/, "").replace(/\[(?:\/?(?:b|i|u|c)|c=#[0-9a-fA-F]{6})\]/g, "");
   const after = (prefix: string) => (t.startsWith(prefix) ? t.slice(prefix.length) : null);
   const quoted = (s: string) => /"(.*)"/.exec(s)?.[1] ?? s;
   let m: RegExpExecArray | null;
