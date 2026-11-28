@@ -18,7 +18,7 @@ function examples(skill: string | null): Example[] {
   const list: Example[] = [
     {
       ask: "Ringkas proposal Klinik Aura jadi 3 poin",
-      answer: "Siap. 1) Ruang lingkup pekerjaan. 2) Timeline pengerjaan. 3) Biaya dan termin pembayaran.",
+      answer: "Siap, ini 3 poinnya:\n1. Ruang lingkup pekerjaan\n2. Timeline pengerjaan\n3. Biaya dan termin pembayaran",
     },
     {
       ask: "Cari invoice Vercel bulan lalu",
@@ -100,8 +100,13 @@ export function ChatDemo({ skill }: { skill: string | null }) {
                   <Box sx={{ maxWidth: "85%", bgcolor: "#fff", border: "1px solid #E3E3E3", borderRadius: "4px 20px 20px 20px", px: 2, py: 1.25, fontSize: "0.9375rem", lineHeight: 1.5, color: "#1F1F1F" }}>
                     <AnimatePresence mode="wait" initial={false}>
                       {showAnswer ? (
-                        <motion.span key="a" initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-                          {ex.answer}
+                        <motion.span key="a" initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} style={{ display: "block" }}>
+                          {/* one line per point, each easing in after the one before */}
+                          {ex.answer.split("\n").map((line, i) => (
+                            <motion.span key={i} initial={reduce ? false : { opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: reduce ? 0 : i * 0.18 }} style={{ display: "block", paddingLeft: /^\d+\. /.test(line) ? 4 : 0 }}>
+                              {line}
+                            </motion.span>
+                          ))}
                         </motion.span>
                       ) : (
                         <motion.span key="d" exit={{ opacity: 0 }} transition={{ duration: 0.15 }} style={{ display: "inline-flex", gap: 4, padding: "6px 0" }}>

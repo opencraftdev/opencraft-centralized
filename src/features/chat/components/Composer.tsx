@@ -306,6 +306,8 @@ export const Composer = forwardRef<
     }
   };
   const uploading = images.some((x) => !x.image);
+  // with attachments the box stacks: files on top, the text in the middle, the buttons underneath
+  const stacked = images.length > 0;
   addRef.current = addImages;
   const skillsRef = useRef(skills);
   skillsRef.current = skills;
@@ -436,11 +438,13 @@ export const Composer = forwardRef<
           position: "relative",
           display: "flex",
           alignItems: "flex-end",
+          flexWrap: stacked ? "wrap" : "nowrap",
           gap: 0.5,
+          rowGap: stacked ? 0.5 : 0,
           minHeight: 64,
           px: 1,
           py: 1.5, // 64 = 12 + 40 + 12: the 40px buttons sit centred while the box is one line
-          borderRadius: "32px",
+          borderRadius: stacked ? "24px" : "32px",
           bgcolor: "#F0F4F9",
           cursor: "text",
           transition: "box-shadow .15s, background-color .15s",
@@ -453,52 +457,8 @@ export const Composer = forwardRef<
           </Box>
         )}
                 {menuOpen && hits && <SkillMenu hits={hits} active={active} below={menuBelow} onPick={pick} onHover={setActive} />}
-        <Tooltip title={plus ? "" : "Pakai skill"}>
-          <span style={{ display: "inline-flex" }}>
-            <IconButton
-              aria-label="Pakai skill"
-              aria-haspopup="listbox"
-              aria-expanded={plus}
-              disabled={!skills.length}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                if (plus) closeMenu();
-                else {
-                  setClosedFor(null);
-                  setPlus(true);
-                  input.current?.focus();
-                }
-              }}
-              sx={{ ...roundBtn, color: "#444746", "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } }}
-            >
-              <AddRounded sx={{ fontSize: 26 }} />
-            </IconButton>
-          </span>
-        </Tooltip>
-        <Tooltip title="Lampirkan gambar, PDF, video, atau audio">
-          <IconButton
-            aria-label="Lampirkan gambar, PDF, video, atau audio"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => fileInput.current?.click()}
-            sx={{ ...roundBtn, ml: -0.5, color: "#444746", "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } }}
-          >
-            <ImageRounded sx={{ fontSize: 22 }} />
-          </IconButton>
-        </Tooltip>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/*,application/pdf,video/*,audio/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            addImages(Array.from(e.target.files ?? []));
-            e.target.value = "";
-          }}
-        />
-        <Box sx={{ flex: 1, minWidth: 0, alignSelf: "center", display: "flex", flexDirection: "column" }}>
           {images.length > 0 && (
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.5, pb: 0.5 }}>
+            <Box sx={{ order: -1, flexBasis: "100%", display: "flex", flexWrap: "wrap", gap: 0.75, pl: 1, pr: 1, pt: 0.25, pb: 0.25 }}>
               {images.map((x) => (
                 <Box key={x.key} sx={{ position: "relative", width: 56, height: 56, borderRadius: "12px", overflow: "hidden", bgcolor: "#E3E3E3", flexShrink: 0 }} title={x.name}>
                   {x.kind && x.kind !== "image" && x.image ? (
@@ -525,6 +485,50 @@ export const Composer = forwardRef<
               ))}
             </Box>
           )}
+        <Tooltip title={plus ? "" : "Pakai skill"}>
+          <span style={{ display: "inline-flex", order: stacked ? 1 : undefined }}>
+            <IconButton
+              aria-label="Pakai skill"
+              aria-haspopup="listbox"
+              aria-expanded={plus}
+              disabled={!skills.length}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                if (plus) closeMenu();
+                else {
+                  setClosedFor(null);
+                  setPlus(true);
+                  input.current?.focus();
+                }
+              }}
+              sx={{ ...roundBtn, color: "#444746", "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } }}
+            >
+              <AddRounded sx={{ fontSize: 26 }} />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Tooltip title="Lampirkan gambar, PDF, video, atau audio">
+          <IconButton
+            aria-label="Lampirkan gambar, PDF, video, atau audio"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => fileInput.current?.click()}
+            sx={{ ...roundBtn, ml: -0.5, order: stacked ? 1 : undefined, color: "#444746", "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } }}
+          >
+            <ImageRounded sx={{ fontSize: 22 }} />
+          </IconButton>
+        </Tooltip>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*,application/pdf,video/*,audio/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            addImages(Array.from(e.target.files ?? []));
+            e.target.value = "";
+          }}
+        />
+        <Box sx={{ flex: 1, minWidth: 0, alignSelf: "center", display: "flex", flexDirection: "column", ...(stacked ? { order: 0, flexBasis: "100%", pl: 0.5 } : {}) }}>
           {skill && (
             <Box sx={{ pt: 0.5, pb: 0.25, display: "flex" }}>
               <SkillChip
@@ -574,7 +578,7 @@ export const Composer = forwardRef<
         </Box>
         {running && (
           <Tooltip title="Hentikan">
-            <span style={{ display: "inline-flex" }}>
+            <span style={{ display: "inline-flex", order: stacked ? 2 : undefined, marginLeft: stacked ? "auto" : undefined }}>
               <IconButton
                 onClick={onStop}
                 disabled={stopping}
@@ -594,7 +598,7 @@ export const Composer = forwardRef<
         )}
         {(canSend || sending) && (
           <Tooltip title="Kirim (Enter)">
-            <span style={{ display: "inline-flex" }}>
+            <span style={{ display: "inline-flex", order: stacked ? 2 : undefined, marginLeft: stacked && !running ? "auto" : undefined }}>
               <IconButton
                 onClick={() => void send()}
                 disabled={!canSend}
