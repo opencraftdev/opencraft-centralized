@@ -867,7 +867,7 @@ export function TaskDialog({
 
               {/* Checklist (main task only) */}
               {live && !live.parent_id && (
-                <Box sx={{ mt: 2.5 }}>
+                <Box sx={{ mt: openBrief || editingNote ? 2 : 0.5 }}>
                   <Box sx={{ mb: 0.75 }}>
                     <SectionToggle open={openCheck} onClick={() => setOpenCheck((v) => !v)}>
                       {`Checklist${subs.length ? ` · ${subs.filter((s) => s.status === "done").length}/${subs.length}` : ""}`}
