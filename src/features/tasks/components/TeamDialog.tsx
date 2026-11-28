@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Box from "@mui/material/Box";
+import { BlurUpMedia } from "@/components/ui/BlurUpMedia";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import IconButton from "@mui/material/IconButton";
@@ -266,11 +267,11 @@ function ImageUpload({
             borderRadius: shape === "circle" ? "50%" : "12px",
             border: "1px dashed #C4C7C5",
             bgcolor: "#F0F4F9",
-            backgroundImage: value ? `url("${driveContentUrl(value)}")` : "none",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
+            overflow: "hidden",
           }}
-        />
+        >
+          {value && <BlurUpMedia src={driveContentUrl(value)} alt="" showDots={false} />}
+        </Box>
         <Box>
           <Box sx={{ display: "flex", gap: 0.5 }}>
             <Button size="small" variant="outlined" startIcon={<UploadRounded />} disabled={busy} onClick={() => input.current?.click()} sx={{ borderRadius: "9999px", borderColor: "#C4C7C5", color: "#444746" }}>

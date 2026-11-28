@@ -17,6 +17,7 @@ export function BlurUpMedia({
   fit = "cover",
   lazy = true,
   videoProps,
+  showDots = true,
 }: {
   src: string;
   alt: string;
@@ -24,6 +25,8 @@ export function BlurUpMedia({
   fit?: "cover" | "contain";
   lazy?: boolean;
   videoProps?: React.VideoHTMLAttributes<HTMLVideoElement>;
+  /** small thumbnails (avatars, logos) keep the blur-up fade but skip the dots */
+  showDots?: boolean;
 }) {
   const [loaded, setLoaded] = useState(false);
   const img = useRef<HTMLImageElement>(null);
@@ -54,7 +57,7 @@ export function BlurUpMedia({
       ) : (
         <Box component="video" ref={vid} src={src} onLoadedData={() => setLoaded(true)} onError={() => setLoaded(true)} sx={mediaSx} {...videoProps} />
       )}
-      {!loaded && (
+      {!loaded && showDots && (
         <Box aria-hidden sx={{ position: "absolute", left: "50%", bottom: "12%", transform: "translateX(-50%)", display: "flex", gap: "3px", ...dots }}>
           {[0, 1, 2].map((i) => (
             <Box key={i} sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: "#fff", boxShadow: "0 0 2px rgba(0,0,0,.25)", animation: `oc-dot 1s ease-in-out ${i * 0.15}s infinite` }} />

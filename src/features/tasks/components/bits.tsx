@@ -1,6 +1,7 @@
 "use client";
 
 import Box from "@mui/material/Box";
+import { BlurUpMedia } from "@/components/ui/BlurUpMedia";
 import Tooltip from "@mui/material/Tooltip";
 import FlagRounded from "@mui/icons-material/FlagRounded";
 import EventRounded from "@mui/icons-material/EventRounded";
@@ -29,9 +30,6 @@ export function MemberAvatar({ member, size = 24, ring }: { member: Member | und
       <Box
         component="span"
         sx={{
-          backgroundImage: photo ? `url("${photo}")` : "none",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
           width: size,
           height: size,
           borderRadius: "50%",
@@ -45,9 +43,10 @@ export function MemberAvatar({ member, size = 24, ring }: { member: Member | und
           flexShrink: 0,
           boxShadow: ring ? `0 0 0 2px ${ring}` : undefined,
           lineHeight: 1,
+          overflow: "hidden",
         }}
       >
-        {photo ? null : label}
+        {photo ? <BlurUpMedia src={photo} alt={member?.name ?? ""} showDots={size >= 40} /> : label}
       </Box>
     </Tooltip>
   );
@@ -123,7 +122,9 @@ export function ProjectMark({ project, size = 14 }: { project: Project | undefin
   if (!project) return null;
   if (project.logo_file_id)
     return (
-      <Box component="span" sx={{ width: size, height: size, borderRadius: "4px", flexShrink: 0, backgroundImage: `url("${driveContentUrl(project.logo_file_id)}")`, backgroundSize: "cover", backgroundPosition: "center" }} />
+      <Box component="span" sx={{ width: size, height: size, borderRadius: "4px", flexShrink: 0, overflow: "hidden", display: "inline-block" }}>
+        <BlurUpMedia src={driveContentUrl(project.logo_file_id)} alt={project.name} showDots={false} />
+      </Box>
     );
   if (project.emoji)
     return (
