@@ -59,17 +59,21 @@ import {
 // Diskusi opens their profile card with a "Chat" button that jumps straight into that conversation.
 
 interface TeamChatApi {
+  open: boolean;
+  unread: number;
+  unreadFrom: string | null;
+  dockPeople: Member[];
   openChat: (email?: string) => void;
   close: () => void;
   openProfile: (email: string, anchor: HTMLElement) => void;
 }
-const Ctx = createContext<TeamChatApi>({ openChat: () => {}, close: () => {}, openProfile: () => {} });
+const Ctx = createContext<TeamChatApi>({ open: false, unread: 0, unreadFrom: null, dockPeople: [], openChat: () => {}, close: () => {}, openProfile: () => {} });
 export const useTeamChat = () => useContext(Ctx);
 
 export function TeamChatProvider({ children }: { children: React.ReactNode }) {
   const { email: me } = useAccount();
   const pathname = usePathname();
-  const raised = pathname.startsWith("/chat"); // keep clear of the AI chat's message box
+  const onChatPage = pathname.startsWith("/chat"); // there the button sits next to the AI chat's message box
   const people = usePeople();
   const [open, setOpen] = useState(false);
   const [withEmail, setWithEmail] = useState<string | null>(null);
@@ -124,6 +128,10 @@ export function TeamChatProvider({ children }: { children: React.ReactNode }) {
   }, [recent, people, me, unreadFrom]);
   const api = useMemo<TeamChatApi>(
     () => ({
+      open,
+      unread,
+      unreadFrom,
+      dockPeople,
       openChat: (email) => {
         setProfile(null);
         setWithEmail(email && email !== me ? email : null);
@@ -132,79 +140,13 @@ export function TeamChatProvider({ children }: { children: React.ReactNode }) {
       close: () => setOpen(false),
       openProfile: (email, anchor) => setProfile({ email, anchor }),
     }),
-    [me],
+    [me, open, unread, unreadFrom, dockPeople],
   );
 
   return (
     <Ctx.Provider value={api}>
       {children}
-      {me && !open && (
-        <Box
-          component="button"
-          type="button"
-          aria-label={unread ? `Chat Tim, ${unread} pesan belum dibaca` : "Chat Tim"}
-          onClick={() => api.openChat()}
-          sx={{
-            position: "fixed",
-            right: 24,
-            bottom: raised ? 116 : 24,
-            zIndex: 1200,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 1,
-            height: 44,
-            pl: 1.5,
-            pr: 0.75,
-            border: "1px solid #E3E8F2",
-            borderRadius: "9999px",
-            bgcolor: "#fff",
-            color: "#1F1F1F",
-            fontFamily: "inherit",
-            fontSize: "0.8125rem",
-            fontWeight: 600,
-            cursor: "pointer",
-            boxShadow: "0 4px 16px rgba(60,64,67,.18)",
-            transition: "transform 150ms, box-shadow 150ms",
-            "&:hover": { transform: "translateY(-1px)", boxShadow: "0 8px 22px rgba(60,64,67,.24)" },
-            animation: "oc-pop-in 260ms cubic-bezier(0.22, 1, 0.36, 1)",
-            "@keyframes oc-dock-ring": { "0%": { boxShadow: "0 0 0 0 rgba(11,87,208,.5)" }, "70%": { boxShadow: "0 0 0 9px rgba(11,87,208,0)" }, "100%": { boxShadow: "0 0 0 0 rgba(11,87,208,0)" } },
-          }}
-        >
-          <ForumRounded sx={{ fontSize: 20, color: "#0B57D0" }} />
-          Chat Tim
-          {/* the team's faces; the person who just wrote comes to the front with a blue ring */}
-          <Box component="span" sx={{ display: "inline-flex", ml: 0.5 }}>
-            {dockPeople.map((p, i) => {
-              const lead = i === 0 && !!unreadFrom;
-              return (
-                <Box
-                  key={p.id}
-                  component="span"
-                  sx={{
-                    display: "inline-flex",
-                    ml: i ? "-5px" : 0,
-                    position: "relative",
-                    zIndex: dockPeople.length - i,
-                    borderRadius: "50%",
-                    boxShadow: "0 0 0 2px #fff",
-                    transition: "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-                    transform: lead ? "translateY(-3px) scale(1.12)" : "none",
-                    animation: lead ? "oc-dock-ring 1.6s ease-out infinite" : "none",
-                    "@media (prefers-reduced-motion: reduce)": { animation: "none" },
-                  }}
-                >
-                  <MemberAvatar member={p} size={20} />
-                </Box>
-              );
-            })}
-          </Box>
-          {unread > 0 && (
-            <Box component="span" sx={{ minWidth: 20, height: 20, px: 0.5, borderRadius: "10px", bgcolor: "#D93025", color: "#fff", fontSize: "0.6875rem", fontWeight: 700, display: "grid", placeItems: "center", animation: "oc-pop-in 300ms cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
-              {unread > 9 ? "9+" : unread}
-            </Box>
-          )}
-        </Box>
-      )}
+      {me && !open && !onChatPage && <ChatTimButton />}
       {me && open && (
         <Panel
           me={me}
@@ -219,6 +161,76 @@ export function TeamChatProvider({ children }: { children: React.ReactNode }) {
       )}
       <ProfileCard target={profile} people={people} me={me} onClose={() => setProfile(null)} onChat={(email) => api.openChat(email)} />
     </Ctx.Provider>
+  );
+}
+
+/** "Chat Tim": team faces + unread count. Floating at the bottom right, or `inline` next to the AI chat's box. */
+export function ChatTimButton({ inline }: { inline?: boolean }) {
+  const { open, unread, unreadFrom, dockPeople, openChat } = useTeamChat();
+  if (inline && open) return null;
+  return (
+      <Box
+        component="button"
+        type="button"
+        aria-label={unread ? `Chat Tim, ${unread} pesan belum dibaca` : "Chat Tim"}
+        onClick={() => openChat()}
+        sx={{
+          ...(inline ? { flexShrink: 0 } : { position: "fixed", right: 24, bottom: 24, zIndex: 1200 }),
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 1,
+          height: inline ? 52 : 44,
+          pl: 1.5,
+          pr: 0.75,
+          border: "1px solid #E3E8F2",
+          borderRadius: "9999px",
+          bgcolor: "#fff",
+          color: "#1F1F1F",
+          fontFamily: "inherit",
+          fontSize: "0.8125rem",
+          fontWeight: 600,
+          cursor: "pointer",
+          boxShadow: "0 4px 16px rgba(60,64,67,.18)",
+          transition: "transform 150ms, box-shadow 150ms",
+          "&:hover": { transform: "translateY(-1px)", boxShadow: "0 8px 22px rgba(60,64,67,.24)" },
+          animation: "oc-pop-in 260ms cubic-bezier(0.22, 1, 0.36, 1)",
+          "@keyframes oc-dock-ring": { "0%": { boxShadow: "0 0 0 0 rgba(11,87,208,.5)" }, "70%": { boxShadow: "0 0 0 9px rgba(11,87,208,0)" }, "100%": { boxShadow: "0 0 0 0 rgba(11,87,208,0)" } },
+        }}
+      >
+        <ForumRounded sx={{ fontSize: 20, color: "#0B57D0" }} />
+        Chat Tim
+        {/* the team's faces; the person who just wrote comes to the front with a blue ring */}
+        <Box component="span" sx={{ display: "inline-flex", ml: 0.5 }}>
+          {dockPeople.map((p, i) => {
+            const lead = i === 0 && !!unreadFrom;
+            return (
+              <Box
+                key={p.id}
+                component="span"
+                sx={{
+                  display: "inline-flex",
+                  ml: i ? "-5px" : 0,
+                  position: "relative",
+                  zIndex: dockPeople.length - i,
+                  borderRadius: "50%",
+                  boxShadow: "0 0 0 2px #fff",
+                  transition: "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+                  transform: lead ? "translateY(-3px) scale(1.12)" : "none",
+                  animation: lead ? "oc-dock-ring 1.6s ease-out infinite" : "none",
+                  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+                }}
+              >
+                <MemberAvatar member={p} size={20} />
+              </Box>
+            );
+          })}
+        </Box>
+        {unread > 0 && (
+          <Box component="span" sx={{ minWidth: 20, height: 20, px: 0.5, borderRadius: "10px", bgcolor: "#D93025", color: "#fff", fontSize: "0.6875rem", fontWeight: 700, display: "grid", placeItems: "center", animation: "oc-pop-in 300ms cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
+            {unread > 9 ? "9+" : unread}
+          </Box>
+        )}
+      </Box>
   );
 }
 

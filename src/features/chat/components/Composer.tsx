@@ -441,10 +441,10 @@ export const Composer = forwardRef<
           flexWrap: stacked ? "wrap" : "nowrap",
           gap: 0.5,
           rowGap: stacked ? 0.5 : 0,
-          minHeight: 64,
-          px: 1,
-          py: 1.5, // 64 = 12 + 40 + 12: the 40px buttons sit centred while the box is one line
-          borderRadius: stacked ? "24px" : "32px",
+          minHeight: 52,
+          px: 0.75,
+          py: 0.75, // 52 = 6 + 40 + 6: the 40px buttons sit centred while the box is one line
+          borderRadius: stacked ? "22px" : "26px",
           bgcolor: "#F0F4F9",
           cursor: "text",
           transition: "box-shadow .15s, background-color .15s",
@@ -562,7 +562,7 @@ export const Composer = forwardRef<
             sx={{
               px: 0.5,
               py: "8px", // one line = 40px, the height of the round buttons beside it
-              fontSize: "1rem",
+              fontSize: "0.9375rem",
               lineHeight: 1.5,
               color: "#1F1F1F",
               "& textarea::placeholder": { color: "#444746", opacity: 1 },

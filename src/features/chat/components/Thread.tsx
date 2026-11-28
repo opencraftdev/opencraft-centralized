@@ -23,6 +23,7 @@ import { Composer, type ComposerHandle } from "./Composer";
 import { QuoteChip, SelectionReply, withQuote } from "./Quote";
 import { AssistantMessage, LiveAnswer, PendingMessages, UserBubble } from "./Messages";
 import { ChatMenu, ChatNavButtons, type ChatAction } from "./ChatList";
+import { ChatTimButton } from "@/features/team-chat/TeamChat";
 
 // One chat (docs/CHAT.md → "UI" → Thread). The chat row + new messages are polled every 1.5 s while a run is queued
 // or running (the worker writes run_steps / stream_text at most every ~1.5 s); otherwise the list's poll (updated_at /
@@ -390,16 +391,21 @@ export function Thread({
         <Box sx={{ px: { xs: 1, sm: 3 }, pb: 1, pt: 0.5, flexShrink: 0 }}>
           <Box sx={{ maxWidth: COLUMN, mx: "auto" }}>
             {quote && <QuoteChip text={quote} onClear={() => setQuote(null)} />}
-            <Composer
-              ref={composer}
-              draftId={chatId}
-              skills={skills}
-              placeholder="Tanya OpenCraft"
-              running={running}
-              stopping={stopping || Boolean(chat?.cancel_requested_at)}
-              onSend={send}
-              onStop={() => void stop()}
-            />
+            <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Composer
+                  ref={composer}
+                  draftId={chatId}
+                  skills={skills}
+                  placeholder="Tanya OpenCraft"
+                  running={running}
+                  stopping={stopping || Boolean(chat?.cancel_requested_at)}
+                  onSend={send}
+                  onStop={() => void stop()}
+                />
+              </Box>
+              <ChatTimButton inline />
+            </Box>
             <Typography sx={{ textAlign: "center", fontSize: "0.75rem", color: "#444746", mt: 1, lineHeight: 1.5 }}>
               AI bisa membuat kesalahan, periksa kembali hasilnya.
             </Typography>

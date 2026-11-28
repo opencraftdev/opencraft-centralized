@@ -7,6 +7,7 @@ import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import type { SkillSummary } from "@/features/skills/api";
 import { Composer, draftKey, splitSkill, type ComposerHandle } from "./Composer";
 import { ChatNavButtons } from "./ChatList";
+import { ChatTimButton } from "@/features/team-chat/TeamChat";
 import { COLUMN } from "./Thread";
 import { ChatDemo } from "./ChatDemo";
 
@@ -111,7 +112,12 @@ export function NewChat({
               ))}
             </Box>
           )}
-          <Composer ref={composer} draftId={NEW_DRAFT} skills={skills} placeholder="Ketik / untuk skill dan lainnya" autoFocus onSend={onSend} />
+          <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1 }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Composer ref={composer} draftId={NEW_DRAFT} skills={skills} placeholder="Ketik / untuk skill dan lainnya" autoFocus onSend={onSend} />
+            </Box>
+            <ChatTimButton inline />
+          </Box>
           <Typography sx={{ textAlign: "center", fontSize: "0.75rem", color: "#444746", mt: 1, lineHeight: 1.5 }}>
             AI bisa membuat kesalahan, periksa kembali hasilnya.
           </Typography>
