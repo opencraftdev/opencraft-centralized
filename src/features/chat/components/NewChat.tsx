@@ -79,7 +79,7 @@ export function NewChat({
           <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1 }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               {skills.length > 0 && (
-                <Box component="ul" aria-label="Saran skill" sx={{ listStyle: "none", m: 0, mb: 0.75, p: 0, display: "grid", gridTemplateColumns: "repeat(5, minmax(0, max-content))", gap: 0.5 }}>
+                <Box component="ul" aria-label="Saran skill" sx={{ listStyle: "none", m: 0, mb: 1, p: 0, display: "grid", gridTemplateColumns: "repeat(5, minmax(0, max-content))", gap: 1 }}>
                   {skills.map((s) => (
                     <Box component="li" key={s.name} sx={{ minWidth: 0, display: "flex" }}>
                       <Box
@@ -90,22 +90,22 @@ export function NewChat({
                         sx={{
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: 0.5,
+                          gap: 0.75,
                           maxWidth: "100%",
-                          height: 22,
-                          px: 1,
+                          height: 32,
+                          px: 1.5,
                           border: "1px solid #E3E3E3",
                           borderRadius: "9999px",
                           bgcolor: "#fff",
                           color: "#1F1F1F",
                           fontFamily: "inherit",
-                          fontSize: "0.6875rem",
+                          fontSize: "0.8125rem",
                           cursor: "pointer",
                           "&:hover": { bgcolor: "#F0F4F9" },
                           "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
                         }}
                       >
-                        <AutoAwesomeRounded sx={{ fontSize: 11, color: "#444746", flexShrink: 0 }} />
+                        <AutoAwesomeRounded sx={{ fontSize: 15, color: "#444746", flexShrink: 0 }} />
                         <Box component="span" sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {s.title}
                         </Box>
