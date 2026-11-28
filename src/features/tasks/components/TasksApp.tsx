@@ -8,8 +8,6 @@ import Button from "@mui/material/Button";
 import InputBase from "@mui/material/InputBase";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
-import Switch from "@mui/material/Switch";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
@@ -90,7 +88,6 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
   const [q, setQ] = useState("");
   const [memberFilter, setMemberFilter] = useState<string>("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
-  const [hideDone, setHideDone] = useState(false);
   const [dialog, setDialog] = useState<{ task: Task | null; defaults?: Partial<TaskInput> } | null>(null);
   const [teamOpen, setTeamOpen] = useState<false | "members" | "projects">(false);
 
@@ -160,7 +157,6 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
   const visible = useCallback(
     (t: Task): boolean => {
       const self = (x: Task) => {
-        if (hideDone && x.status === "done") return false;
         if (projectFilter !== "all" && x.project_id !== projectFilter) return false;
         if (memberFilter !== "all" && x.assignee_id !== memberFilter && !x.helper_ids.includes(memberFilter)) return false;
         if (q.trim()) {
@@ -171,10 +167,9 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
       };
       if (self(t)) return true;
       if (t.parent_id) return false;
-      if (hideDone && t.status === "done") return false;
       return (childrenOf.get(t.id) ?? []).some(self);
     },
-    [hideDone, projectFilter, memberFilter, q, childrenOf],
+    [projectFilter, memberFilter, q, childrenOf],
   );
 
   const patch = useCallback(
@@ -370,11 +365,6 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
               </MenuItem>
             ))}
           </Select>
-          <FormControlLabel
-            control={<Switch size="small" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />}
-            label="Sembunyikan Done"
-            sx={{ m: 0, ml: 0.5, "& .MuiFormControlLabel-label": { fontSize: "0.8125rem", color: "#444746" } }}
-          />
         </Box>
 
         {/* View */}
