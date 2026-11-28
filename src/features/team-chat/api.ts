@@ -56,7 +56,9 @@ export async function markRead(thread: string, me: string): Promise<void> {
 
 export function subscribeTeamMessages(onChange: () => void): () => void {
   const c = sb();
-  const ch = c.channel("team-messages").on("postgres_changes", { event: "*", schema: "public", table: "team_messages" }, onChange).subscribe();
+  // a unique name per subscription: the panel and an open conversation both listen, and supabase-js reuses a
+  // channel with the same name (adding a listener to an already-subscribed channel throws)
+  const ch = c.channel(`team-messages-${Math.random().toString(36).slice(2)}`).on("postgres_changes", { event: "*", schema: "public", table: "team_messages" }, onChange).subscribe();
   return () => {
     void c.removeChannel(ch);
   };
