@@ -301,44 +301,6 @@ export function TopBar({
             </Box>
           </Box>
 
-          {/* Footer */}
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              gap: 1.5,
-              py: 1.5,
-              borderTop: "1px solid #E8EAED",
-              bgcolor: "#F0F4F9",
-            }}
-          >
-            <Typography
-              component="a"
-              href="#"
-              sx={{
-                fontSize: "0.75rem",
-                color: "#5E5E5E",
-                textDecoration: "none",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Privacy Policy
-            </Typography>
-            <Box sx={{ width: 3, height: 3, borderRadius: "50%", bgcolor: "#5E5E5E" }} />
-            <Typography
-              component="a"
-              href="#"
-              sx={{
-                fontSize: "0.75rem",
-                color: "#5E5E5E",
-                textDecoration: "none",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Terms of Service
-            </Typography>
-          </Box>
         </Popover>
       </Toolbar>
 
