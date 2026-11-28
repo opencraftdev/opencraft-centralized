@@ -14,13 +14,13 @@ import Typography from "@mui/material/Typography";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import DeleteRounded from "@mui/icons-material/DeleteRounded";
 import DriveFileRenameOutlineRounded from "@mui/icons-material/DriveFileRenameOutlineRounded";
-import EditRounded from "@mui/icons-material/EditRounded";
 import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import PushPinRounded from "@mui/icons-material/PushPinRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
-import ViewSidebarRounded from "@mui/icons-material/ViewSidebarRounded";
+import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
+import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import GroupRounded from "@mui/icons-material/GroupRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import PersonAddRounded from "@mui/icons-material/PersonAddRounded";
@@ -112,9 +112,9 @@ export function StatusDot({ status }: { status: ChatStatus }) {
   );
 }
 
-/** Gemini's "toggle sidebar" glyph: a panel with a bar on the left. */
+/** Hide the history panel: a chevron pointing left (it shows a chevron right when closed). */
 export function SidebarIcon() {
-  return <ViewSidebarRounded sx={{ fontSize: 22, transform: "scaleX(-1)" }} />;
+  return <ChevronLeftRounded sx={{ fontSize: 24 }} />;
 }
 
 /**
@@ -141,15 +141,15 @@ export function ChatNavButtons({
           : { display: { xs: "none", sm: "flex" }, flexDirection: "column", gap: 0.5, position: "absolute", top: 8, left: 8, zIndex: 2 }
       }
     >
-      <Tooltip title="Riwayat chat" placement={tip}>
+      <Tooltip title={inline ? "Riwayat chat" : "Tampilkan Chat History"} placement={tip}>
         <IconButton
-          aria-label="Riwayat chat"
+          aria-label={inline ? "Riwayat chat" : "Tampilkan Chat History"}
           aria-haspopup="dialog"
           aria-expanded={historyOpen}
           onClick={(e) => onHistory(e.currentTarget)}
           sx={{ ...iconBtn, ...(historyOpen ? { bgcolor: "#D3E3FD", color: "#041E49", "&:hover": { bgcolor: "#D3E3FD" } } : {}) }}
         >
-          <HistoryRounded sx={{ fontSize: 22 }} />
+          {inline ? <HistoryRounded sx={{ fontSize: 22 }} /> : <ChevronRightRounded sx={{ fontSize: 24 }} />}
         </IconButton>
       </Tooltip>
       <Tooltip title="Chat baru" placement={tip}>
@@ -290,13 +290,13 @@ export function ChatList({
             "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
           }}
         >
-          <EditRounded sx={{ fontSize: 20, color: newActive ? "#041E49" : "#444746" }} />
+          <AddRounded sx={{ fontSize: 22, color: newActive ? "#041E49" : "#444746" }} />
           Chat baru
         </Box>
       </Box>
 
       <Typography sx={{ px: 2.25, pt: popover ? 1 : 2, pb: 0.75, fontSize: "0.75rem", fontWeight: 500, color: "#5F6368" }}>
-        {query.trim() ? "Hasil pencarian" : "Terbaru"}
+        {query.trim() ? "Hasil pencarian" : "Chat History"}
       </Typography>
 
       <Box component="nav" aria-label="Daftar chat" sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1, pb: 1.5 }}>

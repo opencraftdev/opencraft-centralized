@@ -6,6 +6,7 @@
 // The agent reads those lines (e.g. the finance skill uses file_id as proof); the UI shows them as thumbnails.
 import { BlurUpMedia } from "@/components/ui/BlurUpMedia";
 import Box from "@mui/material/Box";
+import PictureAsPdfRounded from "@mui/icons-material/PictureAsPdfRounded";
 import { createClient } from "@/lib/supabase/client";
 import { createFolder, uploadFile } from "@/features/drive/api";
 import { driveContentUrl } from "@/lib/drive/links";
@@ -13,7 +14,9 @@ import { driveContentUrl } from "@/lib/drive/links";
 export interface ChatImage {
   file_id: string;
   name: string;
+  type?: string; // "application/pdf" for a PDF; absent = picture
 }
+export const isPdf = (i: { type?: string; name?: string }) => i.type === "application/pdf" || /\.pdf$/i.test(i.name ?? "");
 
 const LINE = /^IMG: (\{.*\})\s*$/;
 
@@ -27,7 +30,7 @@ export function splitImages(content: string): { text: string; images: ChatImage[
       try {
         const v = JSON.parse(m[1]) as ChatImage;
         if (typeof v.file_id === "string") {
-          images.push({ file_id: v.file_id, name: String(v.name ?? "gambar") });
+          images.push({ file_id: v.file_id, name: String(v.name ?? "gambar"), ...(v.type ? { type: String(v.type) } : {}) });
           continue;
         }
       } catch {
@@ -42,8 +45,8 @@ export function splitImages(content: string): { text: string; images: ChatImage[
 /** Message text + IMG: lines. */
 export function withImages(text: string, images: ChatImage[]): string {
   if (!images.length) return text;
-  const body = text.trim() || "Gambar terlampir.";
-  return `${body}\n\n${images.map((i) => `IMG: ${JSON.stringify({ file_id: i.file_id, name: i.name })}`).join("\n")}`;
+  const body = text.trim() || (images.some(isPdf) ? "File terlampir." : "Gambar terlampir.");
+  return `${body}\n\n${images.map((i) => `IMG: ${JSON.stringify({ file_id: i.file_id, name: i.name, ...(i.type ? { type: i.type } : {}) })}`).join("\n")}`;
 }
 
 let folderPromise: Promise<string> | null = null;
@@ -69,7 +72,7 @@ export async function uploadChatImage(file: File): Promise<ChatImage> {
   const folderId = await chatFolder();
   const { data } = await createClient().auth.getUser();
   const id = await uploadFile(file, folderId, data.user?.id ?? "", { kind: "chat_image" });
-  return { file_id: id, name: file.name || "gambar.png" };
+  return { file_id: id, name: file.name || "gambar.png", ...(file.type === "application/pdf" ? { type: "application/pdf" } : {}) };
 }
 
 /** Thumbnails in a sent message (click opens the picture). */
@@ -84,9 +87,20 @@ export function ImageThumbs({ images }: { images: ChatImage[] }) {
           target="_blank"
           rel="noreferrer"
           title={img.name}
-          sx={{ width: 120, height: 120, borderRadius: "16px", overflow: "hidden", bgcolor: "#E9EEF6", display: "block" }}
+          sx={isPdf(img)
+            ? { display: "flex", alignItems: "center", gap: 1, width: 220, height: 56, px: 1.25, borderRadius: "14px", bgcolor: "#fff", border: "1px solid #E0E3E7", textDecoration: "none", color: "#1F1F1F", "&:hover": { borderColor: "#A8C7FA" } }
+            : { width: 120, height: 120, borderRadius: "16px", overflow: "hidden", bgcolor: "#E9EEF6", display: "block" }}
         >
-          <BlurUpMedia src={driveContentUrl(img.file_id)} alt={img.name} />
+          {isPdf(img) ? (
+            <>
+              <Box sx={{ width: 34, height: 34, borderRadius: "8px", bgcolor: "#FCE8E6", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <PictureAsPdfRounded sx={{ fontSize: 20, color: "#D93025" }} />
+              </Box>
+              <Box component="span" sx={{ fontSize: "0.8125rem", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{img.name}</Box>
+            </>
+          ) : (
+            <BlurUpMedia src={driveContentUrl(img.file_id)} alt={img.name} />
+          )}
         </Box>
       ))}
     </Box>

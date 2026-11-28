@@ -13,6 +13,7 @@ import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
+import PictureAsPdfRounded from "@mui/icons-material/PictureAsPdfRounded";
 import ImageRounded from "@mui/icons-material/ImageRounded";
 import { toastError } from "@/components/ui/Toast";
 import { driveContentUrl } from "@/lib/drive/links";
@@ -247,12 +248,52 @@ export const Composer = forwardRef<
   const [closedFor, setClosedFor] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   // Pictures attached to the next message (uploaded right away; `id` null while uploading).
-  const [images, setImages] = useState<{ key: string; name: string; image: ChatImage | null }[]>([]);
+  const [images, setImages] = useState<{ key: string; name: string; image: ChatImage | null; pdf?: boolean }[]>([]);
+  // Files dragged anywhere on the page land here (instead of the browser opening them in a new tab)
+  const [dragging, setDragging] = useState(false);
+  const addRef = useRef<(f: File[]) => void>(() => {});
+  useEffect(() => {
+    let depth = 0;
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
+    const enter = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth++;
+      setDragging(true);
+    };
+    const leave = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (!depth) setDragging(false);
+    };
+    const over = (e: DragEvent) => {
+      if (hasFiles(e)) e.preventDefault();
+    };
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth = 0;
+      setDragging(false);
+      const list = Array.from(e.dataTransfer?.files ?? []);
+      if (list.length) addRef.current(list);
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("dragover", over);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("drop", drop);
+    };
+  }, []);
   const fileInput = useRef<HTMLInputElement>(null);
   const addImages = (files: File[]) => {
-    for (const file of files.filter((f) => f.type.startsWith("image/"))) {
+    const ok = files.filter((f) => f.type.startsWith("image/") || f.type === "application/pdf");
+    if (ok.length < files.length) toastError("Hanya gambar dan PDF yang bisa dilampirkan di chat.");
+    for (const file of ok) {
       const key = `${Date.now()}-${Math.random()}`;
-      setImages((l) => [...l, { key, name: file.name, image: null }]);
+      setImages((l) => [...l, { key, name: file.name, image: null, pdf: file.type === "application/pdf" }]);
       uploadChatImage(file).then(
         (image) => setImages((l) => l.map((x) => (x.key === key ? { ...x, image } : x))),
         (e: Error) => {
@@ -263,6 +304,7 @@ export const Composer = forwardRef<
     }
   };
   const uploading = images.some((x) => !x.image);
+  addRef.current = addImages;
   const skillsRef = useRef(skills);
   skillsRef.current = skills;
 
@@ -403,7 +445,12 @@ export const Composer = forwardRef<
           "&:focus-within": { bgcolor: "#EDF2FA", boxShadow: "0 1px 3px rgba(60,64,67,.12)" },
         }}
       >
-        {menuOpen && hits && <SkillMenu hits={hits} active={active} below={menuBelow} onPick={pick} onHover={setActive} />}
+        {dragging && (
+          <Box sx={{ position: "absolute", inset: -4, zIndex: 5, borderRadius: "34px", border: "2px dashed #0B57D0", bgcolor: "rgba(232,240,254,.92)", display: "grid", placeItems: "center", color: "#0B57D0", fontSize: "0.875rem", fontWeight: 500, pointerEvents: "none" }}>
+            Lepas untuk melampirkan gambar atau PDF
+          </Box>
+        )}
+                {menuOpen && hits && <SkillMenu hits={hits} active={active} below={menuBelow} onPick={pick} onHover={setActive} />}
         <Tooltip title={plus ? "" : "Pakai skill"}>
           <span style={{ display: "inline-flex" }}>
             <IconButton
@@ -426,9 +473,9 @@ export const Composer = forwardRef<
             </IconButton>
           </span>
         </Tooltip>
-        <Tooltip title="Lampirkan gambar">
+        <Tooltip title="Lampirkan gambar atau PDF">
           <IconButton
-            aria-label="Lampirkan gambar"
+            aria-label="Lampirkan gambar atau PDF"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => fileInput.current?.click()}
             sx={{ ...roundBtn, ml: -0.5, color: "#444746", "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } }}
@@ -439,7 +486,7 @@ export const Composer = forwardRef<
         <input
           ref={fileInput}
           type="file"
-          accept="image/*"
+          accept="image/*,application/pdf"
           multiple
           hidden
           onChange={(e) => {
@@ -452,7 +499,12 @@ export const Composer = forwardRef<
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.5, pb: 0.5 }}>
               {images.map((x) => (
                 <Box key={x.key} sx={{ position: "relative", width: 56, height: 56, borderRadius: "12px", overflow: "hidden", bgcolor: "#E3E3E3", flexShrink: 0 }} title={x.name}>
-                  {x.image ? (
+                  {x.pdf && x.image ? (
+                    <Box sx={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", bgcolor: "#FCE8E6", color: "#D93025", fontSize: "0.5625rem", fontWeight: 700, gap: 0.25 }}>
+                      <PictureAsPdfRounded sx={{ fontSize: 22 }} />
+                      PDF
+                    </Box>
+                  ) : x.image ? (
                     <BlurUpMedia src={driveContentUrl(x.image.file_id)} alt={x.name} lazy={false} />
                   ) : (
                     <Box sx={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>

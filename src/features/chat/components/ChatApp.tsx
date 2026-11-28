@@ -52,7 +52,7 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
   const [chats, setChats] = useState(initialChats);
   const [skills, setSkills] = useState(initialSkills);
   const [drawer, setDrawer] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true); // the history panel starts closed
   const [renaming, setRenaming] = useState<ChatListItem | null>(null);
   const [deleting, setDeleting] = useState<ChatListItem | null>(null);
   const [sharing, setSharing] = useState<string | null>(null); // chat id
@@ -109,7 +109,7 @@ export function ChatApp({ initialChats, initialSkills }: { initialChats: ChatLis
   useEffect(() => {
     listEnabledSkills().then(setSkills, () => {});
     try {
-      setCollapsed(window.localStorage.getItem(COLLAPSED_KEY) === "1");
+      setCollapsed(window.localStorage.getItem(COLLAPSED_KEY) !== "0");
     } catch {}
   }, []);
   const toggleCollapsed = (v: boolean) => {
