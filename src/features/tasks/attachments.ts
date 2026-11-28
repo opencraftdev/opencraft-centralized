@@ -77,6 +77,25 @@ export async function uploadAttachments(
   }
 }
 
+/** Files uploaded into the comment box before the comment is sent ({task_id, draft: true}); hidden until linked. */
+export const isDraft = (f: DriveFile): boolean => (f.metadata as Record<string, unknown> | null)?.draft === true;
+
+/** Uploads one file and returns its row (enough of it to show the file right away). */
+export async function uploadOne(file: File, metadata: Record<string, unknown>, onPct?: (pct: number) => void): Promise<DriveFile> {
+  const folderId = await attachmentsFolder();
+  const { data } = await sb().auth.getUser();
+  const id = await uploadFile(file, folderId, data.user?.id ?? "", metadata, (loaded: number) => onPct?.(Math.min(99, Math.round((loaded / (file.size || 1)) * 100))));
+  onPct?.(100);
+  return { id, name: file.name, mime_type: file.type || null, size_bytes: file.size, metadata, folder_id: folderId } as unknown as DriveFile;
+}
+
+/** Draft files of the comment box become the sent comment's attachments. */
+export async function linkToComment(ids: string[], taskId: string, commentId: string): Promise<void> {
+  if (!ids.length) return;
+  const { error } = await sb().from("drive_files").update({ metadata: { task_id: taskId, comment_id: commentId } }).in("id", ids);
+  if (error) throw new Error(error.message);
+}
+
 /** Moves an attachment to the Drive trash (restorable from Document → Sampah). */
 export const removeAttachment = (fileId: string) => trashItem("file", fileId);
 

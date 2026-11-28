@@ -34,7 +34,6 @@ import DescriptionRounded from "@mui/icons-material/DescriptionRounded";
 import AttachFileRounded from "@mui/icons-material/AttachFileRounded";
 import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
 import ReplyRounded from "@mui/icons-material/ReplyRounded";
-import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
 import { useAccount } from "@/features/accounts/account";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { formatRelative } from "@/features/drive/format";
@@ -44,8 +43,9 @@ import { PRIORITIES, STATUSES } from "../types";
 import type { TasksCtx } from "./TasksApp";
 import { CommentCount, DueChip, MemberAvatar } from "./bits";
 import { PROJECT_COLORS } from "./TeamDialog";
-import { AttachmentGrid, AttachPicker, DropZone, PendingFiles } from "./Attachments";
-import { commentIdOf, listAttachments, removeAttachment, uploadAttachments, type UploadProgress } from "../attachments";
+import { AttachmentGrid, AttachPicker, DropZone } from "./Attachments";
+import { fileIdsIn } from "./InlineFiles";
+import { commentIdOf, isDraft, linkToComment, listAttachments, removeAttachment, uploadOne } from "../attachments";
 import { SwapIn } from "@/components/ui/AutoHeight";
 import { DatePill } from "./DatePicker";
 import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
@@ -112,8 +112,10 @@ export function TaskDialog({
   const [newPerson, setNewPerson] = useState<string | null>(null); // typing a new member's name
   const [newProject, setNewProject] = useState<string | null>(null); // typing a new project's name
   const [files, setFiles] = useState<DriveFile[]>([]); // attachments of this task and its comments
-  const [pending, setPending] = useState<File[]>([]); // picked for the next comment, not uploaded yet
-  const [uploading, setUploading] = useState<(UploadProgress & { where: "brief" | "comment" }) | null>(null);
+  const [busy, setBusy] = useState(0); // inline uploads running
+  const draftIds = useRef<Set<string>>(new Set()); // files uploaded into the comment box, not sent yet
+  const briefIds = useRef<Set<string>>(new Set()); // files in the brief when editing started (+ uploaded while editing)
+  const briefBefore = useRef(""); // the brief before editing, for "Batalkan"
   const [preview, setPreview] = useState<DriveFile | null>(null);
   const [previewSet, setPreviewSet] = useState<DriveFile[]>([]); // the files ‹ › move through (brief, or one comment)
   const openPreview = (f: DriveFile, set: DriveFile[]) => {
@@ -148,8 +150,8 @@ export function TaskDialog({
     setNewProject(null);
     setComments([]);
     setFiles([]);
-    setPending([]);
-    setUploading(null);
+    setBusy(0);
+    draftIds.current = new Set();
     setEditingNote(!task);
     if (task) {
       listComments(task.id).then(setComments).catch(() => setComments([]));
@@ -160,11 +162,21 @@ export function TaskDialog({
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
   const startBrief = () => {
+    // files attached before inline files existed join the brief at the bottom
+    const inText = new Set(fileIdsIn(form.description));
+    const loose = files.filter((f) => !commentIdOf(f) && !isDraft(f) && !inText.has(f.id));
+    const text = loose.length ? `${form.description.replace(/\s+$/, "")}${form.description.trim() ? "\n" : ""}${loose.map((f) => `[[file:${f.id}]]`).join("")}\n` : form.description;
+    briefBefore.current = form.description;
+    briefIds.current = new Set(fileIdsIn(text));
     setEditingNote(true);
     requestAnimationFrame(() => {
-      brief.current?.load(form.description);
+      brief.current?.load(text);
       brief.current?.focus();
     });
+  };
+  const cancelBrief = () => {
+    set("description", briefBefore.current);
+    setEditingNote(false);
   };
   // "Selesai" saves the brief right away (no separate Simpan needed)
   const finishBrief = () => {
@@ -175,6 +187,22 @@ export function TaskDialog({
       ctx.patch(live, { description });
       toastSuccess("Brief disimpan");
     }
+    // files taken out of the brief (Backspace / cut): delete them for good, after a confirm
+    const now = new Set(fileIdsIn(description));
+    const gone = files.filter((f) => briefIds.current.has(f.id) && !now.has(f.id));
+    if (gone.length)
+      setAsk({
+        title: gone.length > 1 ? `Hapus ${gone.length} lampiran?` : "Hapus lampiran?",
+        body: (
+          <>
+            <b>{gone.map((f) => f.name).join(", ")}</b> sudah kamu hapus dari brief. Hapus juga filenya secara permanen? Kalau tidak, file tetap tersimpan di bawah brief.
+          </>
+        ),
+        label: "Hapus permanen",
+        run: async () => {
+          for (const f of gone) await removeFile(f);
+        },
+      });
   };
   const dirty = live ? JSON.stringify(toForm(live)) !== JSON.stringify(form) : form.title.trim() !== "";
   const parent = form.parent_id ? ctx.all.find((x) => x.id === form.parent_id) : undefined;
@@ -300,33 +328,74 @@ export function TaskDialog({
     if (live) setFiles(await listAttachments(live.id).catch(() => files));
   };
 
-  const upload = async (picked: File[], commentId?: string) => {
+  // Files go where the caret is (brief, comment box, or a comment being edited): an uploading block shows the
+  // progress, then becomes the file.
+  const uploadInline = async (where: "brief" | "comment" | "edit", picked: File[]) => {
     if (!live || picked.length === 0) return;
-    try {
-      await uploadAttachments(picked, { taskId: live.id, commentId }, (p) => setUploading({ ...p, where: commentId ? "comment" : "brief" }));
-      await new Promise((r) => setTimeout(r, 450)); // let the bar reach 100% before it goes
-    } catch (e) {
-      toastError(`Upload gagal: ${(e as Error).message}`);
-    } finally {
-      setUploading(null);
-      await reloadFiles();
+    if (where === "brief" && !editingNote) {
+      startBrief();
+      await new Promise((r) => setTimeout(r, 120));
     }
+    const ref = where === "brief" ? brief : where === "comment" ? mention : editRef;
+    const meta: Record<string, unknown> = where === "brief" ? { task_id: live.id } : where === "comment" ? { task_id: live.id, draft: true } : { task_id: live.id, comment_id: editing?.id };
+    const temps = picked.map((f) => ({ tempId: Math.random().toString(36).slice(2), name: f.name }));
+    ref.current?.insertUploads(temps);
+    setBusy((b) => b + 1);
+    try {
+      for (let i = 0; i < picked.length; i++) {
+        try {
+          const df = await uploadOne(picked[i], meta, (pct) => ref.current?.progress(temps[i].tempId, pct));
+          setFiles((l) => [...l, df]);
+          if (where === "comment") draftIds.current.add(df.id);
+          if (where === "brief") briefIds.current.add(df.id);
+          ref.current?.resolveUpload(temps[i].tempId, df);
+        } catch (e) {
+          toastError(`Upload ${picked[i].name} gagal: ${(e as Error).message}`);
+          ref.current?.resolveUpload(temps[i].tempId, null);
+        }
+      }
+    } finally {
+      setBusy((b) => b - 1);
+      void reloadFiles();
+    }
+  };
+  /** The × on a file block: confirm, then delete the file and its block. */
+  const askRemoveInline = (id: string, ref: React.RefObject<MentionInputHandle | null>) => {
+    const f = files.find((x) => x.id === id);
+    if (!f) return ref.current?.removeFile(id);
+    setAsk({
+      title: "Hapus lampiran?",
+      body: (
+        <>
+          <b>{f.name}</b> akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.
+        </>
+      ),
+      label: "Hapus lampiran",
+      run: async () => {
+        ref.current?.removeFile(id);
+        draftIds.current.delete(id);
+        await removeFile(f);
+      },
+    });
   };
 
   const sendComment = async () => {
     const text = (mention.current?.serialize() ?? comment).trim();
-    const picked = pending;
-    if ((!text && picked.length === 0) || !live || uploading) return;
+    if (!text || !live || busy) return;
     const reply = replyTo;
+    const used = fileIdsIn(text);
+    const unused = [...draftIds.current].filter((id) => !used.includes(id));
+    draftIds.current = new Set();
     setComment("");
-    setPending([]);
     setReplyTo(null);
     mention.current?.reset();
     try {
-      const id = await addComment(live.id, withReply(text || "Lampiran", reply?.id ?? null));
+      const id = await addComment(live.id, withReply(text, reply?.id ?? null));
+      await linkToComment(used, live.id, id);
+      for (const u of unused) void removeAttachment(u).catch(() => {});
       setComments(await listComments(live.id));
+      await reloadFiles();
       onChanged();
-      if (picked.length) await upload(picked, id);
     } catch (e) {
       toastError((e as Error).message);
     }
@@ -379,7 +448,11 @@ export function TaskDialog({
 
   const label = (text: string) => <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#5F6368", mb: 0.75 }}>{text}</Typography>;
   const fieldSx = { "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: "0.875rem" } } as const;
-  const taskFiles = files.filter((f) => !commentIdOf(f));
+  const taskFiles = files.filter((f) => !commentIdOf(f) && !isDraft(f));
+  const fileMap = new Map(files.map((f) => [f.id, f]));
+  const briefRefs = new Set(fileIdsIn(form.description));
+  const looseBriefFiles = taskFiles.filter((f) => !briefRefs.has(f.id)); // attached before inline files, or kept after removal
+  const openBriefFile = (f: DriveFile) => openPreview(f, taskFiles);
   const st = STATUSES.find((x) => x.value === form.status) ?? STATUSES[0];
   const pr = PRIORITIES.find((x) => x.value === form.priority) ?? PRIORITIES[1];
 
@@ -650,8 +723,14 @@ export function TaskDialog({
                   Brief{taskFiles.length ? ` · ${taskFiles.length} lampiran` : ""}
                 </Typography>
                 <Box sx={{ flex: 1 }} />
+                {editingNote && live && (
+                  <Button size="small" onClick={cancelBrief} sx={{ borderRadius: "9999px", py: 0.25, px: 1.25, fontSize: "0.75rem", fontWeight: 500, color: "#5F6368", mr: 0.5 }}>
+                    Batalkan
+                  </Button>
+                )}
                 <Button
                   size="small"
+                  disabled={editingNote && busy > 0}
                   startIcon={editingNote ? <CheckRounded sx={{ fontSize: "16px !important" }} /> : <EditRounded sx={{ fontSize: "15px !important" }} />}
                   onClick={() => (editingNote ? finishBrief() : startBrief())}
                   sx={{ borderRadius: "9999px", py: 0.25, px: 1.25, fontSize: "0.75rem", fontWeight: 500, color: "#0B57D0" }}
@@ -659,13 +738,17 @@ export function TaskDialog({
                   {editingNote ? "Selesai" : "Edit Brief"}
                 </Button>
               </Box>
-              <DropZone onDrop={(l) => void upload(l)} disabled={!live || !!uploading}>
+              <DropZone onDrop={(l) => void uploadInline("brief", l)} disabled={!live}>
                 <Box>
                   {editingNote ? (
                     <Box sx={{ position: "relative", zIndex: 3, border: "1px solid #A8C7FA", borderRadius: "12px", bgcolor: "#fff", transition: "border-color 150ms, box-shadow 150ms", "&:focus-within": { borderColor: "#0B57D0", boxShadow: "0 0 0 1px #0B57D0" }, animation: "oc-rise 200ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
                       <Box sx={{ px: 1.5, pt: 0.5 }}>
                         <MentionInput
                           ref={brief}
+                          files={fileMap}
+                          onFiles={live ? (l) => void uploadInline("brief", l) : undefined}
+                          onRemoveFile={(id) => askRemoveInline(id, brief)}
+                          onOpenFile={(id) => { const f = fileMap.get(id); if (f) openBriefFile(f); }}
                           value={form.description}
                           onChange={(v) => set("description", v)}
                           onSubmit={() => {}}
@@ -679,30 +762,19 @@ export function TaskDialog({
                           inputSx={{ lineHeight: 1.6 }}
                         />
                       </Box>
-                      {taskFiles.length > 0 && (
-                        <Box sx={{ px: 1.5, pb: 1 }}>
-                          <AttachmentGrid files={taskFiles} size={72} onOpen={(f) => openPreview(f, taskFiles)} onRemove={askRemoveFile} />
-                        </Box>
-                      )}
-                      {uploading?.where === "brief" && (
-                        <Box sx={{ px: 1.5, pb: 1 }}>
-                          <UploadBar p={uploading} />
-                        </Box>
-                      )}
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, px: 0.5, pb: 0.5, borderTop: "1px solid #F1F3F4" }}>
                         {live ? (
                           <>
-                            <AttachPicker variant="icon" accept="image/*" label="Lampirkan gambar" icon={<ImageRounded sx={{ fontSize: 20 }} />} onPick={(l) => void upload(l)} disabled={!!uploading} />
-                            <AttachPicker variant="icon" accept="video/*" label="Lampirkan video" icon={<VideocamRounded sx={{ fontSize: 20 }} />} onPick={(l) => void upload(l)} disabled={!!uploading} />
+                            <AttachPicker variant="icon" accept="image/*" label="Lampirkan gambar" icon={<ImageRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("brief", l)} />
+                            <AttachPicker variant="icon" accept="video/*" label="Lampirkan video" icon={<VideocamRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("brief", l)} />
                             <AttachPicker
                               variant="icon"
                               accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt"
                               label="Lampirkan dokumen (PDF, Word, Excel, PPT)"
                               icon={<DescriptionRounded sx={{ fontSize: 20 }} />}
-                              onPick={(l) => void upload(l)}
-                              disabled={!!uploading}
+                              onPick={(l) => void uploadInline("brief", l)}
                             />
-                            <AttachPicker variant="icon" label="Lampirkan file lain" icon={<AttachFileRounded sx={{ fontSize: 20 }} />} onPick={(l) => void upload(l)} disabled={!!uploading} />
+                            <AttachPicker variant="icon" label="Lampirkan file lain" icon={<AttachFileRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("brief", l)} />
                             <Box sx={{ width: "1px", height: 20, bgcolor: "#E0E3E7", mx: 0.5 }} />
                             <FormatBar target={brief} />
                           </>
@@ -715,20 +787,15 @@ export function TaskDialog({
                       </Box>
                     </Box>
                   ) : form.description.trim() ? (
-                    <BriefText text={form.description} onEdit={startBrief} render={(t) => <CommentBody text={t} ctx={ctx} onOpenTask={onOpenTask} />} />
+                    <BriefText text={form.description} onEdit={startBrief} render={(t) => <CommentBody text={t} ctx={ctx} onOpenTask={onOpenTask} files={fileMap} onOpenFile={openBriefFile} />} />
                   ) : (
                     <Box component="button" type="button" onClick={startBrief} sx={{ display: "block", width: "100%", textAlign: "left", border: "none", bgcolor: "transparent", fontFamily: "inherit", p: 0, py: 0.5, fontSize: "0.875rem", color: "#9AA0A6", cursor: "text" }}>
                       Belum ada brief. Klik untuk menulis tujuan, detail, atau hasil yang diharapkan.
                     </Box>
                   )}
-                  {!editingNote && uploading?.where === "brief" && (
-                    <Box sx={{ mt: 1 }}>
-                      <UploadBar p={uploading} />
-                    </Box>
-                  )}
-                  {!editingNote && taskFiles.length > 0 && (
+                  {!editingNote && looseBriefFiles.length > 0 && (
                     <Box sx={{ pt: 1.25 }}>
-                      <AttachmentGrid files={taskFiles} size={72} onOpen={(f) => openPreview(f, taskFiles)} onRemove={askRemoveFile} />
+                      <AttachmentGrid files={looseBriefFiles} size={72} onOpen={openBriefFile} onRemove={askRemoveFile} />
                     </Box>
                   )}
                 </Box>
@@ -870,6 +937,10 @@ export function TaskDialog({
                       <Box sx={{ width: { xs: 260, sm: 340 }, maxWidth: "100%", border: "1px solid #0B57D0", boxShadow: "0 0 0 1px #0B57D0", borderRadius: "14px", bgcolor: "#fff", px: 1.25, pt: 0.25, pb: 0.75 }}>
                         <MentionInput
                           ref={editRef}
+                          files={fileMap}
+                          onFiles={(l) => void uploadInline("edit", l)}
+                          onRemoveFile={(id) => askRemoveInline(id, editRef)}
+                          onOpenFile={(id) => { const f = fileMap.get(id); if (f) openPreview(f, [f]); }}
                           value={editing.text}
                           onChange={(v) => setEditing((e) => (e ? { ...e, text: v } : e))}
                           onSubmit={() => void saveEdit()}
@@ -933,12 +1004,12 @@ export function TaskDialog({
                             </Box>
                           </Box>
                         )}
-                        {!onlyFiles && <CommentBody text={cbody} ctx={ctx} onOpenTask={onOpenTask} />}
+                        {!onlyFiles && <CommentBody text={cbody} ctx={ctx} onOpenTask={onOpenTask} files={fileMap} onOpenFile={(f) => openPreview(f, cfiles)} />}
                       </Box>
                     )}
-                    {cfiles.length > 0 && (
+                    {cfiles.some((f) => !cbody.includes(f.id)) && (
                       <Box sx={{ mt: 0.75 }}>
-                        <AttachmentGrid files={cfiles} size={72} onOpen={(f) => openPreview(f, cfiles)} onRemove={askRemoveFile} />
+                        <AttachmentGrid files={cfiles.filter((f) => !cbody.includes(f.id))} size={72} onOpen={(f) => openPreview(f, cfiles)} onRemove={askRemoveFile} />
                       </Box>
                     )}
                     {editing?.id !== c.id && (
@@ -981,7 +1052,7 @@ export function TaskDialog({
 
           {live && (
             <Box sx={{ px: 1.75, py: 1.5, borderTop: "1px solid #EEF1F4", flexShrink: 0 }}>
-              <DropZone onDrop={(l) => setPending((p) => [...p, ...l])}>
+              <DropZone onDrop={(l) => void uploadInline("comment", l)}>
                 <Box sx={{ border: "1px solid #DADCE0", borderRadius: "16px", bgcolor: "#fff", transition: "border-color 150ms, box-shadow 150ms", "&:focus-within": { borderColor: "#0B57D0", boxShadow: "0 0 0 1px #0B57D0" } }}>
                   {replyTo && (
                     <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, m: 1, mb: 0, pl: 1.25, pr: 0.5, py: 0.75, borderRadius: "10px", bgcolor: "#F1F4F9", borderLeft: "3px solid #0B57D0", animation: "oc-rise 220ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
@@ -997,15 +1068,13 @@ export function TaskDialog({
                       </IconButton>
                     </Box>
                   )}
-                  <PendingFiles files={pending} onRemove={(i) => setPending((p) => p.filter((_, j) => j !== i))} />
-                  {uploading?.where === "comment" && (
-                    <Box sx={{ px: 1.5, pt: 1 }}>
-                      <UploadBar p={uploading} />
-                    </Box>
-                  )}
                   <Box sx={{ px: 1.5, pt: 0.5 }}>
                     <MentionInput
                       ref={mention}
+                      files={fileMap}
+                      onFiles={(l) => void uploadInline("comment", l)}
+                      onRemoveFile={(id) => askRemoveInline(id, mention)}
+                      onOpenFile={(id) => { const f = fileMap.get(id); if (f) openPreview(f, [f]); }}
                       value={comment}
                       onChange={setComment}
                       onSubmit={() => void sendComment()}
@@ -1015,10 +1084,10 @@ export function TaskDialog({
                     />
                   </Box>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, px: 0.75, pb: 0.75 }}>
-                    <AttachPicker variant="icon" accept="image/*" label="Lampirkan gambar" icon={<ImageRounded sx={{ fontSize: 20 }} />} onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
-                    <AttachPicker variant="icon" accept="video/*" label="Lampirkan video" icon={<VideocamRounded sx={{ fontSize: 20 }} />} onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
-                    <AttachPicker variant="icon" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt" label="Lampirkan dokumen (PDF, Word, Excel, PPT)" icon={<DescriptionRounded sx={{ fontSize: 20 }} />} onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
-                    <AttachPicker variant="icon" label="Lampirkan file lain" icon={<AttachFileRounded sx={{ fontSize: 20 }} />} onPick={(l) => setPending((p) => [...p, ...l])} disabled={!!uploading} />
+                    <AttachPicker variant="icon" accept="image/*" label="Lampirkan gambar" icon={<ImageRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("comment", l)} />
+                    <AttachPicker variant="icon" accept="video/*" label="Lampirkan video" icon={<VideocamRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("comment", l)} />
+                    <AttachPicker variant="icon" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt" label="Lampirkan dokumen (PDF, Word, Excel, PPT)" icon={<DescriptionRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("comment", l)} />
+                    <AttachPicker variant="icon" label="Lampirkan file lain" icon={<AttachFileRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("comment", l)} />
                     <Box sx={{ width: "1px", height: 20, bgcolor: "#E0E3E7", mx: 0.5 }} />
                     <FormatBar target={mention} />
                     <Box sx={{ flex: 1 }} />
@@ -1028,7 +1097,7 @@ export function TaskDialog({
                       disableElevation
                       endIcon={<SendRounded sx={{ fontSize: "16px !important" }} />}
                       onClick={() => void sendComment()}
-                      disabled={(!comment.trim() && pending.length === 0) || !!uploading}
+                      disabled={!comment.trim() || busy > 0}
                       sx={{ borderRadius: "9999px", height: 30, px: 1.75, fontSize: "0.8125rem" }}
                     >
                       Kirim
@@ -1164,7 +1233,7 @@ function BriefText({ text, onEdit, render }: { text: string; onEdit: () => void;
           whiteSpace: "pre-wrap",
           overflowWrap: "anywhere",
           py: 0.25,
-          ...(open ? {} : { display: "-webkit-box", WebkitLineClamp: 6, WebkitBoxOrient: "vertical", overflow: "hidden" }),
+          ...(open ? {} : { maxHeight: 200, overflow: "hidden", maskImage: long ? "linear-gradient(180deg, #000 75%, transparent)" : "none" }),
         }}
       >
         {render(text)}
@@ -1208,36 +1277,6 @@ function flashComment(id: string) {
   setTimeout(() => el.classList.remove("flash"), 1200);
 }
 
-/** Upload progress: file name + percent, a bar that eases forward with a soft sheen. */
-function UploadBar({ p }: { p: UploadProgress }) {
-  const finished = p.pct >= 100;
-  return (
-    <Box role="progressbar" aria-valuenow={p.pct} aria-valuemin={0} aria-valuemax={100} aria-label="Mengunggah file" sx={{ animation: "oc-rise 220ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-        {finished ? <CheckRounded sx={{ fontSize: 15, color: "#146C2E" }} /> : <CloudUploadRounded sx={{ fontSize: 15, color: "#0B57D0" }} />}
-        <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: "0.75rem", color: finished ? "#146C2E" : "#444746" }}>
-          {finished ? "Selesai diunggah" : p.total > 1 ? `Mengunggah ${Math.min(p.done + 1, p.total)}/${p.total} · ${p.name}` : `Mengunggah ${p.name}`}
-        </Typography>
-        <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: finished ? "#146C2E" : "#0B57D0", fontVariantNumeric: "tabular-nums" }}>{p.pct}%</Typography>
-      </Box>
-      <Box sx={{ height: 6, borderRadius: 3, bgcolor: "#E8EEF7", overflow: "hidden" }}>
-        <Box
-          sx={{
-            height: "100%",
-            width: `${Math.max(p.pct, 3)}%`,
-            borderRadius: 3,
-            bgcolor: finished ? "#1E8E3E" : "#0B57D0",
-            backgroundImage: finished ? "none" : "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.45) 50%, rgba(255,255,255,0) 100%)",
-            backgroundSize: "200% 100%",
-            animation: finished ? "none" : "oc-sheen 1.1s linear infinite",
-            transition: "width 300ms cubic-bezier(0.22, 1, 0.36, 1), background-color 250ms",
-            "@keyframes oc-sheen": { from: { backgroundPosition: "200% 0" }, to: { backgroundPosition: "-200% 0" } },
-          }}
-        />
-      </Box>
-    </Box>
-  );
-}
 
 /** Small action under a comment bubble (shows on hover; always on touch screens). */
 function CommentAction({ label, onClick, danger, children }: { label: string; onClick: () => void; danger?: boolean; children: React.ReactNode }) {

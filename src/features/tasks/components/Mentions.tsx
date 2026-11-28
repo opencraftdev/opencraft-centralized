@@ -8,6 +8,8 @@ import { Linkify } from "@/components/ui/Linkify";
 import type { Task } from "../types";
 import type { TasksCtx } from "./TasksApp";
 import { MemberAvatar, ProjectMark } from "./bits";
+import { FileRow, buildBlock, editorFileSx, fileIdsIn, uploadHtml } from "./InlineFiles";
+import type { DriveFile } from "@/lib/drive/types";
 
 // "@" in a comment: pick a person, another task or a project. Stored in the comment body as
 // @[Label](member|task|project:<uuid>) and shown as a chip; the text box itself shows plain "@Label".
@@ -18,9 +20,25 @@ type Option = { kind: Kind; id: string; label: string; sub?: string };
 const TOKEN_RE = /@\[([^\]\n]{1,120})\]\((member|task|project):([0-9a-f-]{36})\)/g;
 
 /** Renders a comment body: [b]/[i]/[u]/[c=#hex] formatting, mention chips + clickable links. */
-export function CommentBody({ text, ctx, onOpenTask }: { text: string; ctx: TasksCtx; onOpenTask: (t: Task) => void }) {
-  return <>{renderRich(text, (t, k) => renderPlain(t, k, ctx, onOpenTask), "r")}</>;
+export function CommentBody({ text, ctx, onOpenTask, files, onOpenFile }: { text: string; ctx: TasksCtx; onOpenTask: (t: Task) => void; files?: Map<string, DriveFile>; onOpenFile?: (f: DriveFile) => void }) {
+  const plain = (t: string, k: string) => {
+    // file blocks sit on their own line(s): one row per run of neighbouring files
+    if (!files || !t.includes("[[file:")) return renderPlain(t, k, ctx, onOpenTask);
+    const out: React.ReactNode[] = [];
+    let last = 0;
+    for (const m of t.matchAll(FILE_GROUP_RE)) {
+      const start = m.index ?? 0;
+      if (start > last) out.push(...renderPlain(t.slice(last, start), `${k}g${last}`, ctx, onOpenTask));
+      out.push(<FileRow key={`${k}f${start}`} ids={fileIdsIn(m[1])} files={files} onOpen={onOpenFile} />);
+      last = start + m[0].length;
+    }
+    if (last < t.length) out.push(...renderPlain(t.slice(last), `${k}g${last}`, ctx, onOpenTask));
+    return out;
+  };
+  return <>{renderRich(text, plain, "r")}</>;
 }
+
+const FILE_GROUP_RE = /\n?((?:\[\[file:[0-9a-f-]{36}\]\][ \t]*)+)\n?/g;
 
 function renderPlain(text: string, keyBase: string, ctx: TasksCtx, onOpenTask: (t: Task) => void) {
   const out: React.ReactNode[] = [];
@@ -53,7 +71,7 @@ export const TEXT_COLORS = [
 
 /** Text without formatting tags (for one-line previews and notifications). */
 export function stripFormat(s: string) {
-  return s.replace(/(?<!@)\[(?:\/?(?:b|i|u|c)|c=#[0-9a-fA-F]{6})\]/g, "");
+  return s.replace(/\[\[file:[0-9a-f-]{36}\]\]/g, "📎 ").replace(/(?<!@)\[(?:\/?(?:b|i|u|c)|c=#[0-9a-fA-F]{6})\]/g, "");
 }
 
 type RichNode = string | { tag: "b" | "i" | "u" | "c"; color?: string; kids: RichNode[] };
@@ -124,7 +142,7 @@ function toHtml(text: string): string {
   const walk = (nodes: RichNode[]): string =>
     nodes
       .map((n) => {
-        if (typeof n === "string") return esc(n);
+        if (typeof n === "string") return n.split(/(\[\[file:[0-9a-f-]{36}\]\])/).map((part) => (part.startsWith("[[file:") ? `<span data-file="${part.slice(7, -2)}"></span>` : esc(part))).join("");
         const inner = walk(n.kids);
         if (n.tag === "c") return `<font color="${n.color}">${inner}</font>`;
         return `<${n.tag}>${inner}</${n.tag}>`;
@@ -151,6 +169,11 @@ function fromDom(node: Node): string {
     }
     if (n.nodeType !== Node.ELEMENT_NODE) return;
     const el = n as HTMLElement;
+    if (el.dataset.file) {
+      out += `[[file:${el.dataset.file}]]`;
+      return;
+    }
+    if (el.dataset.temp) return; // still uploading
     const tag = el.tagName;
     if (tag === "BR") {
       out += "\n";
@@ -222,6 +245,12 @@ export interface MentionInputHandle {
   load: (stored: string) => void;
   /** Applies formatting to the selection: bold / italic / underline / a text colour. */
   exec: (cmd: "bold" | "italic" | "underline" | "color", color?: string) => void;
+  /** Puts "uploading" blocks at the caret (new line), with the caret on a fresh line after them. */
+  insertUploads: (items: { tempId: string; name: string }[]) => void;
+  progress: (tempId: string, pct: number) => void;
+  /** Swaps an uploading block for the file (or drops it when the upload failed). */
+  resolveUpload: (tempId: string, file: DriveFile | null) => void;
+  removeFile: (id: string) => void;
 }
 
 // The box is a rich editor (formatting shows live). Its value is the stored text format: [b]…[/b] etc. and
@@ -238,19 +267,41 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   popupBelow?: boolean; // the @ list opens under the box
   inputSx?: object;
   ariaLabel?: string;
-}>(function MentionInput({ value, onChange, onSubmit, ctx, currentTaskId, placeholder, minRows, newlineOnEnter, popupBelow, inputSx, ariaLabel }, ref) {
+  files?: Map<string, DriveFile>; // for showing [[file:id]] blocks
+  onFiles?: (files: File[]) => void; // pasted / dropped files
+  onRemoveFile?: (id: string) => void; // the × on a block
+  onOpenFile?: (id: string) => void;
+}>(function MentionInput({ value, onChange, onSubmit, ctx, currentTaskId, placeholder, minRows, newlineOnEnter, popupBelow, inputSx, ariaLabel, files, onFiles, onRemoveFile, onOpenFile }, ref) {
   const root = useRef<HTMLDivElement | null>(null);
   const emitted = useRef<string | null>(null); // last value this editor produced
   const saved = useRef<Range | null>(null); // selection kept while toolbar popovers have focus
   const [picked, setPicked] = useState<Option[]>([]);
   const [query, setQuery] = useState<{ text: string } | null>(null);
   const [active, setActive] = useState(0);
+  const [hasBlocks, setHasBlocks] = useState(false);
+  const filesRef = useRef(files);
+  filesRef.current = files;
+
+  // [[file:id]] placeholders → real blocks (and blocks for files that were not known yet)
+  const hydrate = () => {
+    const el = root.current;
+    if (!el) return;
+    el.querySelectorAll<HTMLElement>("[data-file]").forEach((b) => {
+      const id = b.dataset.file!;
+      const f = filesRef.current?.get(id);
+      if (b.classList.contains("ocf") && !(b.classList.contains("ocf-missing") && f)) return;
+      b.replaceWith(buildBlock(id, f));
+    });
+    setHasBlocks(!!el.querySelector(".ocf"));
+  };
+  useEffect(hydrate, [files]);
 
   // Outside changes (load, clear after send) rewrite the editor; our own typing doesn't.
   useEffect(() => {
     const el = root.current;
     if (!el || value === emitted.current) return;
     el.innerHTML = toHtml(value);
+    hydrate();
     emitted.current = value;
     if (document.activeElement === el) caretToEnd(el);
   }, [value]);
@@ -269,6 +320,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
     const el = root.current;
     if (!el) return;
     const v = tidy(fromDom(el));
+    setHasBlocks(!!el.querySelector(".ocf"));
     emitted.current = v;
     onChange(v);
     detect();
@@ -277,8 +329,10 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   const restore = () => {
     const el = root.current;
     if (!el) return;
-    el.focus();
     const sel = window.getSelection();
+    // still typing in the box: its live caret wins over the remembered one
+    if (document.activeElement === el && sel?.rangeCount && el.contains(sel.anchorNode)) return;
+    el.focus();
     if (saved.current && sel) {
       sel.removeAllRanges();
       sel.addRange(saved.current);
@@ -301,6 +355,70 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   };
 
   useImperativeHandle(ref, () => ({
+    insertUploads: (items) => {
+      const el = root.current;
+      if (!el || !items.length) return;
+      restore();
+      const sel = window.getSelection();
+      if (!saved.current || !sel?.rangeCount || !el.contains(sel.anchorNode)) caretToEnd(el);
+      // start on a new line unless the caret already is at the start of one
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      const cur = window.getSelection()!;
+      r.setEnd(cur.anchorNode!, cur.anchorOffset);
+      const before = fromDom(r.cloneContents());
+      const lead = before && !before.endsWith("\n") ? "<br>" : "";
+      document.execCommand("insertHTML", false, lead + items.map((i) => uploadHtml(i.tempId, i.name)).join("") + "<br>");
+      // caret on the fresh line under the files (a <br> at the very end needs a second one to show that line)
+      const last = el.querySelector(`[data-temp="${items[items.length - 1].tempId}"]`);
+      if (last) {
+        let br = last.nextSibling;
+        if (!br || br.nodeName !== "BR") {
+          br = document.createElement("br");
+          last.after(br);
+        }
+        if (!br.nextSibling) br.after(document.createElement("br"));
+        const c = document.createRange();
+        c.setStartAfter(br);
+        c.collapse(true);
+        const sel2 = window.getSelection();
+        sel2?.removeAllRanges();
+        sel2?.addRange(c);
+        saved.current = c.cloneRange();
+      }
+      setHasBlocks(true);
+      emit();
+    },
+    progress: (tempId, pct) => {
+      const b = root.current?.querySelector<HTMLElement>(`[data-temp="${tempId}"]`);
+      if (!b) return;
+      (b.querySelector(".ocf-bar i") as HTMLElement).style.width = `${pct}%`;
+      (b.querySelector(".ocf-pct") as HTMLElement).textContent = `${pct}%`;
+    },
+    resolveUpload: (tempId, f) => {
+      const b = root.current?.querySelector<HTMLElement>(`[data-temp="${tempId}"]`);
+      if (!b) return;
+      // morph the same node, so a caret next to it doesn't jump
+      const sel = window.getSelection();
+      const caret = document.activeElement === root.current && sel?.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+      if (f) {
+        const nb = buildBlock(f.id, f);
+        b.removeAttribute("data-temp");
+        b.className = nb.className;
+        b.dataset.file = f.id;
+        b.title = nb.title;
+        b.replaceChildren(...Array.from(nb.childNodes));
+      } else b.remove();
+      if (caret && sel) {
+        sel.removeAllRanges();
+        sel.addRange(caret);
+      }
+      emit();
+    },
+    removeFile: (id) => {
+      root.current?.querySelectorAll(`[data-file="${id}"]`).forEach((b) => b.remove());
+      emit();
+    },
     focus: () => {
       const el = root.current;
       if (!el) return;
@@ -373,7 +491,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
 
   const open = query !== null && options.length > 0;
   const groupTitle: Record<Kind, string> = { member: "Orang", task: "Tugas", project: "Project" };
-  const empty = !stripFormat(value).trim();
+  const empty = !stripFormat(value).trim() && !hasBlocks;
   const lineH = 1.5;
 
   return (
@@ -393,13 +511,39 @@ export const MentionInput = forwardRef<MentionInputHandle, {
         aria-autocomplete="list"
         aria-expanded={open}
         onInput={emit}
-        onClick={detect}
+        onClick={(e) => {
+          const t = e.target as HTMLElement;
+          const x = t.closest<HTMLElement>("[data-x]");
+          if (x) {
+            e.preventDefault();
+            return onRemoveFile?.(x.dataset.x!);
+          }
+          const b = t.closest<HTMLElement>("[data-file]");
+          if (b) return onOpenFile?.(b.dataset.file!);
+          detect();
+        }}
+        onDragOver={(e) => {
+          if (onFiles && e.dataTransfer.types.includes("Files")) e.preventDefault();
+        }}
+        onDrop={(e) => {
+          const list = Array.from(e.dataTransfer.files ?? []);
+          if (!onFiles || !list.length) return;
+          e.preventDefault();
+          e.stopPropagation();
+          // drop where the pointer is
+          const d = document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null };
+          const r = d.caretRangeFromPoint?.(e.clientX, e.clientY);
+          if (r && root.current?.contains(r.startContainer)) saved.current = r;
+          onFiles(list);
+        }}
         onKeyUp={(e) => {
           if (!["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(e.key)) detect();
         }}
         onBlur={() => setTimeout(() => setQuery(null), 150)}
         onPaste={(e) => {
           e.preventDefault();
+          const pasted = Array.from(e.clipboardData.files ?? []);
+          if (pasted.length && onFiles) return onFiles(pasted);
           const t = e.clipboardData.getData("text/plain");
           document.execCommand("insertHTML", false, esc(t));
           emit();
@@ -441,6 +585,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
           boxSizing: "content-box",
           cursor: "text",
           "& font, & b, & i, & u": { fontFamily: "inherit" },
+          ...editorFileSx,
           ...inputSx,
         }}
       />
