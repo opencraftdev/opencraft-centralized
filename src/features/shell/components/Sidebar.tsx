@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
@@ -15,7 +16,7 @@ import { EASE_OUT_CSS, SPRING } from "@/components/ui/motion";
 import { NavLinkLoading } from "./loading-context";
 import { ChatIcon, DocsIcon, FinanceIcon, ScrapersIcon, SkillsIcon, TasksIcon } from "./NavIcons";
 
-export const SIDEBAR_WIDTH = 280;
+export const SIDEBAR_WIDTH = 280; // upper bound; the open sidebar hugs its widest row (see useHugWidth)
 export const SIDEBAR_MINI_WIDTH = 72;
 const TOPBAR_HEIGHT = 64;
 const WIDTH_TRANSITION = `width 280ms ${EASE_OUT_CSS}`;
@@ -125,12 +126,32 @@ export function Sidebar({
   mini = false,
   mobileOpen = false,
   onMobileClose,
+  onWidth,
 }: {
   userEmail?: string;
   mini?: boolean;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
+  onWidth?: (w: number) => void; // the open width (hugging its content), for the page offset
 }) {
+  // Hug: an invisible copy of the menu at its natural width tells how wide the open sidebar must be,
+  // so a longer label later simply makes it a bit wider.
+  const measure = useRef<HTMLDivElement>(null);
+  const [hugW, setHugW] = useState(232);
+  useEffect(() => {
+    const el = measure.current;
+    if (!el) return;
+    const update = () => {
+      const w = Math.min(SIDEBAR_WIDTH, Math.ceil(el.getBoundingClientRect().width) + 24 + 8); // + paper padding + air
+      setHugW(w);
+      onWidth?.(w);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const pathname = usePathname();
 
   const isActive = (href: string) => {
@@ -188,9 +209,12 @@ export function Sidebar({
       </Box>
     ));
 
-  const width = mini ? SIDEBAR_MINI_WIDTH : SIDEBAR_WIDTH;
+  const width = mini ? SIDEBAR_MINI_WIDTH : hugW;
   return (
     <>
+      <Box ref={measure} aria-hidden inert sx={{ position: "fixed", left: -9999, top: 0, width: "max-content", visibility: "hidden", pointerEvents: "none" }}>
+        {content(false, "nav-pill-measure")}
+      </Box>
       <Drawer
         variant="permanent"
         sx={{ display: { xs: "none", md: "block" }, width, flexShrink: 0, transition: WIDTH_TRANSITION, "& .MuiDrawer-paper": paper(width) }}
@@ -203,7 +227,7 @@ export function Sidebar({
         onClose={onMobileClose}
         onClick={(e) => (e.target as HTMLElement).closest("a") && onMobileClose?.()}
         ModalProps={{ keepMounted: true }}
-        sx={{ display: { xs: "block", md: "none" }, "& .MuiDrawer-paper": paper(SIDEBAR_WIDTH) }}
+        sx={{ display: { xs: "block", md: "none" }, "& .MuiDrawer-paper": paper(hugW) }}
       >
         {content(false, "nav-pill-mobile")}
       </Drawer>

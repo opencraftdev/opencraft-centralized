@@ -57,7 +57,8 @@ export function AppShell({
     });
   };
 
-  const sidebarW = mini ? SIDEBAR_MINI_WIDTH : SIDEBAR_WIDTH;
+  const [openW, setOpenW] = useState(232); // reported by the Sidebar (hugs its menu)
+  const sidebarW = mini ? SIDEBAR_MINI_WIDTH : Math.min(openW, SIDEBAR_WIDTH);
 
   return (
     <AccountContext.Provider value={{ email: userEmail, me }}>
@@ -87,7 +88,7 @@ export function AppShell({
               transition: "opacity 180ms ease",
             }}
           >
-            <Sidebar userEmail={userEmail} mini={mini} mobileOpen={navOpen} onMobileClose={() => setNavOpen(false)} />
+            <Sidebar userEmail={userEmail} mini={mini} mobileOpen={navOpen} onMobileClose={() => setNavOpen(false)} onWidth={setOpenW} />
             <Box
               component="main"
               sx={{
