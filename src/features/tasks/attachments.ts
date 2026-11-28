@@ -48,19 +48,32 @@ export const commentIdOf = (f: DriveFile): string | null => {
 };
 
 /** Uploads files one by one (straight to Google Drive). Calls onProgress(done, total). */
+export interface UploadProgress {
+  done: number; // files finished
+  total: number; // files in this batch
+  pct: number; // 0–100 over all bytes of the batch
+  name: string; // file being sent now
+}
+
 export async function uploadAttachments(
   files: File[],
   target: { taskId: string; commentId?: string },
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (p: UploadProgress) => void,
 ): Promise<void> {
   const folderId = await attachmentsFolder();
   const { data } = await sb().auth.getUser();
   const userId = data.user?.id ?? "";
+  const totalBytes = files.reduce((n, f) => n + f.size, 0) || 1;
+  let sent = 0;
   let done = 0;
-  onProgress?.(0, files.length);
   for (const f of files) {
-    await uploadFile(f, folderId, userId, { task_id: target.taskId, ...(target.commentId ? { comment_id: target.commentId } : {}) });
-    onProgress?.(++done, files.length);
+    const report = (loaded: number) =>
+      onProgress?.({ done, total: files.length, pct: Math.min(99, Math.round(((sent + loaded) / totalBytes) * 100)), name: f.name });
+    report(0);
+    await uploadFile(f, folderId, userId, { task_id: target.taskId, ...(target.commentId ? { comment_id: target.commentId } : {}) }, report);
+    sent += f.size;
+    done++;
+    onProgress?.({ done, total: files.length, pct: done === files.length ? 100 : Math.round((sent / totalBytes) * 100), name: f.name });
   }
 }
 

@@ -34,6 +34,7 @@ import DescriptionRounded from "@mui/icons-material/DescriptionRounded";
 import AttachFileRounded from "@mui/icons-material/AttachFileRounded";
 import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
 import ReplyRounded from "@mui/icons-material/ReplyRounded";
+import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
 import { useAccount } from "@/features/accounts/account";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { formatRelative } from "@/features/drive/format";
@@ -44,7 +45,7 @@ import type { TasksCtx } from "./TasksApp";
 import { CommentCount, DueChip, MemberAvatar } from "./bits";
 import { PROJECT_COLORS } from "./TeamDialog";
 import { AttachmentGrid, AttachPicker, DropZone, PendingFiles } from "./Attachments";
-import { commentIdOf, listAttachments, removeAttachment, uploadAttachments } from "../attachments";
+import { commentIdOf, listAttachments, removeAttachment, uploadAttachments, type UploadProgress } from "../attachments";
 import { SwapIn } from "@/components/ui/AutoHeight";
 import { DatePill } from "./DatePicker";
 import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
@@ -111,7 +112,7 @@ export function TaskDialog({
   const [newProject, setNewProject] = useState<string | null>(null); // typing a new project's name
   const [files, setFiles] = useState<DriveFile[]>([]); // attachments of this task and its comments
   const [pending, setPending] = useState<File[]>([]); // picked for the next comment, not uploaded yet
-  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
+  const [uploading, setUploading] = useState<(UploadProgress & { where: "brief" | "comment" }) | null>(null);
   const [preview, setPreview] = useState<DriveFile | null>(null);
   const [previewSet, setPreviewSet] = useState<DriveFile[]>([]); // the files ‹ › move through (brief, or one comment)
   const openPreview = (f: DriveFile, set: DriveFile[]) => {
@@ -162,9 +163,15 @@ export function TaskDialog({
       brief.current?.focus();
     });
   };
+  // "Selesai" saves the brief right away (no separate Simpan needed)
   const finishBrief = () => {
-    if (brief.current) set("description", brief.current.serialize());
+    const description = brief.current ? brief.current.serialize() : form.description;
+    set("description", description);
     setEditingNote(false);
+    if (live && description !== live.description) {
+      ctx.patch(live, { description });
+      toastSuccess("Brief disimpan");
+    }
   };
   const dirty = live ? JSON.stringify(toForm(live)) !== JSON.stringify(form) : form.title.trim() !== "";
   const parent = form.parent_id ? ctx.all.find((x) => x.id === form.parent_id) : undefined;
@@ -259,7 +266,8 @@ export function TaskDialog({
   const upload = async (picked: File[], commentId?: string) => {
     if (!live || picked.length === 0) return;
     try {
-      await uploadAttachments(picked, { taskId: live.id, commentId }, (done, total) => setUploading({ done, total }));
+      await uploadAttachments(picked, { taskId: live.id, commentId }, (p) => setUploading({ ...p, where: commentId ? "comment" : "brief" }));
+      await new Promise((r) => setTimeout(r, 450)); // let the bar reach 100% before it goes
     } catch (e) {
       toastError(`Upload gagal: ${(e as Error).message}`);
     } finally {
@@ -634,6 +642,16 @@ export function TaskDialog({
                           inputSx={{ lineHeight: 1.6 }}
                         />
                       </Box>
+                      {taskFiles.length > 0 && (
+                        <Box sx={{ px: 1.5, pb: 1 }}>
+                          <AttachmentGrid files={taskFiles} size={72} onOpen={(f) => openPreview(f, taskFiles)} onRemove={askRemoveFile} />
+                        </Box>
+                      )}
+                      {uploading?.where === "brief" && (
+                        <Box sx={{ px: 1.5, pb: 1 }}>
+                          <UploadBar p={uploading} />
+                        </Box>
+                      )}
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, px: 0.5, pb: 0.5, borderTop: "1px solid #F1F3F4" }}>
                         {live ? (
                           <>
@@ -661,12 +679,12 @@ export function TaskDialog({
                       Belum ada brief. Klik untuk menulis tujuan, detail, atau hasil yang diharapkan.
                     </Box>
                   )}
-                  {uploading && (
-                    <Typography sx={{ fontSize: "0.75rem", color: "#0B57D0", mt: 0.75 }}>
-                      Mengunggah {Math.min(uploading.done + 1, uploading.total)} dari {uploading.total} file…
-                    </Typography>
+                  {!editingNote && uploading?.where === "brief" && (
+                    <Box sx={{ mt: 1 }}>
+                      <UploadBar p={uploading} />
+                    </Box>
                   )}
-                  {taskFiles.length > 0 && (
+                  {!editingNote && taskFiles.length > 0 && (
                     <Box sx={{ pt: 1.25 }}>
                       <AttachmentGrid files={taskFiles} size={72} onOpen={(f) => openPreview(f, taskFiles)} onRemove={askRemoveFile} />
                     </Box>
@@ -938,6 +956,11 @@ export function TaskDialog({
                     </Box>
                   )}
                   <PendingFiles files={pending} onRemove={(i) => setPending((p) => p.filter((_, j) => j !== i))} />
+                  {uploading?.where === "comment" && (
+                    <Box sx={{ px: 1.5, pt: 1 }}>
+                      <UploadBar p={uploading} />
+                    </Box>
+                  )}
                   <Box sx={{ px: 1.5, pt: 0.5 }}>
                     <MentionInput
                       ref={mention}
@@ -1127,6 +1150,37 @@ function flashComment(id: string) {
   el.scrollIntoView({ behavior: "smooth", block: "center" });
   el.classList.add("flash");
   setTimeout(() => el.classList.remove("flash"), 1200);
+}
+
+/** Upload progress: file name + percent, a bar that eases forward with a soft sheen. */
+function UploadBar({ p }: { p: UploadProgress }) {
+  const finished = p.pct >= 100;
+  return (
+    <Box role="progressbar" aria-valuenow={p.pct} aria-valuemin={0} aria-valuemax={100} aria-label="Mengunggah file" sx={{ animation: "oc-rise 220ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+        {finished ? <CheckRounded sx={{ fontSize: 15, color: "#146C2E" }} /> : <CloudUploadRounded sx={{ fontSize: 15, color: "#0B57D0" }} />}
+        <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: "0.75rem", color: finished ? "#146C2E" : "#444746" }}>
+          {finished ? "Selesai diunggah" : p.total > 1 ? `Mengunggah ${Math.min(p.done + 1, p.total)}/${p.total} · ${p.name}` : `Mengunggah ${p.name}`}
+        </Typography>
+        <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: finished ? "#146C2E" : "#0B57D0", fontVariantNumeric: "tabular-nums" }}>{p.pct}%</Typography>
+      </Box>
+      <Box sx={{ height: 6, borderRadius: 3, bgcolor: "#E8EEF7", overflow: "hidden" }}>
+        <Box
+          sx={{
+            height: "100%",
+            width: `${Math.max(p.pct, 3)}%`,
+            borderRadius: 3,
+            bgcolor: finished ? "#1E8E3E" : "#0B57D0",
+            backgroundImage: finished ? "none" : "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.45) 50%, rgba(255,255,255,0) 100%)",
+            backgroundSize: "200% 100%",
+            animation: finished ? "none" : "oc-sheen 1.1s linear infinite",
+            transition: "width 300ms cubic-bezier(0.22, 1, 0.36, 1), background-color 250ms",
+            "@keyframes oc-sheen": { from: { backgroundPosition: "200% 0" }, to: { backgroundPosition: "-200% 0" } },
+          }}
+        />
+      </Box>
+    </Box>
+  );
 }
 
 /** Small action under a comment bubble (shows on hover; always on touch screens). */

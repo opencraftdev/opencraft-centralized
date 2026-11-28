@@ -61,7 +61,31 @@ export const deleteForever = (kind: ItemKind, id: string) => driveItems({ op: "d
 // Upload straight to Google Drive: server opens a resumable session in the folder's Google folder,
 // the browser PUTs the bytes there, then the row is stored with the Google file id.
 /** Returns the drive_files row id. `metadata` is stored on the row (e.g. which task a file is attached to). */
-export async function uploadFile(file: File, folderId: string | null, userId: string, metadata?: Record<string, unknown>): Promise<string> {
+/** PUT with upload progress (fetch has none). */
+function putWithProgress(url: string, file: File, mime: string, onBytes: (loaded: number) => void): Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("content-type", mime);
+    xhr.upload.onprogress = (e) => onBytes(e.loaded);
+    xhr.onload = () =>
+      resolve({
+        ok: xhr.status >= 200 && xhr.status < 300,
+        status: xhr.status,
+        json: async () => JSON.parse(xhr.responseText || "{}"),
+      });
+    xhr.onerror = () => reject(new Error("Koneksi terputus saat mengunggah"));
+    xhr.send(file);
+  });
+}
+
+export async function uploadFile(
+  file: File,
+  folderId: string | null,
+  userId: string,
+  metadata?: Record<string, unknown>,
+  onBytes?: (loaded: number) => void,
+): Promise<string> {
   const mime = file.type || "application/octet-stream";
   const { uploadUrl } = await postJson<{ uploadUrl: string }>("/api/drive/upload", {
     name: file.name,
@@ -69,7 +93,7 @@ export async function uploadFile(file: File, folderId: string | null, userId: st
     size: file.size,
     folderId,
   });
-  const put = await fetch(uploadUrl, { method: "PUT", headers: { "content-type": mime }, body: file });
+  const put = onBytes ? await putWithProgress(uploadUrl, file, mime, onBytes) : await fetch(uploadUrl, { method: "PUT", headers: { "content-type": mime }, body: file });
   const g = (await put.json().catch(() => ({}))) as { id?: string; size?: string; modifiedTime?: string };
   if (!put.ok || !g.id) throw new Error(`Upload ke Google Drive gagal (${put.status})`);
   const row = {
