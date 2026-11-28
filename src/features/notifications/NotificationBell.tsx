@@ -87,7 +87,7 @@ function describe(n: AppNotification): { verb: string; obj: string; sub: string 
     case "task_updated":
       return { verb: "memperbarui task", obj: after("Tugas diperbarui: ") ?? t, sub: body };
     case "task_comment":
-      return { verb: "berkomentar di", obj: quoted(t), sub: body ? `“${body}”` : "" };
+      return { verb: "menulis di diskusi", obj: quoted(t), sub: body ? `“${body}”` : "" };
     case "task_attachment":
       return { verb: "melampirkan file di", obj: quoted(t), sub: body };
     case "expense_new":

@@ -927,7 +927,7 @@ export function TaskDialog({
                                 title: "Hapus item checklist?",
                                 body: (
                                   <>
-                                    <b>{s.title}</b> beserta komentar dan lampirannya akan dihapus. Tindakan ini tidak bisa dibatalkan.
+                                    <b>{s.title}</b> beserta diskusi dan lampirannya akan dihapus. Tindakan ini tidak bisa dibatalkan.
                                   </>
                                 ),
                                 label: "Hapus",
@@ -968,7 +968,7 @@ export function TaskDialog({
         {/* ── Right: comments as chat bubbles ── */}
         <Box sx={{ bgcolor: "#F8FAFD", borderLeft: { md: "1px solid #EEF1F4" }, borderTop: { xs: "1px solid #EEF1F4", md: "none" }, display: "flex", flexDirection: "column", minHeight: { xs: 420, md: 0 } }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2.25, py: 1.25, borderBottom: "1px solid #EEF1F4", flexShrink: 0 }}>
-            <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500 }}>Komentar</Typography>
+            <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500 }}>Diskusi</Typography>
             {comments.length > 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368" }}>{comments.length}</Typography>}
             <Box sx={{ flex: 1 }} />
             <Box sx={{ display: "flex" }}>
@@ -986,8 +986,8 @@ export function TaskDialog({
                 Task dibuat · {formatRelative(live.created_at)}
               </Box>
             )}
-            {!live && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", mt: 4 }}>Komentar bisa ditulis setelah task dibuat.</Typography>}
-            {live && comments.length === 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", my: "auto" }}>Belum ada komentar. Mulai diskusi di bawah.</Typography>}
+            {!live && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", mt: 4 }}>Diskusi bisa dimulai setelah task dibuat.</Typography>}
+            {live && comments.length === 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", my: "auto" }}>Belum ada diskusi. Mulai di bawah.</Typography>}
             {comments.map((c) => {
               const mine = !!myEmail && c.author_email === myEmail;
               const cfiles = files.filter((f) => commentIdOf(f) === c.id);
@@ -1016,10 +1016,10 @@ export function TaskDialog({
                           onSubmit={() => void saveEdit()}
                           ctx={ctx}
                           currentTaskId={live?.id}
-                          ariaLabel="Edit komentar"
+                          ariaLabel="Edit pesan"
                           maxRows={12}
                           inputSx={{ fontSize: "0.75rem", lineHeight: 1.45 }}
-                          placeholder="Edit komentar…"
+                          placeholder="Edit pesan…"
                         />
                         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5, mt: 0.25 }}>
                           <Button size="small" onClick={() => setEditing(null)} sx={{ borderRadius: "9999px", color: "#444746", minWidth: 0, px: 1.25, fontSize: "0.75rem" }}>
@@ -1070,10 +1070,10 @@ export function TaskDialog({
                             }}
                           >
                             <Box sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#0B57D0" }}>
-                              {quoted ? (authorName(quoted.author_email, ctx)) : "Komentar"}
+                              {quoted ? (authorName(quoted.author_email, ctx)) : "Pesan"}
                             </Box>
                             <Box sx={{ fontSize: "0.8125rem", opacity: 0.85, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "normal" }}>
-                              {quoted ? plainComment(quoted.body) : "Komentar sudah dihapus"}
+                              {quoted ? plainComment(quoted.body) : "Pesan sudah dihapus"}
                             </Box>
                           </Box>
                         )}
@@ -1101,9 +1101,9 @@ export function TaskDialog({
                           danger
                           onClick={() =>
                             setAsk({
-                              title: "Hapus komentar?",
-                              body: <>Komentar ini{cfiles.length ? ` dan ${cfiles.length} lampirannya` : ""} akan dihapus untuk semua orang. Tindakan ini tidak bisa dibatalkan.</>,
-                              label: "Hapus komentar",
+                              title: "Hapus pesan?",
+                              body: <>Pesan ini{cfiles.length ? ` dan ${cfiles.length} lampirannya` : ""} akan dihapus untuk semua orang. Tindakan ini tidak bisa dibatalkan.</>,
+                              label: "Hapus pesan",
                               run: () =>
                                 deleteComment(c.id)
                                   .then(() => {
@@ -1133,7 +1133,7 @@ export function TaskDialog({
                       <ReplyRounded sx={{ fontSize: 16, color: "#0B57D0", mt: 0.25 }} />
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#0B57D0" }}>
-                          Membalas {replyTo.author_email && replyTo.author_email === myEmail ? "komentarmu" : authorName(replyTo.author_email, ctx)}
+                          Membalas {replyTo.author_email && replyTo.author_email === myEmail ? "pesanmu" : authorName(replyTo.author_email, ctx)}
                         </Typography>
                         <Typography sx={{ fontSize: "0.8125rem", color: "#444746", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{plainComment(replyTo.body)}</Typography>
                       </Box>
@@ -1154,7 +1154,7 @@ export function TaskDialog({
                       onSubmit={() => void sendComment()}
                       ctx={ctx}
                       currentTaskId={live.id}
-                      placeholder="Tulis komentar… ketik @ untuk tag orang, task, atau project"
+                      placeholder="Tulis di diskusi… ketik @ untuk tag orang, task, atau project"
                     />
                   </Box>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, px: 0.75, pb: 0.75 }}>
@@ -1214,7 +1214,7 @@ export function TaskDialog({
         body={
           <>
             <b>{live?.title}</b>
-            {subs.length ? ` beserta ${subs.length} item checklist-nya` : ""}, komentar, dan lampirannya akan dihapus. Tindakan ini tidak bisa dibatalkan.
+            {subs.length ? ` beserta ${subs.length} item checklist-nya` : ""}, diskusi, dan lampirannya akan dihapus. Tindakan ini tidak bisa dibatalkan.
           </>
         }
         confirmLabel="Hapus"
@@ -1388,7 +1388,7 @@ function CommentAction({ label, onClick, danger, children }: { label: string; on
       <IconButton
         className="c-del"
         size="small"
-        aria-label={`${label} komentar`}
+        aria-label={`${label} pesan`}
         onClick={onClick}
         sx={{ opacity: { xs: 1, sm: 0 }, p: 0.4, color: "#80868B", transition: "opacity 150ms, color 150ms", "&:hover": { color: danger ? "#B3261E" : "#0B57D0" } }}
       >

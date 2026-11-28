@@ -597,7 +597,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
         suppressContentEditableWarning
         role="textbox"
         aria-multiline
-        aria-label={ariaLabel ?? "Tulis komentar"}
+        aria-label={ariaLabel ?? "Tulis di diskusi"}
         aria-autocomplete="list"
         aria-expanded={open}
         onInput={emit}

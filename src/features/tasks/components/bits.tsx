@@ -182,11 +182,11 @@ export function CommentCount({ count }: { count: number }) {
   return (
     <Box
       component="span"
-      aria-label={`${count} komentar`}
+      aria-label={`${count} diskusi`}
       sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: "#5F6368", fontSize: "0.75rem", whiteSpace: "nowrap", flexShrink: 0 }}
     >
       <ChatBubbleRounded sx={{ fontSize: 13, color: "#9AA0A6" }} />
-      {count} komentar
+      {count} diskusi
     </Box>
   );
 }
