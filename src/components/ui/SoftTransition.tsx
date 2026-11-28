@@ -21,7 +21,8 @@ export const SoftTransition = forwardRef<HTMLElement, TransitionProps & { childr
   const calm = reduce();
   const states: Record<string, React.CSSProperties> = {
     entering: { opacity: 1, transform: "none", filter: "none" },
-    entered: { opacity: 1, transform: "none", filter: "none" },
+    // at rest: no transform/filter at all, so the browser draws the text crisp (a lingering layer looks blurry)
+    entered: { opacity: 1 },
     exiting: { opacity: 0, transform: calm ? "none" : "translateY(10px) scale(0.955)", filter: calm ? "none" : "blur(1.5px)" },
     exited: { opacity: 0, transform: calm ? "none" : "translateY(18px) scale(0.96)", filter: "none", visibility: inProp ? undefined : "hidden" },
   };
@@ -43,7 +44,6 @@ export const SoftTransition = forwardRef<HTMLElement, TransitionProps & { childr
           ...({ "data-tstate": state } as object), // lets the content react to opening / closing (sections sliding)
           style: {
             transformOrigin: "50% 60%",
-            willChange: "transform, opacity",
             transition:
               state === "exiting"
                 ? `opacity ${EXIT}ms cubic-bezier(0.4, 0, 1, 1), transform ${EXIT}ms cubic-bezier(0.4, 0, 1, 1), filter ${EXIT}ms ease-in`
