@@ -37,7 +37,7 @@ function GoogleIcon() {
   );
 }
 
-export function LoginForm({ error: initialError }: { error?: string | null }) {
+export function LoginForm({ error: initialError, next }: { error?: string | null; next?: string | null }) {
   const [error, setError] = useState<string | null>(messageFor(initialError ?? null));
   const [pending, setPending] = useState(false);
 
@@ -54,6 +54,9 @@ export function LoginForm({ error: initialError }: { error?: string | null }) {
   async function signIn() {
     setError(null);
     setPending(true);
+    // where to land after Google (e.g. a shared task link); read by /auth/callback
+    const safe = next && next.startsWith("/") && !next.startsWith("//") ? next : "";
+    document.cookie = safe ? `oc_next=${encodeURIComponent(safe)}; path=/; max-age=900; samesite=lax` : "oc_next=; path=/; max-age=0";
     const { error } = await createClient().auth.signInWithOAuth({
       provider: "google",
       options: {

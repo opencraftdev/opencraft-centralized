@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // /auth/callback are the Google sign-in flow (docs/DRIVE.md → "Login: Google only").
 // /api/ingest/* is called by agents (no browser session) and authenticates itself with a per-agent Bearer key.
 const isPublicPath = (p: string) =>
-  p === "/privacy" || p === "/login" || p.startsWith("/login/") || p === "/auth/callback" || p.startsWith("/api/ingest/");
+  p === "/privacy" || p.startsWith("/t/") || p === "/login" || p.startsWith("/login/") || p === "/auth/callback" || p.startsWith("/api/ingest/");
 
 // Allowlist verdict per email, cached briefly per server instance so a page load does not cost an
 // extra round trip per request. RLS (is_allowed_user()) is the real guard; this only signs blocked
@@ -51,8 +51,13 @@ export async function updateSession(request: NextRequest) {
       res = NextResponse.json({ error: error === "not_allowed" ? "Akun tidak diizinkan" : "Not authenticated" }, { status });
     } else {
       const url = request.nextUrl.clone();
+      // remember the page (e.g. a shared task link) so the login can bring the person back to it
+      const back = path !== "/" && path !== "/login" ? `${path}${request.nextUrl.search}` : "";
       url.pathname = "/login";
-      url.search = error ? `?error=${error}` : "";
+      const q = new URLSearchParams();
+      if (error) q.set("error", error);
+      if (back && !error) q.set("next", back);
+      url.search = q.toString() ? `?${q}` : "";
       res = NextResponse.redirect(url);
     }
     supabaseResponse.cookies.getAll().forEach((c) => res.cookies.set(c));
@@ -86,8 +91,9 @@ export async function updateSession(request: NextRequest) {
 
   if (path === "/login") {
     const url = request.nextUrl.clone();
-    url.pathname = "/documents";
-    url.search = "";
+    const next = request.nextUrl.searchParams.get("next");
+    url.pathname = next && next.startsWith("/") && !next.startsWith("//") ? next.split("?")[0] : "/documents";
+    url.search = next && next.includes("?") && next.startsWith("/") && !next.startsWith("//") ? `?${next.split("?").slice(1).join("?")}` : "";
     return NextResponse.redirect(url);
   }
 

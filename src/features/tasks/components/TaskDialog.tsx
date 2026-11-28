@@ -28,6 +28,12 @@ import FlagRounded from "@mui/icons-material/FlagRounded";
 import CategoryRounded from "@mui/icons-material/CategoryRounded";
 import StarRounded from "@mui/icons-material/StarRounded";
 import AssignmentRounded from "@mui/icons-material/AssignmentRounded";
+import Menu from "@mui/material/Menu";
+import { diffDays, todayISO } from "../dates";
+import { taskPath } from "../slug";
+import ShareRounded from "@mui/icons-material/ShareRounded";
+import LinkRounded from "@mui/icons-material/LinkRounded";
+import WhatsApp from "@mui/icons-material/WhatsApp";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import EditRounded from "@mui/icons-material/EditRounded";
 import CheckRounded from "@mui/icons-material/CheckRounded";
@@ -531,7 +537,7 @@ export function TaskDialog({
           <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368", pl: 1 }}>{live ? "Detail task" : "Task baru"}</Typography>
         )}
         <Box sx={{ flex: 1 }} />
-        {live && <DueChip due={live.due_date} done={live.status === "done"} />}
+        {live && <ShareTask task={live} ctx={ctx} />}
         <IconButton onClick={close} aria-label="Tutup">
           <CloseRounded />
         </IconButton>
@@ -713,6 +719,7 @@ export function TaskDialog({
                   )}
                   <Box component="span" sx={dateLabelSx}>{form.is_milestone ? "Tanggal" : "End Date"}</Box>
                   <DatePill label="End Date" value={form.due_date} min={form.is_milestone ? null : form.start_date} other={form.is_milestone ? null : form.start_date} onChange={(v) => set("due_date", v)} strong error={!!dateError} />
+                  <DueHint due={form.due_date} done={form.status === "done"} />
                 </PropRow>
                 {dateError && <Typography sx={{ fontSize: "0.75rem", color: "#B3261E", pl: "120px", mt: -0.5 }}>{dateError}</Typography>}
 
@@ -988,7 +995,7 @@ export function TaskDialog({
               </Box>
             )}
             {!live && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", mt: 4 }}>Komentar bisa ditulis setelah task dibuat.</Typography>}
-            {live && comments.length === 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", mt: 2 }}>Belum ada komentar. Mulai diskusi di bawah.</Typography>}
+            {live && comments.length === 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", my: "auto" }}>Belum ada komentar. Mulai diskusi di bawah.</Typography>}
             {comments.map((c) => {
               const mine = !!myEmail && c.author_email === myEmail;
               const cfiles = files.filter((f) => commentIdOf(f) === c.id);
@@ -1400,4 +1407,55 @@ function authorName(email: string | null, ctx: TasksCtx): string {
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);
   return (parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0][0]).toUpperCase();
+}
+
+/** "Besok" / "3 hari lagi" / "Terlambat 2 hari" next to the deadline: red when close, orange this week, grey later. */
+function DueHint({ due, done }: { due: string | null; done: boolean }) {
+  if (!due || done) return null;
+  const d = diffDays(todayISO(), due);
+  const label = d < 0 ? `Terlambat ${-d} hari` : d === 0 ? "Hari ini" : d === 1 ? "Besok" : d < 7 ? `${d} hari lagi` : d < 14 ? "1 minggu lagi" : d < 60 ? `${Math.round(d / 7)} minggu lagi` : `${Math.round(d / 30)} bulan lagi`;
+  const color = d <= 1 ? "#C5221F" : d < 7 ? "#E37400" : "#80868B";
+  return <Box component="span" sx={{ fontSize: "0.75rem", fontWeight: 600, color, ml: 0.25, whiteSpace: "nowrap" }}>{label}</Box>;
+}
+
+/** "Share Task": copy the readable link (/t/BuatNIB) or send it to WhatsApp. */
+function ShareTask({ task, ctx }: { task: Task; ctx: TasksCtx }) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const url = () => `${window.location.origin}${taskPath(task, ctx.all)}`;
+  const copy = async () => {
+    setAnchor(null);
+    try {
+      await navigator.clipboard.writeText(url());
+      toastSuccess("Link task disalin");
+    } catch {
+      toastError("Tidak bisa menyalin. Salin manual: " + url());
+    }
+  };
+  const wa = () => {
+    setAnchor(null);
+    window.open(`https://wa.me/?text=${encodeURIComponent(`${task.title}\n${url()}`)}`, "_blank", "noopener");
+  };
+  return (
+    <>
+      <Button
+        variant="contained"
+        disableElevation
+        size="small"
+        startIcon={<ShareRounded sx={{ fontSize: "16px !important" }} />}
+        onClick={(e) => setAnchor(e.currentTarget)}
+        sx={{ borderRadius: "9999px", px: 1.75, mr: 0.5, fontSize: "0.8125rem" }}
+      >
+        Share Task
+      </Button>
+      <Menu anchorEl={anchor} open={!!anchor} onClose={() => setAnchor(null)} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }} slotProps={{ paper: { sx: { mt: 0.75, borderRadius: "14px", minWidth: 230 } } }}>
+        <Box sx={{ px: 2, pt: 0.75, pb: 1, fontSize: "0.75rem", color: "#5F6368", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{taskPath(task, ctx.all).replace("/t/", "internal.ocraft.id/t/")}</Box>
+        <MenuItem onClick={() => void copy()} sx={{ gap: 1.25, fontSize: "0.875rem" }}>
+          <LinkRounded sx={{ fontSize: 18, color: "#444746" }} /> Salin link
+        </MenuItem>
+        <MenuItem onClick={wa} sx={{ gap: 1.25, fontSize: "0.875rem" }}>
+          <WhatsApp sx={{ fontSize: 18, color: "#25D366" }} /> Bagikan ke WhatsApp
+        </MenuItem>
+      </Menu>
+    </>
+  );
 }

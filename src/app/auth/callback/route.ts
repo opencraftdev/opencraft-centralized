@@ -32,5 +32,12 @@ export async function GET(req: Request) {
     await supabase.auth.signOut();
     return toLogin("not_allowed");
   }
-  return NextResponse.redirect(new URL("/documents", url.origin));
+  // back to the page the person was opening (a shared task link), set by the login form
+  const jar = req.headers.get("cookie") ?? "";
+  const raw = /(?:^|;\s*)oc_next=([^;]*)/.exec(jar)?.[1];
+  let next = raw ? decodeURIComponent(raw) : "";
+  if (!next.startsWith("/") || next.startsWith("//")) next = "/documents";
+  const res = NextResponse.redirect(new URL(next, url.origin));
+  res.cookies.set("oc_next", "", { path: "/", maxAge: 0 });
+  return res;
 }
