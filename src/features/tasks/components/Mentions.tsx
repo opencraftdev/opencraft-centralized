@@ -35,7 +35,38 @@ export function CommentBody({ text, ctx, onOpenTask, files, onOpenFile }: { text
     if (last < t.length) out.push(...renderPlain(t.slice(last), `${k}g${last}`, ctx, onOpenTask));
     return out;
   };
-  return <>{renderRich(text, plain, "r")}</>;
+  // one block per line; "• " lines get a hanging indent so wrapped lines line up with the text, not the dot
+  return (
+    <>
+      {balanceLines(text.split("\n")).map((ln, i) => {
+        const m = /^((?:\[(?:b|i|u|c=#[0-9a-fA-F]{6})\])*)• /.exec(ln);
+        if (!m) return <span key={i} style={{ display: "block", minHeight: "1.45em" }}>{renderRich(ln, plain, `r${i}`)}</span>;
+        return (
+          <span key={i} style={{ display: "flex" }}>
+            <span style={{ width: "1em", flexShrink: 0 }}>•</span>
+            <span style={{ flex: 1, minWidth: 0 }}>{renderRich(m[1] + ln.slice(m[0].length), plain, `r${i}`)}</span>
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+/** Formatting that spans several lines is closed at each line end and reopened on the next line. */
+function balanceLines(lines: string[]): string[] {
+  const open: string[] = [];
+  return lines.map((l) => {
+    const pre = open.join("");
+    const re = /(?<!@)\[(\/?)(b|i|u|c)(=#[0-9a-fA-F]{6})?\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(l))) {
+      if (m[1]) {
+        const idx = open.map((t) => t.slice(1, 2)).lastIndexOf(m[2]);
+        if (idx >= 0) open.splice(idx, 1);
+      } else open.push(m[0]);
+    }
+    return pre + l + [...open].reverse().map((t) => `[/${t.slice(1, 2)}]`).join("");
+  });
 }
 
 const FILE_GROUP_RE = /\n?((?:\[\[file:[0-9a-f-]{36}\]\][ \t]*)+)\n?/g;
