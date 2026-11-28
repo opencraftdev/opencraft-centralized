@@ -1204,24 +1204,25 @@ export function TaskDialog({
                       ctx={ctx}
                       currentTaskId={live.id}
                       placeholder="Tulis di diskusi… ketik @ untuk tag orang, task, atau project"
+                      inputSx={{ fontSize: "0.75rem", pt: 1.5 }}
                     />
                   </Box>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, px: 0.75, pb: 0.75 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0, px: 0.75, pb: 0.5, "& .MuiIconButton-root": { p: "5px" }, "& .MuiIconButton-root .MuiSvgIcon-root": { fontSize: "15px !important" } }}>
                     <AttachPicker variant="icon" accept="image/*" label="Lampirkan gambar" icon={<ImageRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("comment", l)} />
                     <AttachPicker variant="icon" accept="video/*" label="Lampirkan video" icon={<VideocamRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("comment", l)} />
                     <AttachPicker variant="icon" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt" label="Lampirkan dokumen (PDF, Word, Excel, PPT)" icon={<DescriptionRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("comment", l)} />
                     <AttachPicker variant="icon" label="Lampirkan file lain" icon={<AttachFileRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("comment", l)} />
-                    <Box sx={{ width: "1px", height: 20, bgcolor: "#E0E3E7", mx: 0.5 }} />
+                    <Box sx={{ width: "1px", height: 14, bgcolor: "#E0E3E7", mx: 0.5 }} />
                     <FormatBar target={mention} />
                     <Box sx={{ flex: 1 }} />
                     <Button
                       size="small"
                       variant="contained"
                       disableElevation
-                      endIcon={<SendRounded sx={{ fontSize: "16px !important" }} />}
+                      endIcon={<SendRounded sx={{ fontSize: "13px !important" }} />}
                       onClick={() => void sendComment()}
                       disabled={!comment.trim() || busy > 0}
-                      sx={{ borderRadius: "9999px", height: 30, px: 1.75, fontSize: "0.8125rem" }}
+                      sx={{ borderRadius: "9999px", height: 24, minWidth: 0, px: 1.25, fontSize: "0.75rem", "& .MuiButton-endIcon": { ml: 0.5 } }}
                     >
                       Kirim
                     </Button>
