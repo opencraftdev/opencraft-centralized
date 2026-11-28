@@ -9,7 +9,7 @@ import type { Task, TaskStatus } from "../types";
 import { STATUSES } from "../types";
 import { EASE_OUT, SPRING } from "@/components/ui/motion";
 import type { TasksCtx } from "./TasksApp";
-import { AvatarStack, CommentCount, DueChip, PriorityText, ProgressBar, ProjectTag } from "./bits";
+import { AvatarStack, CommentCount, DueText, PriorityTag, ProgressRing, ProjectMark } from "./bits";
 
 // Board: one column per status, top-level tasks as cards, in their manual order (`sort`). Drag a card up/down to
 // reorder it, or into another column to change its status; a blue line shows where it will land.
@@ -162,6 +162,7 @@ function Card({ task: t, ctx, dragging, onDragStart, onDragEnd }: { task: Task; 
   const subs = ctx.childrenOf.get(t.id) ?? [];
   const done = subs.filter((x) => x.status === "done").length;
   const isDone = t.status === "done";
+  const project = t.project_id ? ctx.projectById.get(t.project_id) : undefined;
   return (
     <Box
       component="button"
@@ -181,32 +182,43 @@ function Card({ task: t, ctx, dragging, onDragStart, onDragEnd }: { task: Task; 
         bgcolor: "#fff",
         border: "1px solid #E0E3E7",
         borderRadius: "12px",
-        p: 1.5,
+        p: 0,
+        overflow: "hidden",
         cursor: "grab",
         opacity: dragging ? 0.4 : 1,
         display: "flex",
         flexDirection: "column",
-        gap: 1,
         "&:hover": { borderColor: "#A8C7FA", boxShadow: "0 1px 3px rgba(60,64,67,.15)" },
         "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: 1 },
       }}
     >
-      {/* Project pill · deadline */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-        <ProjectTag project={t.project_id ? ctx.projectById.get(t.project_id) : undefined} />
-        <Box sx={{ flex: 1 }} />
-        <DueChip due={t.due_date} done={isDone} compact />
+      {/* Project · priority, then the title with the checklist ring */}
+      <Box sx={{ px: 1.5, pt: 1.25, pb: 1.25, display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, minHeight: 16 }}>
+          {project && (
+            <>
+              <ProjectMark project={project} size={13} />
+              <Box component="span" sx={{ fontSize: "0.75rem", fontWeight: 500, color: "#5F6368", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                {project.name}
+              </Box>
+            </>
+          )}
+          <Box sx={{ flex: 1 }} />
+          <PriorityTag priority={t.priority} />
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, minWidth: 0 }}>
+          <Typography sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere", fontSize: "0.9375rem", fontWeight: 500, color: isDone ? "#5F6368" : "#1F1F1F", textDecoration: isDone ? "line-through" : "none", lineHeight: 1.35 }}>
+            {t.title}
+          </Typography>
+          <ProgressRing done={done} total={subs.length} />
+        </Box>
       </Box>
-      <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500, color: isDone ? "#5F6368" : "#1F1F1F", textDecoration: isDone ? "line-through" : "none", lineHeight: 1.35 }}>
-        {t.title}
-      </Typography>
-      {subs.length > 0 && <ProgressBar done={done} total={subs.length} />}
-      {/* People · priority */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      {/* Footer: people · deadline · comments */}
+      <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1.25, rowGap: 0.5, px: 1.5, py: 0.875, borderTop: "1px solid #F1F3F4", minWidth: 0 }}>
         <AvatarStack ids={[t.assignee_id, ...t.helper_ids]} members={ctx.memberById} size={24} />
-        <CommentCount count={ctx.commentTotal(t.id)} />
+        <DueText due={t.due_date} done={isDone} />
         <Box sx={{ flex: 1 }} />
-        <PriorityText priority={t.priority} />
+        <CommentCount count={ctx.commentTotal(t.id)} />
       </Box>
     </Box>
   );

@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // /auth/callback are the Google sign-in flow (docs/DRIVE.md → "Login: Google only").
 // /api/ingest/* is called by agents (no browser session) and authenticates itself with a per-agent Bearer key.
 const isPublicPath = (p: string) =>
-  p === "/privacy" || p === "/login" || p.startsWith("/login/") || p === "/auth/callback" || p.startsWith("/api/ingest/");
+  p === "/bd-preview" || p === "/privacy" || p === "/login" || p.startsWith("/login/") || p === "/auth/callback" || p.startsWith("/api/ingest/");
 
 // Allowlist verdict per email, cached briefly per server instance so a page load does not cost an
 // extra round trip per request. RLS (is_allowed_user()) is the real guard; this only signs blocked

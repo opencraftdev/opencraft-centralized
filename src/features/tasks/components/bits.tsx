@@ -190,3 +190,62 @@ export function CommentCount({ count }: { count: number }) {
     </Box>
   );
 }
+
+/** Deadline as coloured text with an icon (no pill) — board card footer. */
+export function DueText({ due, done }: { due: string | null; done: boolean }) {
+  const info = dueInfo(due, done);
+  if (!info) return null;
+  const c = DUE_COLORS[info.tone];
+  return (
+    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: c.color, fontSize: "0.75rem", fontWeight: 500, whiteSpace: "nowrap", flexShrink: 0 }}>
+      <EventRounded sx={{ fontSize: 14 }} />
+      {info.label}
+    </Box>
+  );
+}
+
+/** Priority as a small flag + label (board card, top right). */
+export function PriorityTag({ priority }: { priority: TaskPriority }) {
+  const m = priorityMeta(priority);
+  return (
+    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, fontSize: "0.6875rem", fontWeight: 600, color: m.color, whiteSpace: "nowrap", flexShrink: 0 }}>
+      <FlagRounded sx={{ fontSize: 14 }} />
+      {m.label}
+    </Box>
+  );
+}
+
+/** Checklist progress as a small ring with "done/total" inside. */
+export function ProgressRing({ done, total, size = 34 }: { done: number; total: number; size?: number }) {
+  if (total === 0) return null;
+  const stroke = 3;
+  const r = (size - stroke) / 2 - 0.5;
+  const len = 2 * Math.PI * r;
+  const pct = done / total;
+  const full = done === total;
+  return (
+    <Tooltip title={`Checklist ${done} dari ${total} selesai`}>
+      <Box component="span" sx={{ position: "relative", width: size, height: size, flexShrink: 0, display: "inline-block" }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#E8EAED" strokeWidth={stroke} />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={full ? "#146C2E" : "#188038"}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={len}
+            strokeDashoffset={len * (1 - pct)}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            style={{ transition: "stroke-dashoffset 300ms cubic-bezier(0.22, 1, 0.36, 1)" }}
+          />
+        </svg>
+        <Box component="span" sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: total >= 10 ? "0.5625rem" : "0.625rem", fontWeight: 600, color: full ? "#146C2E" : "#5F6368", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
+          {done}/{total}
+        </Box>
+      </Box>
+    </Tooltip>
+  );
+}
