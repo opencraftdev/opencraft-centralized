@@ -341,6 +341,24 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   };
 
   // Look for "@word" right before the caret.
+  // Text of the current line up to the caret (for "- " bullets).
+  const lineBefore = (): string | null => {
+    const el = root.current;
+    const sel = window.getSelection();
+    if (!el || !sel?.rangeCount || !el.contains(sel.anchorNode) || !sel.isCollapsed) return null;
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    r.setEnd(sel.anchorNode!, sel.anchorOffset);
+    const t = fromDom(r.cloneContents());
+    return t.slice(t.lastIndexOf("\n") + 1);
+  };
+  const deleteBack = (n: number) => {
+    const sel = window.getSelection() as Selection & { modify?: (a: string, d: string, g: string) => void };
+    if (!sel?.modify) return;
+    for (let i = 0; i < n; i++) sel.modify("extend", "backward", "character");
+    document.execCommand("delete");
+  };
+
   const detect = () => {
     const el = root.current;
     const sel = window.getSelection();
@@ -562,12 +580,30 @@ export const MentionInput = forwardRef<MentionInputHandle, {
             document.execCommand(k === "b" ? "bold" : k === "i" ? "italic" : "underline");
             return emit();
           }
+          // "- " at the start of a line becomes a bullet "• "
+          if (e.key === " " && !e.nativeEvent.isComposing && lineBefore() === "-") {
+            e.preventDefault();
+            deleteBack(1);
+            document.execCommand("insertText", false, "• ");
+            return emit();
+          }
           if (e.key === "Enter" && !e.nativeEvent.isComposing) {
             if (!newlineOnEnter && !e.shiftKey) {
               e.preventDefault();
               return onSubmit();
             }
             e.preventDefault();
+            const line = lineBefore();
+            if (line !== null && line.startsWith("• ")) {
+              // an empty bullet ends the list; otherwise the next line gets a bullet too
+              if (line.trim() === "•") {
+                deleteBack(2);
+                return emit();
+              }
+              document.execCommand("insertLineBreak");
+              document.execCommand("insertText", false, "• ");
+              return emit();
+            }
             document.execCommand("insertLineBreak");
             emit();
           }

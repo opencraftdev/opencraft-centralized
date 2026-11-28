@@ -66,14 +66,10 @@ function FileBlock({ f, onOpen }: { f: DriveFile; onOpen?: (f: DriveFile) => voi
     );
   return (
     <Tooltip title={title}>
-      <Box component="button" type="button" onClick={() => onOpen?.(f)} aria-label={`Buka ${f.name}`} sx={{ ...base, display: "flex", alignItems: "center", gap: 1, width: 220, height: 56, px: 1.25, bgcolor: "#fff", textAlign: "left" }}>
-        <Box sx={{ width: 34, height: 34, borderRadius: "8px", bgcolor: "#F0F4F9", display: "grid", placeItems: "center", flexShrink: 0 }}>
-          {f.mime_type === "application/pdf" ? <PictureAsPdfRounded sx={{ fontSize: 20, color: "#D93025" }} /> : <InsertDriveFileRounded sx={{ fontSize: 20, color: "#5A86C2" }} />}
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
-          <Box sx={{ fontSize: "0.8125rem", fontWeight: 500, color: "#1F1F1F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</Box>
-          <Box sx={{ fontSize: "0.6875rem", color: "#80868B" }}>{f.size_bytes ? formatBytes(f.size_bytes) : (f.mime_type ?? "File")}</Box>
-        </Box>
+      <Box component="button" type="button" onClick={() => onOpen?.(f)} aria-label={`Buka ${f.name}`} sx={{ ...base, display: "inline-flex", alignItems: "center", gap: 0.75, maxWidth: 280, height: 36, pl: 0.75, pr: 1.25, bgcolor: "#fff", textAlign: "left", borderRadius: "10px" }}>
+        {f.mime_type === "application/pdf" ? <PictureAsPdfRounded sx={{ fontSize: 18, color: "#D93025", flexShrink: 0 }} /> : <InsertDriveFileRounded sx={{ fontSize: 18, color: "#5A86C2", flexShrink: 0 }} />}
+        <Box component="span" sx={{ fontSize: "0.8125rem", fontWeight: 500, color: "#1F1F1F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{f.name}</Box>
+        {f.size_bytes ? <Box component="span" sx={{ fontSize: "0.6875rem", color: "#80868B", flexShrink: 0 }}>{formatBytes(f.size_bytes)}</Box> : null}
       </Box>
     </Tooltip>
   );
@@ -143,12 +139,12 @@ export const editorFileSx = {
   "& .ocf-vid": { height: MEDIA_H - 20, width: 240, alignItems: "center", justifyContent: "center" },
   "& .ocf-vid video": { position: "absolute", inset: 0 },
   "& .ocf-play": { position: "relative", width: 40, height: 40, borderRadius: "50%", bgcolor: "rgba(0,0,0,.55)", display: "grid", placeItems: "center" },
-  "& .ocf-doc": { alignItems: "center", gap: "8px", width: 220, height: 56, px: "10px", bgcolor: "#fff" },
+  "& .ocf-doc": { alignItems: "center", gap: "6px", maxWidth: 280, height: 36, pl: "6px", pr: "34px", bgcolor: "#fff", borderRadius: "10px" },
   "& .ocf-missing": { opacity: 0.6 },
-  "& .ocf-ic": { width: 34, height: 34, borderRadius: "8px", bgcolor: "#F0F4F9", display: "grid", placeItems: "center", flexShrink: 0 },
-  "& .ocf-meta": { display: "flex", flexDirection: "column", minWidth: 0, lineHeight: 1.35 },
+  "& .ocf-ic": { width: 22, height: 22, display: "grid", placeItems: "center", flexShrink: 0, "& svg": { width: 18, height: 18 } },
+  "& .ocf-meta": { display: "flex", alignItems: "baseline", gap: "6px", minWidth: 0, lineHeight: 1.35 },
   "& .ocf-name": { fontSize: "0.8125rem", fontWeight: 500, color: "#1F1F1F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  "& .ocf-sub": { fontSize: "0.6875rem", color: "#80868B" },
+  "& .ocf-sub": { fontSize: "0.6875rem", color: "#80868B", flexShrink: 0 },
   "& .ocf-x": { position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: "50%", border: "1px solid #E0E3E7", bgcolor: "#fff", color: "#444746", display: "grid", placeItems: "center", p: 0, cursor: "pointer", opacity: 0, transition: "opacity 150ms", "&:hover": { bgcolor: "#FCE8E6", color: "#B3261E" } },
   "& .ocf:hover .ocf-x": { opacity: 1 },
   "@media (hover: none)": { "& .ocf-x": { opacity: 1 } },

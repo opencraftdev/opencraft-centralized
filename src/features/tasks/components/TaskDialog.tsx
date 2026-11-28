@@ -1003,6 +1003,7 @@ export function TaskDialog({
                           ctx={ctx}
                           currentTaskId={live?.id}
                           ariaLabel="Edit komentar"
+                          popupBelow
                           placeholder="Edit komentar…"
                         />
                         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5, mt: 0.25 }}>
@@ -1017,9 +1018,10 @@ export function TaskDialog({
                     ) : (!onlyFiles || replyId) && (
                       <Box
                         sx={{
-                          bgcolor: mine ? "#0B57D0" : "#fff",
-                          color: mine ? "#fff" : "#1F1F1F",
-                          border: mine ? "none" : "1px solid #E8EBEF",
+                          // soft grey-white for everyone (mine a touch deeper so it still reads as "me")
+                          bgcolor: mine ? "#EAEFF5" : "#F4F6F9",
+                          color: "#1F1F1F",
+                          border: "1px solid #E1E6EC",
                           borderRadius: mine ? "16px 4px 16px 16px" : "4px 16px 16px 16px",
                           px: 1.5,
                           py: 1,
@@ -1027,7 +1029,7 @@ export function TaskDialog({
                           lineHeight: 1.5,
                           whiteSpace: "pre-wrap",
                           overflowWrap: "anywhere",
-                          "& a": { color: "inherit !important", textDecorationColor: "currentColor" },
+                          "& a": { color: "#0B57D0 !important" },
                         }}
                       >
                         {replyId && (
@@ -1047,12 +1049,12 @@ export function TaskDialog({
                               py: 0.5,
                               borderRadius: "8px",
                               borderLeft: "3px solid",
-                              borderColor: mine ? "rgba(255,255,255,.7)" : "#0B57D0",
-                              bgcolor: mine ? "rgba(255,255,255,.16)" : "#F1F4F9",
+                              borderColor: "#0B57D0",
+                              bgcolor: "rgba(11,87,208,.06)",
                               color: "inherit",
                             }}
                           >
-                            <Box sx={{ fontSize: "0.75rem", fontWeight: 600, color: mine ? "#fff" : "#0B57D0" }}>
+                            <Box sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#0B57D0" }}>
                               {quoted ? (quoted.author_email && quoted.author_email === myEmail ? "Kamu" : authorName(quoted.author_email, ctx)) : "Komentar"}
                             </Box>
                             <Box sx={{ fontSize: "0.8125rem", opacity: 0.85, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "normal" }}>
