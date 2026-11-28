@@ -32,8 +32,8 @@ const sections: { title: string; items: NavItem[] }[] = [
   {
     title: "Tools",
     items: [
-      { href: "/chat", label: "Chat", icon: <ChatIcon /> },
-      { href: "/skills", label: "Skills", icon: <SkillsIcon /> },
+      { href: "/chat", label: "Chat AI", icon: <ChatIcon /> },
+      { href: "/skills", label: "Skills AI", icon: <SkillsIcon /> },
     ],
   },
   {

@@ -180,6 +180,9 @@ export function FileCard({ att, file, onPreview }: { att: ChatAttachment; file: 
   );
 }
 
+/** Answer content lines up with the name, past the 20px logo + 6px gap. */
+const AI_INDENT = "26px";
+
 /** The answerer's name over each answer: the OpenCraft logo + "AI Ocraft". */
 export function AiName() {
   return (
@@ -207,42 +210,44 @@ export function AssistantMessage({
   return (
     <Box data-answer sx={{ minWidth: 0, "&:hover .msg-time": { opacity: 1 } }}>
       <AiName />
-      {text && <ChatMarkdown text={text} bubbles />}
-      {m.stopped && (
-        <Box sx={{ mt: text ? 1.5 : 0, display: "inline-flex", alignItems: "center", gap: 0.5, color: "#444746", fontSize: "0.75rem" }}>
-          <StopCircleRounded sx={{ fontSize: 15 }} />
-          Dihentikan
-        </Box>
-      )}
-      {m.error && (
-        <Box sx={{ mt: text ? 1.5 : 0, display: "flex", alignItems: "flex-start", gap: 1, color: "#B3261E", minWidth: 0 }}>
-          <ErrorRounded sx={{ fontSize: 16, mt: 0.2 }} />
-          <Typography sx={{ fontSize: "0.8125rem", lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{m.error}</Typography>
-        </Box>
-      )}
-      {atts.length > 0 && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: text || m.error ? 1.25 : 0 }}>
-          {atts.map((a) => (
-            <FileCard key={a.file_id} att={a} file={files.get(a.file_id)} onPreview={onPreview} />
-          ))}
-        </Box>
-      )}
-      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.25, mt: 0.5, ml: -0.5 }}>
-        {text && <CopyButton text={text} />}
-        {onRetry && (
-          <Button
-              size="small"
-              startIcon={<ReplayRounded sx={{ fontSize: "15px !important" }} />}
-              onClick={onRetry}
-              sx={{ borderRadius: "9999px", height: 26, px: 1, fontSize: "0.75rem", color: "#0B57D0", textTransform: "none", fontWeight: 500 }}
-            >
-              Coba lagi
-            </Button>
+      <Box sx={{ pl: AI_INDENT, minWidth: 0 }}>
+        {text && <ChatMarkdown text={text} bubbles />}
+        {m.stopped && (
+          <Box sx={{ mt: text ? 1.5 : 0, display: "inline-flex", alignItems: "center", gap: 0.5, color: "#444746", fontSize: "0.75rem" }}>
+            <StopCircleRounded sx={{ fontSize: 15 }} />
+            Dihentikan
+          </Box>
         )}
-        <FoldedSteps steps={m.steps ?? undefined} durationMs={m.duration_ms ?? undefined} />
-        <Typography className="msg-time" suppressHydrationWarning sx={{ ...timeSx, mt: 0 }}>
-          {formatDateTime(m.created_at)}
-        </Typography>
+        {m.error && (
+          <Box sx={{ mt: text ? 1.5 : 0, display: "flex", alignItems: "flex-start", gap: 1, color: "#B3261E", minWidth: 0 }}>
+            <ErrorRounded sx={{ fontSize: 16, mt: 0.2 }} />
+            <Typography sx={{ fontSize: "0.8125rem", lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{m.error}</Typography>
+          </Box>
+        )}
+        {atts.length > 0 && (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: text || m.error ? 1.25 : 0 }}>
+            {atts.map((a) => (
+              <FileCard key={a.file_id} att={a} file={files.get(a.file_id)} onPreview={onPreview} />
+            ))}
+          </Box>
+        )}
+        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.25, mt: 0.5, ml: -0.5 }}>
+          {text && <CopyButton text={text} />}
+          {onRetry && (
+            <Button
+                size="small"
+                startIcon={<ReplayRounded sx={{ fontSize: "15px !important" }} />}
+                onClick={onRetry}
+                sx={{ borderRadius: "9999px", height: 26, px: 1, fontSize: "0.75rem", color: "#0B57D0", textTransform: "none", fontWeight: 500 }}
+              >
+                Coba lagi
+              </Button>
+          )}
+          <FoldedSteps steps={m.steps ?? undefined} durationMs={m.duration_ms ?? undefined} />
+          <Typography className="msg-time" suppressHydrationWarning sx={{ ...timeSx, mt: 0 }}>
+            {formatDateTime(m.created_at)}
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );
@@ -259,12 +264,14 @@ export function LiveAnswer({ chat }: { chat: Chat }) {
   return (
     <Box sx={{ minWidth: 0 }}>
       <AiName />
-      <LiveSteps steps={steps} queued={queued && !chat.cancel_requested_at} startedAt={chat.started_at} />
-      {text && (
-        <Box sx={{ mt: 1.25 }}>
-          <ChatMarkdown text={text} bubbles />
-        </Box>
-      )}
+      <Box sx={{ pl: AI_INDENT, minWidth: 0 }}>
+        <LiveSteps steps={steps} queued={queued && !chat.cancel_requested_at} startedAt={chat.started_at} />
+        {text && (
+          <Box sx={{ mt: 1.25 }}>
+            <ChatMarkdown text={text} bubbles />
+          </Box>
+        )}
+      </Box>
     </Box>
   );
 }

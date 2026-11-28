@@ -96,6 +96,8 @@ export function LiveSteps({ steps, queued, startedAt }: { steps: ChatStep[]; que
 /** "N langkah · X dtk" under a finished answer; opens the full list. Null when the message has neither. */
 export function FoldedSteps({ steps, durationMs }: { steps?: ChatStep[]; durationMs?: number }) {
   const [open, setOpen] = useState(false);
+  // "Memulai…" only marks the run start; an answer that used no tools has nothing else, so hide it.
+  steps = steps?.filter((s) => !/^Memulai/.test(s.label));
   const n = steps?.length ?? 0;
   const parts = [n ? `${n} langkah` : null, durationMs != null ? formatDuration(durationMs) : null].filter(Boolean);
   if (!parts.length) return null;

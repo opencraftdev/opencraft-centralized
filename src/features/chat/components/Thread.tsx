@@ -397,7 +397,7 @@ export function Thread({
                   ref={composer}
                   draftId={chatId}
                   skills={skills}
-                  placeholder="Tanya OpenCraft"
+                  placeholder="Tanya OpenCraft AI"
                   running={running}
                   stopping={stopping || Boolean(chat?.cancel_requested_at)}
                   onSend={send}
