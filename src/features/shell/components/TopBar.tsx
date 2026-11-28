@@ -180,31 +180,26 @@ export function TopBar({
               sx: {
                 mt: 1.5,
                 width: 360,
-                borderRadius: "28px",
-                bgcolor: "#F0F4F9",
-                boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
+                borderRadius: "24px",
+                bgcolor: "#fff",
+                boxShadow: "0 10px 36px rgba(60,64,67,.22), 0 2px 6px rgba(60,64,67,.1)",
                 overflow: "hidden",
               },
             },
           }}
         >
-          <Box sx={{ position: "relative", pt: 2.5, pb: 3, px: 2.5 }}>
-            {/* Top row: email + close */}
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <Typography sx={{ fontSize: "0.875rem", color: "#1F1F1F", fontWeight: 400 }}>
-                {userEmail}
-              </Typography>
-              <IconButton
-                size="small"
-                onClick={() => setAnchorEl(null)}
-                sx={{ color: "#5E5E5E", "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } }}
-              >
-                <CloseRounded sx={{ fontSize: 20 }} />
-              </IconButton>
-            </Box>
+          <Box sx={{ position: "relative", pt: 3.5, pb: 3, px: 2.5 }}>
+            <IconButton
+              size="small"
+              aria-label="Tutup"
+              onClick={() => setAnchorEl(null)}
+              sx={{ position: "absolute", top: 12, right: 12, color: "#5E5E5E", "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } }}
+            >
+              <CloseRounded sx={{ fontSize: 20 }} />
+            </IconButton>
 
             {/* Large avatar */}
-            <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
+            <Box sx={{ display: "flex", justifyContent: "center" }}>
               {me ? (
                 <MemberAvatar member={me} size={80} />
               ) : (
@@ -229,15 +224,16 @@ export function TopBar({
                 mt: 2,
                 textAlign: "center",
                 fontSize: "1.375rem",
-                fontWeight: 400,
+                fontWeight: 500,
                 color: "#1F1F1F",
               }}
             >
               Hi, {displayName}!
             </Typography>
             {me?.role && (
-              <Typography sx={{ mt: 0.25, textAlign: "center", fontSize: "0.875rem", color: "#5E5E5E" }}>{me.role}</Typography>
+              <Typography sx={{ mt: 0.5, textAlign: "center", fontSize: "0.875rem", fontWeight: 600, color: "#444746" }}>{me.role}</Typography>
             )}
+            <Typography sx={{ mt: 0.5, textAlign: "center", fontSize: "0.75rem", fontWeight: 400, color: "#5F6368" }}>{userEmail}</Typography>
 
             {/* Edit profile + sign out — pills */}
             <Box sx={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 1, mt: 3 }}>
