@@ -61,6 +61,7 @@ import { DatePill } from "./DatePicker";
 import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
 import { CommentBody, MentionInput, stripFormat, type MentionInputHandle } from "./Mentions";
 import { FormatBar } from "./FormatBar";
+import { SoftTransition } from "@/components/ui/SoftTransition";
 import { useTeamChat } from "@/features/team-chat/TeamChat";
 import { ProjectMark } from "./bits";
 import { PreviewDialog } from "@/features/drive/components/PreviewDialog";
@@ -541,6 +542,7 @@ export function TaskDialog({
       fullScreen={mobile}
       maxWidth="lg"
       fullWidth
+      slots={{ transition: SoftTransition }}
       slotProps={{ paper: { sx: { borderRadius: mobile ? 0 : "20px", height: mobile ? "100%" : "min(780px, 92vh)", display: "flex", flexDirection: "column" } } }}
     >
       {/* Top bar */}
