@@ -986,7 +986,7 @@ export function TaskDialog({
                   <Box sx={{ position: "relative", maxWidth: editing?.id === c.id ? "calc(100% - 36px)" : "80%", minWidth: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexDirection: mine ? "row-reverse" : "row", mx: 0.5, mb: 0.25 }}>
                       <Typography sx={{ fontSize: "0.6875rem", color: "#80868B" }}>
-                        {mine ? "Kamu" : authorName(c.author_email, ctx)} · {formatRelative(c.created_at)}
+                        <b style={{ fontWeight: 600, color: "#444746" }}>{authorName(c.author_email, ctx)}</b> · {formatRelative(c.created_at)}
                       </Typography>
                     </Box>
                     {editing?.id === c.id ? (
@@ -1026,8 +1026,8 @@ export function TaskDialog({
                           borderRadius: mine ? "16px 4px 16px 16px" : "4px 16px 16px 16px",
                           px: 1.5,
                           py: 1,
-                          fontSize: "0.875rem",
-                          lineHeight: 1.5,
+                          fontSize: "0.8125rem",
+                          lineHeight: 1.45,
                           whiteSpace: "pre-wrap",
                           overflowWrap: "anywhere",
                           "& a": { color: "#0B57D0 !important" },
@@ -1056,7 +1056,7 @@ export function TaskDialog({
                             }}
                           >
                             <Box sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#0B57D0" }}>
-                              {quoted ? (quoted.author_email && quoted.author_email === myEmail ? "Kamu" : authorName(quoted.author_email, ctx)) : "Komentar"}
+                              {quoted ? (authorName(quoted.author_email, ctx)) : "Komentar"}
                             </Box>
                             <Box sx={{ fontSize: "0.8125rem", opacity: 0.85, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "normal" }}>
                               {quoted ? plainComment(quoted.body) : "Komentar sudah dihapus"}
