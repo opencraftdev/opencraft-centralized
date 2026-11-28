@@ -61,6 +61,7 @@ function renderPlain(text: string, keyBase: string, ctx: TasksCtx, onOpenTask: (
 const OPEN_RE = /(?<!@)\[(b|i|u|c=#[0-9a-fA-F]{6})\]/g;
 
 export const TEXT_COLORS = [
+  { c: "#000000", n: "Hitam" },
   { c: "#D93025", n: "Merah" },
   { c: "#E37400", n: "Oranye" },
   { c: "#188038", n: "Hijau" },
