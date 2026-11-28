@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -10,6 +10,7 @@ import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import CheckRounded from "@mui/icons-material/CheckRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
+import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
 import type { Project, Task } from "../types";
 import { addDays, diffDays, fmtRange, fmtShort, startOfWeek, todayISO } from "../dates";
 import type { TasksCtx } from "./TasksApp";
@@ -37,6 +38,24 @@ export function TimelineView({ ctx }: { ctx: TasksCtx }) {
   const thisWeek = startOfWeek(today);
   const todayPct = ((diffDays(from, today) + 0.5) / days) * 100;
   const showToday = today >= from && today <= to;
+  // Each project is an accordion, closed by default; which ones are open is remembered in this browser.
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("tasks.timelineOpen") ?? "[]");
+      if (Array.isArray(v)) setOpenIds(new Set(v));
+    } catch {}
+  }, []);
+  const toggle = (key: string) =>
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem("tasks.timelineOpen", JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
 
   const top = ctx.all.filter((t) => !t.parent_id && ctx.visible(t));
   const groups: { project: Project | null; tasks: Task[] }[] = [];
@@ -103,36 +122,47 @@ export function TimelineView({ ctx }: { ctx: TasksCtx }) {
             )}
             {groups.map((g) => {
               const color = g.project?.color ?? "#5F6368";
+              const key = g.project?.id ?? "none";
+              const isOpen = openIds.has(key);
               const dated = g.tasks.filter((t) => t.start_date || t.due_date);
               const undated = g.tasks.filter((t) => !t.start_date && !t.due_date);
               return (
                 <Box key={g.project?.id ?? "none"} sx={{ display: "flex", borderBottom: "1px solid #E6E9EE", "&:last-of-type": { borderBottom: "none" } }}>
                   {/* Project */}
                   <Box sx={{ width: LABEL_W, flexShrink: 0, pr: 1.5, py: 1.5, minWidth: 0 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.875, minWidth: 0 }}>
+                    <Box
+                      component="button"
+                      type="button"
+                      onClick={() => toggle(key)}
+                      aria-expanded={isOpen}
+                      sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, width: "100%", ml: -0.75, px: 0.5, py: 0.25, border: "none", bgcolor: "transparent", borderRadius: "8px", fontFamily: "inherit", cursor: "pointer", textAlign: "left", "&:hover": { bgcolor: "#F1F3F4" } }}
+                    >
+                      <ExpandMoreRounded sx={{ fontSize: 20, color: "#5F6368", flexShrink: 0, transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)" }} />
                       {g.project && (g.project.emoji || g.project.logo_file_id) ? <ProjectMark project={g.project} size={16} /> : <Box sx={{ width: 10, height: 10, borderRadius: "3px", bgcolor: color, flexShrink: 0 }} />}
                       <Typography noWrap sx={{ fontSize: "0.9375rem", fontWeight: 600, color: "#1F1F1F" }}>{g.project?.name ?? "Tanpa project"}</Typography>
                     </Box>
-                    <Typography sx={{ fontSize: "0.6875rem", color: "#80868B", mt: 0.25 }}>
+                    <Typography sx={{ fontSize: "0.6875rem", color: "#80868B", mt: 0.25, pl: 3.25 }}>
                       {g.project?.label ? `${g.project.label} · ` : ""}
                       {g.tasks.length} tugas
                     </Typography>
+                    {isOpen && (
                     <Box
                       component="button"
                       type="button"
                       onClick={() => ctx.create({ project_id: g.project?.id ?? null, start_date: today, due_date: addDays(today, 6) })}
-                      sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, mt: 0.75, ml: -0.5, px: 0.5, py: 0.25, border: "none", bgcolor: "transparent", borderRadius: "6px", color: "#5F6368", fontFamily: "inherit", fontSize: "0.75rem", cursor: "pointer", "&:hover": { bgcolor: "#F1F3F4", color: "#1F1F1F" } }}
+                      sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, mt: 0.75, ml: 2.75, px: 0.5, py: 0.25, border: "none", bgcolor: "transparent", borderRadius: "6px", color: "#5F6368", fontFamily: "inherit", fontSize: "0.75rem", cursor: "pointer", "&:hover": { bgcolor: "#F1F3F4", color: "#1F1F1F" } }}
                     >
                       <AddRounded sx={{ fontSize: 16 }} /> Tambah
                     </Box>
+                    )}
                   </Box>
                   {/* Ribbons */}
-                  <Box sx={{ flex: 1, position: "relative", py: 1.25, display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
+                  <Box sx={{ flex: 1, position: "relative", py: isOpen ? 1.25 : 0, display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
                     {grid}
-                    {dated.map((t) => (
+                    {isOpen && dated.map((t) => (
                       <Ribbon key={t.id} task={t} ctx={ctx} from={from} days={days} color={color} />
                     ))}
-                    {undated.length > 0 && (
+                    {isOpen && undated.length > 0 && (
                       <Box sx={{ position: "relative", display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center", px: 0.5 }}>
                         <Typography sx={{ fontSize: "0.6875rem", color: "#80868B", mr: 0.5 }}>Belum ada tanggal:</Typography>
                         {undated.map((t) => (
@@ -197,10 +227,35 @@ function Ribbon({ task: t, ctx, from, days, color }: { task: Task; ctx: TasksCtx
             component="button"
             type="button"
             onClick={() => ctx.open(t)}
-            sx={{ position: "absolute", top: 0, height: RIBBON_H, left: `${((a + 0.5) / days) * 100}%`, transform: "translateX(-15px)", display: "flex", alignItems: "center", gap: 0.75, border: "none", bgcolor: "transparent", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", p: 0, maxWidth: "none", zIndex: 3 }}
+            sx={{ position: "absolute", top: 0, height: RIBBON_H, left: `${((a + 0.5) / days) * 100}%`, transform: "translateX(-15px)", display: "flex", alignItems: "center", gap: 0, border: "none", bgcolor: "transparent", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", p: 0, maxWidth: "none", zIndex: 3 }}
           >
             <MilestoneStar done={done} />
-            <Box component="span" sx={{ fontSize: "0.75rem", fontWeight: 600, color: done ? "#80868B" : "#1F1F1F", bgcolor: "#FFF7DB", border: "1px solid #F6D77A", borderRadius: "9999px", px: 1, py: "3px", textDecoration: done ? "line-through" : "none" }}>
+            <Box
+              component="span"
+              sx={{
+                position: "relative",
+                overflow: "hidden",
+                ml: "-3px",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                color: done ? "#80868B" : "#5C3D00",
+                borderRadius: "9999px",
+                px: 1.125,
+                py: "3px",
+                textDecoration: done ? "line-through" : "none",
+                border: "1px solid",
+                borderColor: done ? "#E0E3E7" : "#F2C94C",
+                background: done ? "#F8F9FA" : "linear-gradient(110deg, #FFFFFF 0%, #FFF6D6 45%, #FFE08A 100%)",
+                boxShadow: done ? "none" : "0 1px 3px rgba(214,140,0,.18)",
+                "@keyframes oc-pill-glow": { "0%,100%": { boxShadow: "0 1px 3px rgba(214,140,0,.18)" }, "45%": { boxShadow: "0 0 0 3px rgba(255,201,40,.22), 0 1px 6px rgba(214,140,0,.3)" } },
+                "@keyframes oc-pill-shine": { "0%,55%": { transform: "translateX(-120%) skewX(-20deg)" }, "85%,100%": { transform: "translateX(260%) skewX(-20deg)" } },
+                animation: done ? "none" : "oc-pill-glow 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite",
+                "&::after": done
+                  ? {}
+                  : { content: '""', position: "absolute", top: 0, bottom: 0, left: 0, width: "40%", background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.85) 50%, rgba(255,255,255,0) 100%)", animation: "oc-pill-shine 2.4s ease-in-out infinite", pointerEvents: "none" },
+                "@media (prefers-reduced-motion: reduce)": { animation: "none", "&::after": { animation: "none", display: "none" } },
+              }}
+            >
               {t.title}
             </Box>
           </Box>
