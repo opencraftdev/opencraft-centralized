@@ -154,6 +154,11 @@ export function TaskDialog({
   const brief = useRef<MentionInputHandle>(null);
   const { email: myEmail } = useAccount();
   const teamChat = useTeamChat();
+  // opening a task tucks the Chat Tim panel away (it can be opened again from a profile card)
+  useEffect(() => {
+    if (open) teamChat.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, task?.id]);
 
   // The live copy (realtime / checkbox changes) of the task being edited.
   const live = task ? ctx.all.find((x) => x.id === task.id) ?? task : null;

@@ -17,12 +17,24 @@ import EditRounded from "@mui/icons-material/EditRounded";
 import DeleteRounded from "@mui/icons-material/DeleteRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import ChatBubbleRounded from "@mui/icons-material/ChatBubbleRounded";
-import { Linkify } from "@/components/ui/Linkify";
 import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
 import { formatRelative } from "@/features/drive/format";
 import { personFor, useAccount, usePeople } from "@/features/accounts/account";
 import { MemberAvatar } from "@/features/tasks/components/bits";
 import type { Member } from "@/features/tasks/types";
+import type { TasksCtx } from "@/features/tasks/components/TasksApp";
+import { CommentBody, MentionInput, stripFormat, type MentionInputHandle } from "@/features/tasks/components/Mentions";
+import { FormatBar } from "@/features/tasks/components/FormatBar";
+import { AttachPicker, DropZone } from "@/features/tasks/components/Attachments";
+import { fileIdsIn } from "@/features/tasks/components/InlineFiles";
+import { uploadOne } from "@/features/tasks/attachments";
+import { createClient } from "@/lib/supabase/client";
+import { driveContentUrl } from "@/lib/drive/links";
+import type { DriveFile } from "@/lib/drive/types";
+import ImageRounded from "@mui/icons-material/ImageRounded";
+import VideocamRounded from "@mui/icons-material/VideocamRounded";
+import DescriptionRounded from "@mui/icons-material/DescriptionRounded";
+import AttachFileRounded from "@mui/icons-material/AttachFileRounded";
 import { toastError } from "@/components/ui/Toast";
 import {
   deleteMessage,
@@ -44,9 +56,10 @@ import {
 
 interface TeamChatApi {
   openChat: (email?: string) => void;
+  close: () => void;
   openProfile: (email: string, anchor: HTMLElement) => void;
 }
-const Ctx = createContext<TeamChatApi>({ openChat: () => {}, openProfile: () => {} });
+const Ctx = createContext<TeamChatApi>({ openChat: () => {}, close: () => {}, openProfile: () => {} });
 export const useTeamChat = () => useContext(Ctx);
 
 export function TeamChatProvider({ children }: { children: React.ReactNode }) {
@@ -92,6 +105,7 @@ export function TeamChatProvider({ children }: { children: React.ReactNode }) {
         setWithEmail(email && email !== me ? email : null);
         setOpen(true);
       },
+      close: () => setOpen(false),
       openProfile: (email, anchor) => setProfile({ email, anchor }),
     }),
     [me],
@@ -113,14 +127,14 @@ export function TeamChatProvider({ children }: { children: React.ReactNode }) {
             display: "inline-flex",
             alignItems: "center",
             gap: 1,
-            height: 48,
-            px: 2.25,
+            height: 40,
+            px: 1.75,
             border: "none",
             borderRadius: "9999px",
             bgcolor: "#0B57D0",
             color: "#fff",
             fontFamily: "inherit",
-            fontSize: "0.9375rem",
+            fontSize: "0.8125rem",
             fontWeight: 500,
             cursor: "pointer",
             boxShadow: "0 6px 18px rgba(11,87,208,.35)",
@@ -129,7 +143,7 @@ export function TeamChatProvider({ children }: { children: React.ReactNode }) {
             animation: "oc-pop-in 260ms cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         >
-          <ForumRounded sx={{ fontSize: 20 }} />
+          <ForumRounded sx={{ fontSize: 17 }} />
           Chat Tim
           {unread > 0 && (
             <Box component="span" sx={{ minWidth: 20, height: 20, px: 0.5, borderRadius: "10px", bgcolor: "#D93025", color: "#fff", fontSize: "0.6875rem", fontWeight: 700, display: "grid", placeItems: "center" }}>
@@ -216,10 +230,10 @@ function Panel({
         right: { xs: 8, sm: 24 },
         bottom: { xs: 8, sm: 24 },
         zIndex: 1350, // above task dialogs, so "Chat" from a profile card shows on top
-        width: { xs: "calc(100vw - 16px)", sm: 400 },
-        height: "min(620px, calc(100dvh - 96px))",
+        width: { xs: "calc(100vw - 16px)", sm: 320 },
+        height: "min(480px, calc(100dvh - 96px))",
         bgcolor: "#fff",
-        borderRadius: "22px",
+        borderRadius: "18px",
         boxShadow: "0 16px 48px rgba(60,64,67,.28), 0 2px 8px rgba(60,64,67,.12)",
         display: "flex",
         flexDirection: "column",
@@ -246,7 +260,7 @@ function Panel({
 
 function Header({ title, sub, avatar, onBack, onClose }: { title: string; sub?: string; avatar?: React.ReactNode; onBack?: () => void; onClose: () => void }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.5, py: 1.25, borderBottom: "1px solid #EEF1F4", flexShrink: 0 }}>
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 1, py: 0.75, borderBottom: "1px solid #EEF1F4", flexShrink: 0, "& .MuiIconButton-root": { p: 0.5 }, "& .MuiIconButton-root .MuiSvgIcon-root": { fontSize: 18 } }}>
       {onBack && (
         <IconButton size="small" onClick={onBack} aria-label="Kembali ke daftar">
           <ArrowBackRounded sx={{ fontSize: 20 }} />
@@ -254,11 +268,11 @@ function Header({ title, sub, avatar, onBack, onClose }: { title: string; sub?: 
       )}
       {avatar}
       <Box sx={{ flex: 1, minWidth: 0, pl: onBack ? 0 : 1 }}>
-        <Typography noWrap sx={{ fontSize: "0.9375rem", fontWeight: 600 }}>
+        <Typography noWrap sx={{ fontSize: "0.8125rem", fontWeight: 600 }}>
           {title}
         </Typography>
         {sub && (
-          <Typography noWrap sx={{ fontSize: "0.6875rem", color: "#5F6368" }}>
+          <Typography noWrap sx={{ fontSize: "0.625rem", color: "#5F6368" }}>
             {sub}
           </Typography>
         )}
@@ -269,6 +283,9 @@ function Header({ title, sub, avatar, onBack, onClose }: { title: string; sub?: 
     </Box>
   );
 }
+
+/** One-line preview of a stored message (no tags / tokens). */
+const preview = (b: string) => stripFormat(b.replace(/@\[([^\]]+)\]\((?:member|task|project):[0-9a-f-]+\)/g, "@$1")).replace(/\s+/g, " ").trim() || "📎 Lampiran";
 
 function People({ me, people, recent, onPick, onClose }: { me: string; people: Member[]; recent: TeamMessage[]; onPick: (email: string) => void; onClose: () => void }) {
   const [q, setQ] = useState("");
@@ -284,10 +301,10 @@ function People({ me, people, recent, onPick, onClose }: { me: string; people: M
   return (
     <>
       <Header title="Chat Tim" sub="Pilih orang untuk mulai chat" onClose={onClose} />
-      <Box sx={{ px: 1.5, pt: 1.25, pb: 0.5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, height: 38, px: 1.5, borderRadius: "9999px", bgcolor: "#F1F4F9" }}>
-          <SearchRounded sx={{ fontSize: 18, color: "#5F6368" }} />
-          <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari orang…" sx={{ flex: 1, fontSize: "0.8125rem" }} inputProps={{ "aria-label": "Cari orang" }} />
+      <Box sx={{ px: 1, pt: 0.75, pb: 0.25 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, height: 30, px: 1.25, borderRadius: "9999px", bgcolor: "#F1F4F9" }}>
+          <SearchRounded sx={{ fontSize: 15, color: "#5F6368" }} />
+          <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari orang…" sx={{ flex: 1, fontSize: "0.75rem" }} inputProps={{ "aria-label": "Cari orang" }} />
         </Box>
       </Box>
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", py: 0.5 }}>
@@ -298,23 +315,23 @@ function People({ me, people, recent, onPick, onClose }: { me: string; people: M
             component="button"
             type="button"
             onClick={() => onPick(p.email!)}
-            sx={{ display: "flex", alignItems: "center", gap: 1.25, width: "100%", px: 2, py: 1, border: "none", bgcolor: "transparent", fontFamily: "inherit", textAlign: "left", cursor: "pointer", "&:hover": { bgcolor: "#F6F8FB" } }}
+            sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%", px: 1.5, py: 0.75, border: "none", bgcolor: "transparent", fontFamily: "inherit", textAlign: "left", cursor: "pointer", "&:hover": { bgcolor: "#F6F8FB" } }}
           >
-            <MemberAvatar member={p} size={38} />
+            <MemberAvatar member={p} size={30} />
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
-                <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: "0.875rem", fontWeight: unread ? 700 : 600 }}>
+                <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: "0.8125rem", fontWeight: unread ? 700 : 600 }}>
                   {p.name}
                 </Typography>
                 {last && (
-                  <Typography suppressHydrationWarning sx={{ fontSize: "0.6875rem", color: unread ? "#0B57D0" : "#80868B", flexShrink: 0 }}>
+                  <Typography suppressHydrationWarning sx={{ fontSize: "0.625rem", color: unread ? "#0B57D0" : "#80868B", flexShrink: 0 }}>
                     {formatRelative(last.created_at)}
                   </Typography>
                 )}
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: "0.75rem", color: unread ? "#1F1F1F" : "#5F6368", fontWeight: unread ? 500 : 400 }}>
-                  {last ? `${last.author_email === me ? "Kamu: " : ""}${last.body.replace(/\s+/g, " ")}` : p.role || "Mulai chat"}
+                <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: "0.6875rem", color: unread ? "#1F1F1F" : "#5F6368", fontWeight: unread ? 500 : 400 }}>
+                  {last ? `${last.author_email === me ? "Kamu: " : ""}${preview(last.body)}` : p.role || "Mulai chat"}
                 </Typography>
                 {unread > 0 && (
                   <Box component="span" sx={{ minWidth: 18, height: 18, px: 0.5, borderRadius: "9px", bgcolor: "#0B57D0", color: "#fff", fontSize: "0.625rem", fontWeight: 700, display: "grid", placeItems: "center", flexShrink: 0 }}>
@@ -330,19 +347,40 @@ function People({ me, people, recent, onPick, onClose }: { me: string; people: M
   );
 }
 
+/** The bits of the task-management context the Diskusi editor/renderer need, built from the people list. */
+function chatCtx(people: Member[]): TasksCtx {
+  return { members: people, memberById: new Map(people.map((p) => [p.id, p])), all: [], projects: [], projectById: new Map() } as unknown as TasksCtx;
+}
+const noTask = () => {};
+
 function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string; other: string; people: Member[]; onBack: () => void; onClose: () => void; onChanged: () => void }) {
   const thread = threadOf(me, other);
   const person = personFor(other, people);
+  const ctx = useMemo(() => chatCtx(people), [people]);
   const [msgs, setMsgs] = useState<TeamMessage[] | null>(null);
+  const [files, setFiles] = useState<Map<string, DriveFile>>(new Map());
   const [text, setText] = useState("");
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [ask, setAsk] = useState<TeamMessage | null>(null);
+  const [busy, setBusy] = useState(0);
   const feed = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLTextAreaElement>(null);
+  const composer = useRef<MentionInputHandle>(null);
+  const editRef = useRef<MentionInputHandle>(null);
 
   const load = useCallback(async () => {
     try {
-      setMsgs(await listThread(thread));
+      const list = await listThread(thread);
+      setMsgs(list);
+      // files placed in the messages
+      const ids = [...new Set(list.flatMap((m) => fileIdsIn(m.body)))];
+      if (ids.length) {
+        const { data } = await createClient().from("drive_files").select("*").in("id", ids);
+        setFiles((prev) => {
+          const next = new Map(prev);
+          for (const f of (data ?? []) as DriveFile[]) next.set(f.id, f);
+          return next;
+        });
+      }
       await markRead(thread, me);
       onChanged();
     } catch (e) {
@@ -355,7 +393,7 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
     setMsgs(null);
     void load();
     const unsub = subscribeTeamMessages(() => void load());
-    requestAnimationFrame(() => input.current?.focus());
+    requestAnimationFrame(() => composer.current?.focus());
     return unsub;
   }, [load]);
   useEffect(() => {
@@ -363,10 +401,32 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
     if (el) el.scrollTop = el.scrollHeight;
   }, [msgs?.length]);
 
+  const upload = async (ref: React.RefObject<MentionInputHandle | null>, picked: File[]) => {
+    if (!picked.length) return;
+    const temps = picked.map((f) => ({ tempId: Math.random().toString(36).slice(2), name: f.name }));
+    ref.current?.insertUploads(temps);
+    setBusy((b) => b + 1);
+    try {
+      for (let i = 0; i < picked.length; i++) {
+        try {
+          const df = await uploadOne(picked[i], { kind: "team_chat", thread }, (pct) => ref.current?.progress(temps[i].tempId, pct));
+          setFiles((m) => new Map(m).set(df.id, df));
+          ref.current?.resolveUpload(temps[i].tempId, df);
+        } catch (e) {
+          toastError(`Upload ${picked[i].name} gagal: ${(e as Error).message}`);
+          ref.current?.resolveUpload(temps[i].tempId, null);
+        }
+      }
+    } finally {
+      setBusy((b) => b - 1);
+    }
+  };
+
   const send = async () => {
-    const body = text.trim();
-    if (!body) return;
+    const body = (composer.current?.serialize() ?? text).trim();
+    if (!body || busy) return;
     setText("");
+    composer.current?.reset();
     const temp: TeamMessage = { id: `tmp-${Date.now()}`, thread, author_email: me, body, read_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
     setMsgs((l) => [...(l ?? []), temp]);
     try {
@@ -375,34 +435,45 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
     } catch (e) {
       toastError((e as Error).message);
       setMsgs((l) => (l ?? []).filter((m) => m.id !== temp.id));
-      setText(body);
+      composer.current?.load(body);
     }
   };
+  const startEdit = (m: TeamMessage) => {
+    setEditing({ id: m.id, text: m.body });
+    requestAnimationFrame(() => {
+      editRef.current?.load(m.body);
+      editRef.current?.focus();
+    });
+  };
   const saveEdit = async () => {
-    if (!editing || !editing.text.trim()) return;
-    const e = editing;
+    if (!editing) return;
+    const body = (editRef.current?.serialize() ?? editing.text).trim();
+    if (!body) return;
+    const id = editing.id;
     setEditing(null);
-    setMsgs((l) => (l ?? []).map((m) => (m.id === e.id ? { ...m, body: e.text.trim() } : m)));
+    setMsgs((l) => (l ?? []).map((m) => (m.id === id ? { ...m, body } : m)));
     try {
-      await editMessage(e.id, e.text.trim());
+      await editMessage(id, body);
     } catch (err) {
       toastError((err as Error).message);
       void load();
     }
   };
+  const openFile = (f: DriveFile) => window.open(driveContentUrl(f.id), "_blank", "noopener");
+  const removeBlock = (ref: React.RefObject<MentionInputHandle | null>) => (id: string) => ref.current?.removeFile(id);
 
   return (
     <>
-      <Header title={person.name} sub={person.role || other} avatar={<MemberAvatar member={person} size={32} />} onBack={onBack} onClose={onClose} />
-      <Box ref={feed} sx={{ flex: 1, minHeight: 0, overflowY: "auto", bgcolor: "#F8FAFD", px: 1.75, py: 1.5, display: "flex", flexDirection: "column", gap: 1.25 }}>
+      <Header title={person.name} sub={person.role || other} avatar={<MemberAvatar member={person} size={26} />} onBack={onBack} onClose={onClose} />
+      <Box ref={feed} sx={{ flex: 1, minHeight: 0, overflowY: "auto", bgcolor: "#F8FAFD", px: 1.25, py: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
         {msgs === null ? (
-          <Typography sx={{ m: "auto", fontSize: "0.8125rem", color: "#80868B" }}>Memuat…</Typography>
+          <Typography sx={{ m: "auto", fontSize: "0.75rem", color: "#80868B" }}>Memuat…</Typography>
         ) : msgs.length === 0 ? (
           <Box sx={{ m: "auto", textAlign: "center", px: 2 }}>
             <Box sx={{ display: "flex", justifyContent: "center", mb: 1 }}>
-              <MemberAvatar member={person} size={56} />
+              <MemberAvatar member={person} size={44} />
             </Box>
-            <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368" }}>
+            <Typography sx={{ fontSize: "0.75rem", color: "#5F6368" }}>
               Belum ada chat dengan <b>{person.name}</b>. Sapa duluan di bawah.
             </Typography>
           </Box>
@@ -410,37 +481,35 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
           msgs.map((m) => {
             const mine = m.author_email === me;
             const who = personFor(m.author_email, people);
+            const isEditing = editing?.id === m.id;
             return (
-              <Box key={m.id} sx={{ display: "flex", gap: 1, flexDirection: mine ? "row-reverse" : "row", "&:hover .tm-act": { opacity: 1 }, animation: "oc-rise 220ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
-                <MemberAvatar member={who} size={26} />
-                <Box sx={{ position: "relative", maxWidth: editing?.id === m.id ? "calc(100% - 34px)" : "80%", minWidth: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
-                  <Typography suppressHydrationWarning sx={{ fontSize: "0.6875rem", color: "#80868B", mx: 0.5, mb: 0.25 }}>
+              <Box key={m.id} sx={{ display: "flex", gap: 0.75, flexDirection: mine ? "row-reverse" : "row", "&:hover .tm-act": { opacity: 1 }, animation: "oc-rise 220ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+                <MemberAvatar member={who} size={22} />
+                <Box sx={{ position: "relative", maxWidth: isEditing ? "calc(100% - 28px)" : "82%", minWidth: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
+                  <Typography suppressHydrationWarning sx={{ fontSize: "0.625rem", color: "#80868B", mx: 0.5, mb: 0.25 }}>
                     <b style={{ fontWeight: 600, color: "#444746" }}>{who.name}</b> · {formatRelative(m.created_at)}
-                    {m.updated_at > m.created_at && m.updated_at !== m.created_at ? " · diedit" : ""}
+                    {m.updated_at !== m.created_at ? " · diedit" : ""}
                   </Typography>
-                  {editing?.id === m.id ? (
-                    <Box sx={{ width: 300, maxWidth: "100%", border: "1px solid #0B57D0", boxShadow: "0 0 0 1px #0B57D0", borderRadius: "14px", bgcolor: "#fff", px: 1.25, pt: 0.5, pb: 0.75 }}>
-                      <InputBase
-                        multiline
-                        autoFocus
-                        maxRows={10}
-                        fullWidth
+                  {isEditing ? (
+                    <Box sx={{ width: 240, maxWidth: "100%", border: "1px solid #0B57D0", boxShadow: "0 0 0 1px #0B57D0", borderRadius: "12px", bgcolor: "#fff", px: 1, pt: 0.25, pb: 0.5 }}>
+                      <MentionInput
+                        ref={editRef}
                         value={editing.text}
-                        onChange={(e) => setEditing({ ...editing, text: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                            e.preventDefault();
-                            void saveEdit();
-                          }
-                          if (e.key === "Escape") setEditing(null);
-                        }}
-                        sx={{ fontSize: "0.75rem", lineHeight: 1.45 }}
+                        onChange={(v) => setEditing((e) => (e ? { ...e, text: v } : e))}
+                        onSubmit={() => void saveEdit()}
+                        ctx={ctx}
+                        files={files}
+                        onFiles={(l) => void upload(editRef, l)}
+                        onRemoveFile={removeBlock(editRef)}
+                        maxRows={10}
+                        ariaLabel="Edit pesan"
+                        inputSx={{ fontSize: "0.6875rem", lineHeight: 1.45 }}
                       />
-                      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5, mt: 0.5 }}>
-                        <Button size="small" onClick={() => setEditing(null)} sx={{ borderRadius: "9999px", color: "#444746", minWidth: 0, px: 1.25, fontSize: "0.75rem" }}>
+                      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5 }}>
+                        <Button size="small" onClick={() => setEditing(null)} sx={{ borderRadius: "9999px", color: "#444746", minWidth: 0, px: 1, fontSize: "0.6875rem" }}>
                           Batal
                         </Button>
-                        <Button size="small" variant="contained" disableElevation onClick={() => void saveEdit()} sx={{ borderRadius: "9999px", minWidth: 0, px: 1.5, fontSize: "0.75rem" }}>
+                        <Button size="small" variant="contained" disableElevation onClick={() => void saveEdit()} sx={{ borderRadius: "9999px", minWidth: 0, px: 1.25, py: 0.25, fontSize: "0.6875rem" }}>
                           Simpan
                         </Button>
                       </Box>
@@ -450,10 +519,10 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
                       sx={{
                         bgcolor: mine ? "#EAEFF5" : "#F4F6F9",
                         border: "1px solid #E1E6EC",
-                        borderRadius: mine ? "14px 4px 14px 14px" : "4px 14px 14px 14px",
-                        px: 1.25,
-                        py: 0.75,
-                        fontSize: "0.75rem",
+                        borderRadius: mine ? "12px 4px 12px 12px" : "4px 12px 12px 12px",
+                        px: 1,
+                        py: 0.625,
+                        fontSize: "0.6875rem",
                         lineHeight: 1.45,
                         color: "#1F1F1F",
                         whiteSpace: "pre-wrap",
@@ -462,19 +531,19 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
                         "& a": { color: "#0B57D0 !important" },
                       }}
                     >
-                      <Linkify text={m.body} />
+                      <CommentBody text={m.body} ctx={ctx} onOpenTask={noTask} files={files} onOpenFile={openFile} />
                     </Box>
                   )}
-                  {mine && editing?.id !== m.id && !m.id.startsWith("tmp-") && (
-                    <Box className="tm-act" sx={{ position: "absolute", top: "50%", transform: "translateY(-50%)", right: "100%", mr: 0.5, display: "flex", flexDirection: "row-reverse", gap: 0.25, opacity: { xs: 1, sm: 0 }, transition: "opacity 150ms" }}>
+                  {mine && !isEditing && !m.id.startsWith("tmp-") && (
+                    <Box className="tm-act" sx={{ position: "absolute", top: "50%", transform: "translateY(-50%)", right: "100%", mr: 0.25, display: "flex", flexDirection: "row-reverse", opacity: { xs: 1, sm: 0 }, transition: "opacity 150ms" }}>
                       <Tooltip title="Edit">
-                        <IconButton size="small" aria-label="Edit pesan" onClick={() => setEditing({ id: m.id, text: m.body })} sx={{ p: 0.4, color: "#80868B", "&:hover": { color: "#0B57D0" } }}>
-                          <EditRounded sx={{ fontSize: 15 }} />
+                        <IconButton size="small" aria-label="Edit pesan" onClick={() => startEdit(m)} sx={{ p: 0.3, color: "#80868B", "&:hover": { color: "#0B57D0" } }}>
+                          <EditRounded sx={{ fontSize: 13 }} />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Hapus">
-                        <IconButton size="small" aria-label="Hapus pesan" onClick={() => setAsk(m)} sx={{ p: 0.4, color: "#80868B", "&:hover": { color: "#B3261E" } }}>
-                          <DeleteRounded sx={{ fontSize: 15 }} />
+                        <IconButton size="small" aria-label="Hapus pesan" onClick={() => setAsk(m)} sx={{ p: 0.3, color: "#80868B", "&:hover": { color: "#B3261E" } }}>
+                          <DeleteRounded sx={{ fontSize: 13 }} />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -485,29 +554,40 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
           })
         )}
       </Box>
-      <Box sx={{ px: 1.5, py: 1.25, borderTop: "1px solid #EEF1F4", flexShrink: 0 }}>
-        <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1, border: "1px solid #DADCE0", borderRadius: "16px", bgcolor: "#fff", pl: 1.5, pr: 0.75, py: 0.5, transition: "border-color 150ms, box-shadow 150ms", "&:focus-within": { borderColor: "#0B57D0", boxShadow: "0 0 0 1px #0B57D0" } }}>
-          <InputBase
-            inputRef={input}
-            multiline
-            maxRows={6}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                void send();
-              }
-            }}
-            placeholder={`Tulis pesan ke ${person.name}…`}
-            sx={{ flex: 1, fontSize: "0.8125rem", py: 0.75 }}
-            inputProps={{ "aria-label": `Pesan ke ${person.name}` }}
-          />
-          <IconButton aria-label="Kirim" onClick={() => void send()} disabled={!text.trim()} sx={{ mb: 0.25, bgcolor: text.trim() ? "#0B57D0" : "transparent", color: text.trim() ? "#fff" : "#9AA0A6", width: 34, height: 34, "&:hover": { bgcolor: "#0842A0" }, "&.Mui-disabled": { color: "#C4C7C5" } }}>
-            <SendRounded sx={{ fontSize: 17, ml: 0.25 }} />
-          </IconButton>
-        </Box>
-        <Typography sx={{ fontSize: "0.625rem", color: "#9AA0A6", mt: 0.5, px: 0.5 }}>Enter kirim · Shift+Enter baris baru</Typography>
+      {/* Composer: the same as a task's Diskusi (formatting, @tag, files, "- " bullets) */}
+      <Box sx={{ px: 1, py: 1, borderTop: "1px solid #EEF1F4", flexShrink: 0 }}>
+        <DropZone onDrop={(l) => void upload(composer, l)}>
+          <Box sx={{ border: "1px solid #DADCE0", borderRadius: "14px", bgcolor: "#fff", transition: "border-color 150ms, box-shadow 150ms", "&:focus-within": { borderColor: "#0B57D0", boxShadow: "0 0 0 1px #0B57D0" } }}>
+            <Box sx={{ px: 1.25, pt: 0.25 }}>
+              <MentionInput
+                ref={composer}
+                value={text}
+                onChange={setText}
+                onSubmit={() => void send()}
+                ctx={ctx}
+                files={files}
+                onFiles={(l) => void upload(composer, l)}
+                onRemoveFile={removeBlock(composer)}
+                maxRows={6}
+                ariaLabel={`Pesan ke ${person.name}`}
+                placeholder={`Tulis pesan ke ${person.name}… ketik @ untuk tag`}
+                inputSx={{ fontSize: "0.75rem", lineHeight: 1.45 }}
+              />
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", px: 0.25, pb: 0.25, "& .MuiIconButton-root": { p: 0.625 }, "& .MuiSvgIcon-root": { fontSize: "17px !important" } }}>
+              <AttachPicker variant="icon" accept="image/*" label="Lampirkan gambar" icon={<ImageRounded />} onPick={(l) => void upload(composer, l)} />
+              <AttachPicker variant="icon" accept="video/*" label="Lampirkan video" icon={<VideocamRounded />} onPick={(l) => void upload(composer, l)} />
+              <AttachPicker variant="icon" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt" label="Lampirkan dokumen" icon={<DescriptionRounded />} onPick={(l) => void upload(composer, l)} />
+              <AttachPicker variant="icon" label="Lampirkan file lain" icon={<AttachFileRounded />} onPick={(l) => void upload(composer, l)} />
+              <Box sx={{ width: "1px", height: 16, bgcolor: "#E0E3E7", mx: 0.25 }} />
+              <FormatBar target={composer} />
+              <Box sx={{ flex: 1 }} />
+              <IconButton aria-label="Kirim" onClick={() => void send()} disabled={!text.trim() || busy > 0} sx={{ bgcolor: text.trim() ? "#0B57D0" : "transparent", color: "#fff", width: 28, height: 28, mr: 0.25, "&:hover": { bgcolor: "#0842A0" }, "&.Mui-disabled": { color: "#C4C7C5", bgcolor: "transparent" } }}>
+                <SendRounded sx={{ fontSize: "15px !important", ml: 0.25 }} />
+              </IconButton>
+            </Box>
+          </Box>
+        </DropZone>
       </Box>
       <ConfirmDialog
         open={!!ask}
