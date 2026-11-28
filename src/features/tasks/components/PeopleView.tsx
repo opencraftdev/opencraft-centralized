@@ -6,7 +6,6 @@ import Checkbox from "@mui/material/Checkbox";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import type { Member, Task } from "../types";
-import { picsOf } from "../types";
 import { dueInfo, fmtRange, fmtShort } from "../dates";
 import type { TasksCtx } from "./TasksApp";
 import { DueChip, MemberAvatar, ProgressBar, textOn } from "./bits";
@@ -19,7 +18,7 @@ import { DueChip, MemberAvatar, ProgressBar, textOn } from "./bits";
 export function PeopleView({ ctx, memberFilter }: { ctx: TasksCtx; memberFilter: string }) {
   const people = ctx.members.filter((m) => m.active && (memberFilter === "all" || m.id === memberFilter));
   const leaves = ctx.all.filter((t) => !(ctx.childrenOf.get(t.id)?.length));
-  const unassigned = leaves.filter((t) => picsOf(t).length === 0 && ctx.visible(t));
+  const unassigned = leaves.filter((t) => !t.assignee_id && ctx.visible(t));
   const cols = people.length + (memberFilter === "all" && unassigned.length > 0 ? 1 : 0);
 
   return (
@@ -33,7 +32,7 @@ export function PeopleView({ ctx, memberFilter }: { ctx: TasksCtx; memberFilter:
       }}
     >
       {people.map((m, i) => (
-        <PersonCard key={m.id} index={i} member={m} tasks={leaves.filter((t) => picsOf(t).includes(m.id) && ctx.visible(t))} all={leaves.filter((t) => picsOf(t).includes(m.id))} ctx={ctx} />
+        <PersonCard key={m.id} index={i} member={m} tasks={leaves.filter((t) => t.assignee_id === m.id && ctx.visible(t))} all={leaves.filter((t) => t.assignee_id === m.id)} ctx={ctx} />
       ))}
       {memberFilter === "all" && unassigned.length > 0 && <PersonCard member={null} tasks={unassigned} all={unassigned} ctx={ctx} />}
       {people.length === 0 && <Typography sx={{ color: "#5F6368", fontSize: "0.875rem", p: 2 }}>Belum ada anggota tim. Tambahkan lewat “Tim & project”.</Typography>}

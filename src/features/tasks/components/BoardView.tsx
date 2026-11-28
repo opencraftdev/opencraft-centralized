@@ -6,7 +6,6 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import type { Task, TaskStatus } from "../types";
-import { picsOf } from "../types";
 import { STATUSES } from "../types";
 import { EASE_OUT, SPRING } from "@/components/ui/motion";
 import type { TasksCtx } from "./TasksApp";
@@ -216,7 +215,7 @@ function Card({ task: t, ctx, dragging, onDragStart, onDragEnd }: { task: Task; 
       </Box>
       {/* Footer: people · deadline · comments */}
       <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1.25, rowGap: 0.5, px: 1.5, py: 0.875, borderTop: "1px solid #F1F3F4", minWidth: 0 }}>
-        <AvatarStack ids={[...picsOf(t), ...t.helper_ids]} members={ctx.memberById} size={24} />
+        <AvatarStack ids={[t.assignee_id, ...t.helper_ids]} members={ctx.memberById} size={24} />
         <DueText due={t.due_date} done={isDone} />
         <Box sx={{ flex: 1 }} />
         <CommentCount count={ctx.commentTotal(t.id)} />

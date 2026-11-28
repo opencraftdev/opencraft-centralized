@@ -19,7 +19,6 @@ import { toastError } from "@/components/ui/Toast";
 import { EASE_OUT, SPRING } from "@/components/ui/motion";
 import { createTask, loadTaskData, subscribeTasks, updateTask, type TaskData } from "../api";
 import type { Member, Project, Task, TaskInput, TaskStatus } from "../types";
-import { picsOf } from "../types";
 import { addDays, startOfWeek, todayISO, diffDays } from "../dates";
 import { BoardView } from "./BoardView";
 import { TimelineView } from "./TimelineView";
@@ -158,7 +157,7 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
     (t: Task): boolean => {
       const self = (x: Task) => {
         if (projectFilter !== "all" && x.project_id !== projectFilter) return false;
-        if (memberFilter !== "all" && !picsOf(x).includes(memberFilter) && !x.helper_ids.includes(memberFilter)) return false;
+        if (memberFilter !== "all" && x.assignee_id !== memberFilter && !x.helper_ids.includes(memberFilter)) return false;
         if (q.trim()) {
           const s = q.trim().toLowerCase();
           if (!x.title.toLowerCase().includes(s) && !x.description.toLowerCase().includes(s)) return false;
@@ -222,7 +221,7 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
     const leaves = data.tasks.filter((t) => !(childrenOf.get(t.id)?.length));
     const mine = leaves.filter(
       (t) =>
-        (memberFilter === "all" || picsOf(t).includes(memberFilter) || t.helper_ids.includes(memberFilter)) &&
+        (memberFilter === "all" || t.assignee_id === memberFilter || t.helper_ids.includes(memberFilter)) &&
         (projectFilter === "all" || t.project_id === projectFilter),
     );
     const open = mine.filter((t) => t.status !== "done");
