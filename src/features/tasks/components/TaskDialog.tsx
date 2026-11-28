@@ -959,9 +959,9 @@ export function TaskDialog({
             </Box>
           </Box>
 
-          <Box ref={feed} sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 2.25, py: 2, display: "flex", flexDirection: "column", gap: 1.75 }}>
+          <Box ref={feed} sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 2.25, py: 2, display: "flex", flexDirection: "column", gap: 1.25 }}>
             {live && (
-              <Box sx={{ alignSelf: "center", fontSize: "0.75rem", color: "#5F6368", bgcolor: "#EEF1F5", borderRadius: "9999px", px: 1.25, py: 0.4 }}>
+              <Box sx={{ alignSelf: "center", fontSize: "0.75rem", color: "#80868B" }}>
                 Tugas dibuat · {formatRelative(live.created_at)}
               </Box>
             )}
@@ -976,7 +976,7 @@ export function TaskDialog({
               return (
                 <Box key={c.id} id={`cmt-${c.id}`} sx={{ display: "flex", gap: 1, flexDirection: mine ? "row-reverse" : "row", borderRadius: "12px", animation: "oc-rise 280ms cubic-bezier(0.22, 1, 0.36, 1) both", transition: "background-color 400ms", "&.flash": { bgcolor: "#E8F0FE" }, "&:hover .c-del": { opacity: 1 } }}>
                   <MemberAvatar member={memberOf(c.author_email, ctx)} size={28} />
-                  <Box sx={{ maxWidth: "80%", minWidth: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
+                  <Box sx={{ position: "relative", maxWidth: "80%", minWidth: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexDirection: mine ? "row-reverse" : "row", mx: 0.5, mb: 0.25 }}>
                       <Typography sx={{ fontSize: "0.6875rem", color: "#80868B" }}>
                         {mine ? "Kamu" : authorName(c.author_email, ctx)} · {formatRelative(c.created_at)}
@@ -1062,7 +1062,8 @@ export function TaskDialog({
                       </Box>
                     )}
                     {editing?.id !== c.id && (
-                      <Box sx={{ display: "flex", alignSelf: "flex-end", gap: 0.25, mt: 0.25, mr: -0.25 }}>
+                      // beside the bubble on hover (takes no room); under it on touch screens
+                      <Box sx={{ display: "flex", gap: 0.25, alignSelf: "flex-end", mt: { xs: 0.25, sm: 0 }, position: { xs: "static", sm: "absolute" }, bottom: 0, ...(mine ? { right: "100%", mr: { sm: 0.5 }, flexDirection: "row-reverse" } : { left: "100%", ml: { sm: 0.5 } }) }}>
                         <CommentAction label="Balas" onClick={() => { setReplyTo(c); requestAnimationFrame(() => mention.current?.focus()); }}>
                           <ReplyRounded sx={{ fontSize: 15 }} />
                         </CommentAction>
