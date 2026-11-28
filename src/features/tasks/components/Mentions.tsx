@@ -241,7 +241,7 @@ const tidy = (s: string) => {
 };
 
 function Chip({ kind, id, label, ctx, onOpenTask }: { kind: Kind; id: string; label: string; ctx: TasksCtx; onOpenTask: (t: Task) => void }) {
-  const base = { display: "inline-flex", alignItems: "center", gap: 0.5, verticalAlign: "bottom", px: 0.75, mx: "1px", height: 20, borderRadius: "9999px", fontSize: "0.75rem", fontWeight: 600, border: "none", fontFamily: "inherit", maxWidth: "100%" } as const;
+  const base = { display: "inline-flex", alignItems: "center", gap: 0.5, verticalAlign: "bottom", px: 0.75, mx: "1px", height: 18, borderRadius: "9999px", fontSize: "0.6875rem", fontWeight: 600, border: "none", fontFamily: "inherit", maxWidth: "100%" } as const;
   if (kind === "task") {
     const t = ctx.all.find((x) => x.id === id);
     return (
@@ -263,7 +263,7 @@ function Chip({ kind, id, label, ctx, onOpenTask }: { kind: Kind; id: string; la
   const m = ctx.memberById.get(id);
   return (
     <Box component="span" sx={{ ...base, pl: 0.25, bgcolor: "#EEF4FE", color: "#0B57D0" }}>
-      <MemberAvatar member={m} size={16} />@{m?.name ?? label}
+      <MemberAvatar member={m} size={14} />@{m?.name ?? label}
     </Box>
   );
 }

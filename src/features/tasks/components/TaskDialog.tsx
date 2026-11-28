@@ -1004,7 +1004,7 @@ export function TaskDialog({
                           currentTaskId={live?.id}
                           ariaLabel="Edit komentar"
                           maxRows={12}
-                          inputSx={{ fontSize: "0.8125rem", lineHeight: 1.45 }}
+                          inputSx={{ fontSize: "0.75rem", lineHeight: 1.45 }}
                           placeholder="Edit komentar…"
                         />
                         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5, mt: 0.25 }}>
@@ -1023,10 +1023,10 @@ export function TaskDialog({
                           bgcolor: mine ? "#EAEFF5" : "#F4F6F9",
                           color: "#1F1F1F",
                           border: "1px solid #E1E6EC",
-                          borderRadius: mine ? "16px 4px 16px 16px" : "4px 16px 16px 16px",
-                          px: 1.5,
-                          py: 1,
-                          fontSize: "0.8125rem",
+                          borderRadius: mine ? "14px 4px 14px 14px" : "4px 14px 14px 14px",
+                          px: 1.25,
+                          py: 0.75,
+                          fontSize: "0.75rem",
                           lineHeight: 1.45,
                           whiteSpace: "pre-wrap",
                           overflowWrap: "anywhere",
@@ -1073,7 +1073,7 @@ export function TaskDialog({
                     )}
                     {editing?.id !== c.id && (
                       // beside the bubble on hover (takes no room); under it on touch screens
-                      <Box sx={{ display: "flex", gap: 0.25, alignSelf: "flex-end", mt: { xs: 0.25, sm: 0 }, position: { xs: "static", sm: "absolute" }, bottom: 0, ...(mine ? { right: "100%", mr: { sm: 0.5 }, flexDirection: "row-reverse" } : { left: "100%", ml: { sm: 0.5 } }) }}>
+                      <Box sx={{ display: "flex", gap: 0.25, alignSelf: "flex-end", mt: { xs: 0.25, sm: 0 }, position: { xs: "static", sm: "absolute" }, top: { sm: "50%" }, transform: { sm: "translateY(-50%)" }, ...(mine ? { right: "100%", mr: { sm: 0.5 }, flexDirection: "row-reverse" } : { left: "100%", ml: { sm: 0.5 } }) }}>
                         <CommentAction label="Balas" onClick={() => { setReplyTo(c); requestAnimationFrame(() => mention.current?.focus()); }}>
                           <ReplyRounded sx={{ fontSize: 15 }} />
                         </CommentAction>
