@@ -61,6 +61,7 @@ import { DatePill } from "./DatePicker";
 import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
 import { CommentBody, MentionInput, stripFormat, type MentionInputHandle } from "./Mentions";
 import { FormatBar } from "./FormatBar";
+import { useTeamChat } from "@/features/team-chat/TeamChat";
 import { ProjectMark } from "./bits";
 import { PreviewDialog } from "@/features/drive/components/PreviewDialog";
 import type { DriveFile } from "@/lib/drive/types";
@@ -138,6 +139,7 @@ export function TaskDialog({
   const mention = useRef<MentionInputHandle>(null);
   const brief = useRef<MentionInputHandle>(null);
   const { email: myEmail } = useAccount();
+  const teamChat = useTeamChat();
 
   // The live copy (realtime / checkbox changes) of the task being edited.
   const live = task ? ctx.all.find((x) => x.id === task.id) ?? task : null;
@@ -996,11 +998,16 @@ export function TaskDialog({
               const onlyFiles = cbody === "Lampiran" && cfiles.length > 0;
               return (
                 <Box key={c.id} id={`cmt-${c.id}`} sx={{ display: "flex", gap: 1, flexDirection: mine ? "row-reverse" : "row", borderRadius: "12px", animation: "oc-rise 280ms cubic-bezier(0.22, 1, 0.36, 1) both", transition: "background-color 400ms", "&.flash": { bgcolor: "#E8F0FE" }, "&:hover .c-del": { opacity: 1 } }}>
-                  <MemberAvatar member={memberOf(c.author_email, ctx)} size={28} />
+                  <Box component="button" type="button" aria-label={`Profil ${authorName(c.author_email, ctx)}`} onClick={(e) => c.author_email && teamChat.openProfile(c.author_email, e.currentTarget)} sx={{ border: "none", bgcolor: "transparent", p: 0, cursor: "pointer", alignSelf: "flex-start", borderRadius: "50%", height: 28 }}>
+                    <MemberAvatar member={memberOf(c.author_email, ctx)} size={28} />
+                  </Box>
                   <Box sx={{ position: "relative", maxWidth: editing?.id === c.id ? "calc(100% - 36px)" : "80%", minWidth: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexDirection: mine ? "row-reverse" : "row", mx: 0.5, mb: 0.25 }}>
                       <Typography sx={{ fontSize: "0.6875rem", color: "#80868B" }}>
-                        <b style={{ fontWeight: 600, color: "#444746" }}>{authorName(c.author_email, ctx)}</b> · {formatRelative(c.created_at)}
+                        <Box component="button" type="button" onClick={(e) => c.author_email && teamChat.openProfile(c.author_email, e.currentTarget)} sx={{ border: "none", bgcolor: "transparent", p: 0, fontFamily: "inherit", fontSize: "inherit", fontWeight: 600, color: "#444746", cursor: c.author_email ? "pointer" : "default", "&:hover": { color: "#0B57D0", textDecoration: "underline" } }}>
+                          {authorName(c.author_email, ctx)}
+                        </Box>{" "}
+                        · {formatRelative(c.created_at)}
                       </Typography>
                     </Box>
                     {editing?.id === c.id ? (

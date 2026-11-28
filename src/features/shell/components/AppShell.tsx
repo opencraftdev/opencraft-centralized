@@ -7,6 +7,7 @@ import Box from "@mui/material/Box";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { EASE_OUT, EASE_OUT_CSS } from "@/components/ui/motion";
 import { TopBar } from "./TopBar";
+import { TeamChatProvider } from "@/features/team-chat/TeamChat";
 import { Sidebar, SIDEBAR_MINI_WIDTH, SIDEBAR_WIDTH } from "./Sidebar";
 import { LoadingContext } from "./loading-context";
 import { AccountContext } from "@/features/accounts/account";
@@ -64,6 +65,7 @@ export function AppShell({
     <AccountContext.Provider value={{ email: userEmail, me }}>
     <MotionConfig reducedMotion="user">
       <LoadingContext.Provider value={{ isLoading, startLoading, stopLoading }}>
+      <TeamChatProvider>
         {/* Shell is exactly one viewport tall and never scrolls itself, so the
             only scroll region is <main>. Short pages therefore never produce a
             scrollbar; tall pages scroll inside <main> only.
@@ -115,6 +117,7 @@ export function AppShell({
             </Box>
           </Box>
         </Box>
+      </TeamChatProvider>
       </LoadingContext.Provider>
     </MotionConfig>
     </AccountContext.Provider>

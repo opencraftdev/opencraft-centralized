@@ -104,6 +104,7 @@ export function ConfirmDialog({
   confirmLabel,
   onClose,
   onConfirm,
+  zIndex,
 }: {
   open: boolean;
   title: string;
@@ -111,10 +112,11 @@ export function ConfirmDialog({
   confirmLabel: string;
   onClose: () => void;
   onConfirm: () => Promise<void>;
+  zIndex?: number; // above a floating panel (e.g. Chat Tim)
 }) {
   const { busy, run } = useBusy();
   return (
-    <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="xs" fullWidth sx={zIndex ? { zIndex } : undefined}>
       <DialogTitle sx={{ fontSize: "1.375rem", fontWeight: 400 }}>{title}</DialogTitle>
       <DialogContent>
         <Typography sx={{ fontSize: "0.875rem", color: "#444746" }}>{body}</Typography>
