@@ -723,20 +723,16 @@ export function TaskDialog({
                   Brief{taskFiles.length ? ` · ${taskFiles.length} lampiran` : ""}
                 </Typography>
                 <Box sx={{ flex: 1 }} />
-                {editingNote && live && (
-                  <Button size="small" onClick={cancelBrief} sx={{ borderRadius: "9999px", py: 0.25, px: 1.25, fontSize: "0.75rem", fontWeight: 500, color: "#5F6368", mr: 0.5 }}>
-                    Batalkan
+                {!editingNote && (
+                  <Button
+                    size="small"
+                    startIcon={<EditRounded sx={{ fontSize: "15px !important" }} />}
+                    onClick={startBrief}
+                    sx={{ borderRadius: "9999px", py: 0.25, px: 1.25, fontSize: "0.75rem", fontWeight: 500, color: "#0B57D0" }}
+                  >
+                    Edit Brief
                   </Button>
                 )}
-                <Button
-                  size="small"
-                  disabled={editingNote && busy > 0}
-                  startIcon={editingNote ? <CheckRounded sx={{ fontSize: "16px !important" }} /> : <EditRounded sx={{ fontSize: "15px !important" }} />}
-                  onClick={() => (editingNote ? finishBrief() : startBrief())}
-                  sx={{ borderRadius: "9999px", py: 0.25, px: 1.25, fontSize: "0.75rem", fontWeight: 500, color: "#0B57D0" }}
-                >
-                  {editingNote ? "Selesai" : "Edit Brief"}
-                </Button>
               </Box>
               <DropZone onDrop={(l) => void uploadInline("brief", l)} disabled={!live}>
                 <Box>
@@ -762,7 +758,7 @@ export function TaskDialog({
                           inputSx={{ lineHeight: 1.6 }}
                         />
                       </Box>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, px: 0.5, pb: 0.5, borderTop: "1px solid #F1F3F4" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 0.25, px: 0.5, pb: 0.5, borderTop: "1px solid #F1F3F4" }}>
                         {live ? (
                           <>
                             <AttachPicker variant="icon" accept="image/*" label="Lampirkan gambar" icon={<ImageRounded sx={{ fontSize: 20 }} />} onPick={(l) => void uploadInline("brief", l)} />
@@ -784,6 +780,21 @@ export function TaskDialog({
                             <Typography sx={{ fontSize: "0.75rem", color: "#80868B", px: 1, py: 0.75 }}>Buat tugasnya dulu, lalu file bisa dilampirkan.</Typography>
                           </>
                         )}
+                        <Box sx={{ flex: 1 }} />
+                        {live && (
+                          <Button size="small" onClick={cancelBrief} sx={{ borderRadius: "9999px", py: 0.25, px: 1.25, fontSize: "0.75rem", fontWeight: 500, color: "#B3261E", "&:hover": { bgcolor: "#FCE8E6" } }}>
+                            Batalkan
+                          </Button>
+                        )}
+                        <Button
+                          size="small"
+                          disabled={busy > 0}
+                          startIcon={<CheckRounded sx={{ fontSize: "16px !important" }} />}
+                          onClick={finishBrief}
+                          sx={{ borderRadius: "9999px", py: 0.25, px: 1.25, mr: 0.5, fontSize: "0.75rem", fontWeight: 500, color: "#0B57D0" }}
+                        >
+                          Selesai
+                        </Button>
                       </Box>
                     </Box>
                   ) : form.description.trim() ? (
