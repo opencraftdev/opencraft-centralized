@@ -29,6 +29,7 @@ import CategoryRounded from "@mui/icons-material/CategoryRounded";
 import StarRounded from "@mui/icons-material/StarRounded";
 import AssignmentRounded from "@mui/icons-material/AssignmentRounded";
 import Menu from "@mui/material/Menu";
+import Collapse from "@mui/material/Collapse";
 import { diffDays, todayISO } from "../dates";
 import { taskPath } from "../slug";
 import ShareRounded from "@mui/icons-material/ShareRounded";
@@ -132,6 +133,8 @@ export function TaskDialog({
     setPreview(f);
   };
   const [editingNote, setEditingNote] = useState(false);
+  const [openBrief, setOpenBrief] = useState(true); // Brief / Checklist accordions, open by default
+  const [openCheck, setOpenCheck] = useState(true);
   const mention = useRef<MentionInputHandle>(null);
   const brief = useRef<MentionInputHandle>(null);
   const { email: myEmail } = useAccount();
@@ -764,21 +767,25 @@ export function TaskDialog({
 
               {/* Brief: plain text that expands (read); "Edit Brief" opens a blue-outlined editor with @mentions and attach icons */}
               <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#5F6368" }}>
+                <SectionToggle open={openBrief} onClick={() => setOpenBrief((v) => !v)}>
                   Brief{taskFiles.length ? ` · ${taskFiles.length} lampiran` : ""}
-                </Typography>
+                </SectionToggle>
                 <Box sx={{ flex: 1 }} />
                 {!editingNote && (
                   <Button
                     size="small"
                     startIcon={<EditRounded sx={{ fontSize: "15px !important" }} />}
-                    onClick={startBrief}
+                    onClick={() => {
+                      setOpenBrief(true);
+                      startBrief();
+                    }}
                     sx={{ borderRadius: "9999px", py: 0.25, px: 1.25, fontSize: "0.75rem", fontWeight: 500, color: "#0B57D0" }}
                   >
                     Edit Brief
                   </Button>
                 )}
               </Box>
+              <Collapse in={openBrief || editingNote} timeout={220}>
               <DropZone onDrop={(l) => void uploadInline("brief", l)} disabled={!live}>
                 <Box sx={editingNote ? undefined : { bgcolor: "#FAFBFC", border: "1px solid #E3E6EA", borderRadius: "12px", px: 1.5, py: 1.25 }}>
                   {editingNote ? (
@@ -856,11 +863,17 @@ export function TaskDialog({
                   )}
                 </Box>
               </DropZone>
+              </Collapse>
 
               {/* Checklist (main task only) */}
               {live && !live.parent_id && (
                 <Box sx={{ mt: 2.5 }}>
-                  {label(`Checklist${subs.length ? ` · ${subs.filter((s) => s.status === "done").length}/${subs.length}` : ""}`)}
+                  <Box sx={{ mb: 0.75 }}>
+                    <SectionToggle open={openCheck} onClick={() => setOpenCheck((v) => !v)}>
+                      {`Checklist${subs.length ? ` · ${subs.filter((s) => s.status === "done").length}/${subs.length}` : ""}`}
+                    </SectionToggle>
+                  </Box>
+                  <Collapse in={openCheck} timeout={220}>
                   <Box sx={{ border: "1px solid #E0E3E7", borderRadius: "12px", overflow: "hidden" }}>
                     {subs.map((s) => {
                       const d = s.status === "done";
@@ -945,6 +958,7 @@ export function TaskDialog({
                       />
                     </Box>
                   </Box>
+                  </Collapse>
                 </Box>
               )}
             </Box>
@@ -1233,6 +1247,16 @@ const KINDS = [
   { value: "milestone", label: "Milestone", hint: "Satu hari penting, mis. rapat/keputusan", icon: <StarRounded sx={{ fontSize: 17, color: "#F2A600" }} /> },
   { value: "optional", label: "Kalau perlu", hint: "Opsional, tampil bergaris di timeline", icon: <Box component="span" sx={{ width: 16, height: 10, borderRadius: "3px", backgroundImage: "repeating-linear-gradient(135deg, #5A86C255 0 3px, #5A86C222 3px 6px)", display: "inline-block" }} /> },
 ] as const;
+
+/** A section label that opens/closes its section (Brief, Checklist). */
+function SectionToggle({ open, onClick, children }: { open: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <Box component="button" type="button" onClick={onClick} aria-expanded={open} sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, ml: -0.5, pl: 0.25, pr: 0.75, py: 0.25, border: "none", bgcolor: "transparent", borderRadius: "6px", fontFamily: "inherit", fontSize: "0.75rem", fontWeight: 600, color: "#5F6368", cursor: "pointer", "&:hover": { bgcolor: "#F1F3F4", color: "#1F1F1F" } }}>
+      <ExpandMoreRounded sx={{ fontSize: 18, transform: open ? "none" : "rotate(-90deg)", transition: "transform 200ms cubic-bezier(0.22, 1, 0.36, 1)" }} />
+      {children}
+    </Box>
+  );
+}
 
 function PropRow({ icon, label, children }: { icon: React.ReactElement<{ sx?: object }>; label: string; children: React.ReactNode }) {
   return (
