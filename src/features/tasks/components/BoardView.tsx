@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import Box from "@mui/material/Box";
-import InputBase from "@mui/material/InputBase";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import type { Task, TaskStatus } from "../types";
@@ -15,7 +14,7 @@ import { AvatarStack, CommentCount, DueChip, PriorityText, ProgressBar, ProjectT
 // Board: one column per status, top-level tasks as cards, in their manual order (`sort`). Drag a card up/down to
 // reorder it, or into another column to change its status; a blue line shows where it will land.
 
-export function BoardView({ ctx, onQuickAdd }: { ctx: TasksCtx; onQuickAdd: (title: string, status: TaskStatus) => Promise<void> }) {
+export function BoardView({ ctx }: { ctx: TasksCtx }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<{ col: TaskStatus; index: number } | null>(null);
 
@@ -126,7 +125,7 @@ export function BoardView({ ctx, onQuickAdd }: { ctx: TasksCtx; onQuickAdd: (tit
                 ))}
               </AnimatePresence>
               {over?.col === s.value && items.length === 0 && <Box sx={{ height: 3, borderRadius: 2, bgcolor: "#0B57D0", mx: 0.5 }} />}
-              <QuickAdd onAdd={(title) => onQuickAdd(title, s.value)} />
+              <AddTaskButton onClick={() => ctx.create({ status: s.value })} />
             </Box>
           </Box>
         );
@@ -213,51 +212,16 @@ function Card({ task: t, ctx, dragging, onDragStart, onDragEnd }: { task: Task; 
   );
 }
 
-function QuickAdd({ onAdd }: { onAdd: (title: string) => Promise<void> }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState("");
-  if (!editing) {
-    return (
-      <Box
-        component="button"
-        type="button"
-        onClick={() => setEditing(true)}
-        sx={{ display: "flex", alignItems: "center", gap: 0.75, border: "none", bgcolor: "transparent", color: "#5F6368", fontFamily: "inherit", fontSize: "0.8125rem", px: 1, py: 0.75, borderRadius: "8px", cursor: "pointer", "&:hover": { bgcolor: "#EEF1F4", color: "#1F1F1F" } }}
-      >
-        <AddRounded sx={{ fontSize: 18 }} /> Tambah tugas
-      </Box>
-    );
-  }
-  const submit = async () => {
-    const t = value.trim();
-    if (t) await onAdd(t);
-    setValue("");
-  };
+/** "+ Tambah tugas" under a column: opens the task dialog with that column's status. */
+function AddTaskButton({ onClick }: { onClick: () => void }) {
   return (
-    <Box sx={{ bgcolor: "#fff", border: "1px solid #A8C7FA", borderRadius: "12px", px: 1.5, py: 1 }}>
-      <InputBase
-        autoFocus
-        fullWidth
-        multiline
-        value={value}
-        placeholder="Judul tugas, Enter untuk simpan"
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={() => {
-          void submit();
-          setEditing(false);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            void submit();
-          }
-          if (e.key === "Escape") {
-            setValue("");
-            setEditing(false);
-          }
-        }}
-        sx={{ fontSize: "0.875rem" }}
-      />
+    <Box
+      component="button"
+      type="button"
+      onClick={onClick}
+      sx={{ display: "flex", alignItems: "center", gap: 0.75, border: "none", bgcolor: "transparent", color: "#5F6368", fontFamily: "inherit", fontSize: "0.8125rem", px: 1, py: 0.75, borderRadius: "8px", cursor: "pointer", "&:hover": { bgcolor: "#EEF1F4", color: "#1F1F1F" } }}
+    >
+      <AddRounded sx={{ fontSize: 18 }} /> Tambah tugas
     </Box>
   );
 }

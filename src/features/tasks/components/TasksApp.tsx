@@ -197,7 +197,16 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
     childrenOf,
     visible,
     open: (t) => setDialog({ task: t }),
-    create: (defaults) => setDialog({ task: null, defaults }),
+    // a new task starts with the person / project currently filtered on
+    create: (defaults) =>
+      setDialog({
+        task: null,
+        defaults: {
+          project_id: projectFilter !== "all" ? projectFilter : null,
+          assignee_id: memberFilter !== "all" ? memberFilter : null,
+          ...defaults,
+        },
+      }),
     patch,
     openTeam: (tab = "members") => setTeamOpen(tab),
     commentCount: (id) => data.commentCounts?.[id] ?? 0,
@@ -253,20 +262,6 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
     lsSet(LS_MEMBER, m);
   };
 
-  const quickAdd = async (title: string, status: TaskStatus) => {
-    try {
-      const t = await createTask({
-        title,
-        status,
-        project_id: projectFilter !== "all" ? projectFilter : null,
-        assignee_id: memberFilter !== "all" ? memberFilter : null,
-        sort: Date.now() / 1000,
-      });
-      setData((d) => ({ ...d, tasks: [...d.tasks, t] }));
-    } catch (e) {
-      toastError((e as Error).message);
-    }
-  };
 
   const activeProjects = data.projects.filter((p) => p.status !== "parked");
 
@@ -390,7 +385,7 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
           transition={{ duration: 0.3, ease: EASE_OUT }}
           style={{ flex: 1, minHeight: 0 }}
         >
-          {view === "board" && <BoardView ctx={ctx} onQuickAdd={quickAdd} />}
+          {view === "board" && <BoardView ctx={ctx} />}
           {view === "timeline" && <TimelineView ctx={ctx} />}
           {view === "people" && <PeopleView ctx={ctx} memberFilter={memberFilter} />}
         </motion.div>

@@ -214,11 +214,18 @@ export function TaskDialog({
       const description = editingNote && brief.current ? brief.current.serialize() : form.description;
       const payload = { ...form, description, title: form.title.trim(), due_date: form.is_milestone ? form.start_date ?? form.due_date : form.due_date };
       if (form.is_milestone && payload.due_date) payload.start_date = payload.due_date;
-      if (live) await updateTask(live.id, payload);
-      else await createTask({ ...payload, sort: Date.now() / 1000 });
-      toastSuccess(live ? "Tugas disimpan." : "Tugas dibuat.");
-      onChanged();
-      onClose();
+      if (live) {
+        await updateTask(live.id, payload);
+        toastSuccess("Tugas disimpan.");
+        onChanged();
+        onClose();
+      } else {
+        // a new task stays open, now as itself, so the brief, files, checklist and comments can follow right away
+        const created = await createTask({ ...payload, sort: Date.now() / 1000 });
+        toastSuccess("Tugas dibuat.");
+        onChanged();
+        onOpenTask(created);
+      }
     } catch (e) {
       toastError((e as Error).message);
     } finally {
