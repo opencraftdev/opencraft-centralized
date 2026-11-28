@@ -543,7 +543,7 @@ export function TaskDialog({
       maxWidth="lg"
       fullWidth
       slots={{ transition: SoftTransition }}
-      slotProps={{ paper: { sx: { borderRadius: mobile ? 0 : "20px", height: mobile ? "100%" : "min(780px, 92vh)", display: "flex", flexDirection: "column" } } }}
+      slotProps={{ paper: { sx: { borderRadius: mobile ? 0 : "20px", height: mobile ? "100%" : "min(780px, 92vh)", display: "flex", flexDirection: "column", ...SEQ_SX } } }}
     >
       {/* Top bar */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, pt: 1.5, pb: 0.5, flexShrink: 0 }}>
@@ -565,7 +565,7 @@ export function TaskDialog({
         {/* ── Left: title, properties, brief (+ files), checklist ── */}
         <Box sx={{ overflowY: { md: "auto" }, minHeight: 0 }}>
           <SwapIn id={taskId ?? "new"} dir={swapDir}>
-            <Box sx={{ px: 3, pt: 0.5, pb: 3 }}>
+            <Box className="oc-seq" sx={{ px: 3, pt: 0.5, pb: 3 }}>
               <InputBase
                 autoFocus={!live}
                 fullWidth
@@ -1010,7 +1010,7 @@ export function TaskDialog({
         </Box>
 
         {/* ── Right: comments as chat bubbles ── */}
-        <Box sx={{ bgcolor: "#F8FAFD", borderLeft: { md: "1px solid #EEF1F4" }, borderTop: { xs: "1px solid #EEF1F4", md: "none" }, display: "flex", flexDirection: "column", minHeight: { xs: 420, md: 0 } }}>
+        <Box className="oc-seq-panel" sx={{ bgcolor: "#F8FAFD", borderLeft: { md: "1px solid #EEF1F4" }, borderTop: { xs: "1px solid #EEF1F4", md: "none" }, display: "flex", flexDirection: "column", minHeight: { xs: 420, md: 0 } }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2.25, py: 1.25, borderBottom: "1px solid #EEF1F4", flexShrink: 0 }}>
             <Typography sx={{ fontSize: "0.9375rem", fontWeight: 500 }}>Diskusi</Typography>
             {comments.length > 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368" }}>{comments.length}</Typography>}
@@ -1291,6 +1291,21 @@ export function TaskDialog({
 }
 
 /** One property line: icon + label on the left, the value (a pill) on the right. */
+// Opening: each block of the task (title, properties, brief, checklist) and the Diskusi panel rise in from below,
+// one after another; closing: they sink back a touch as the card tucks away. CSS only (transform + opacity).
+const SEQ_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+const SEQ_SX = {
+  "& .oc-seq > *": { animation: `oc-seq-in 420ms ${SEQ_EASE} both` },
+  ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`& .oc-seq > *:nth-of-type(${i + 1})`, { animationDelay: `${40 + i * 35}ms` }])),
+  "& .oc-seq-panel": { animation: `oc-seq-in 460ms ${SEQ_EASE} 110ms both` },
+  "[data-tstate='exiting'] & .oc-seq > *, [data-tstate='exiting'] & .oc-seq-panel": {
+    animation: "none",
+    opacity: 0,
+    transform: "translateY(10px)",
+    transition: "opacity 160ms ease-in, transform 200ms cubic-bezier(0.4, 0, 1, 1)",
+  },
+} as const;
+
 const KINDS = [
   { value: "task", label: "Task", hint: "Punya tanggal mulai dan deadline", icon: <AssignmentRounded sx={{ fontSize: 16, color: "#5A86C2" }} /> },
   { value: "milestone", label: "Milestone", hint: "Satu hari penting, mis. rapat/keputusan", icon: <StarRounded sx={{ fontSize: 17, color: "#F2A600" }} /> },

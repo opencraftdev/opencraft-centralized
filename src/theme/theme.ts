@@ -112,6 +112,10 @@ const theme = createTheme({
           from { opacity: 0; transform: scaleX(0.4); }
           to { opacity: 1; transform: none; }
         }
+        @keyframes oc-seq-in {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: none; }
+        }
         @keyframes oc-rise {
           from { opacity: 0; transform: translateY(6px); }
           to { opacity: 1; transform: none; }

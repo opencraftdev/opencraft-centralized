@@ -40,6 +40,7 @@ export const SoftTransition = forwardRef<HTMLElement, TransitionProps & { childr
       {(state: string) =>
         cloneElement(children, {
           ref: handleRef,
+          ...({ "data-tstate": state } as object), // lets the content react to opening / closing (sections sliding)
           style: {
             transformOrigin: "50% 60%",
             willChange: "transform, opacity",
