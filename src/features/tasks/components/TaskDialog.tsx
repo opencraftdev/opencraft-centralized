@@ -25,6 +25,9 @@ import GroupRounded from "@mui/icons-material/GroupRounded";
 import FolderRounded from "@mui/icons-material/FolderRounded";
 import EventRounded from "@mui/icons-material/EventRounded";
 import FlagRounded from "@mui/icons-material/FlagRounded";
+import CategoryRounded from "@mui/icons-material/CategoryRounded";
+import StarRounded from "@mui/icons-material/StarRounded";
+import AssignmentRounded from "@mui/icons-material/AssignmentRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import EditRounded from "@mui/icons-material/EditRounded";
 import CheckRounded from "@mui/icons-material/CheckRounded";
@@ -686,7 +689,7 @@ export function TaskDialog({
                       <ArrowForwardRounded sx={{ fontSize: 16, color: "#80868B", mx: 0.25 }} />
                     </>
                   )}
-                  <Box component="span" sx={dateLabelSx}>End Date</Box>
+                  <Box component="span" sx={dateLabelSx}>{form.is_milestone ? "Tanggal" : "End Date"}</Box>
                   <DatePill label="End Date" value={form.due_date} min={form.is_milestone ? null : form.start_date} other={form.is_milestone ? null : form.start_date} onChange={(v) => set("due_date", v)} strong error={!!dateError} />
                 </PropRow>
                 {dateError && <Typography sx={{ fontSize: "0.75rem", color: "#B3261E", pl: "120px", mt: -0.5 }}>{dateError}</Typography>}
@@ -715,6 +718,41 @@ export function TaskDialog({
                     ))}
                   </Select>
                 </PropRow>
+
+                {/* Jenis: a normal task, a one-day milestone (golden star on the timeline), or "kalau perlu" (striped) */}
+                <PropRow icon={<CategoryRounded />} label="Jenis">
+                  <Select
+                    value={form.is_milestone ? "milestone" : form.is_optional ? "optional" : "task"}
+                    onChange={(e) => {
+                      const v = e.target.value as "task" | "milestone" | "optional";
+                      setForm((f) => ({ ...f, is_milestone: v === "milestone", is_optional: v === "optional", ...(v === "milestone" ? { start_date: f.due_date ?? f.start_date, due_date: f.due_date ?? f.start_date } : {}) }));
+                    }}
+                    variant="standard" input={<InputBase />}
+                    renderValue={(v) => {
+                      const k = KINDS.find((x) => x.value === v) ?? KINDS[0];
+                      return (
+                        <>
+                          {k.icon}
+                          {k.label}
+                        </>
+                      );
+                    }}
+                    sx={pillSx(form.is_milestone ? "#FFF4D1" : "#F1F3F4", form.is_milestone ? "#8A5A00" : "#444746")}
+                    inputProps={{ "aria-label": "Jenis tugas" }}
+                  >
+                    {KINDS.map((k) => (
+                      <MenuItem key={k.value} value={k.value}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          {k.icon}
+                          <Box>
+                            <Box sx={{ fontSize: "0.875rem" }}>{k.label}</Box>
+                            <Box sx={{ fontSize: "0.6875rem", color: "#80868B" }}>{k.hint}</Box>
+                          </Box>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </PropRow>
               </Box>
 
               {/* Brief: plain text that expands (read); "Edit Brief" opens a blue-outlined editor with @mentions and attach icons */}
@@ -735,7 +773,7 @@ export function TaskDialog({
                 )}
               </Box>
               <DropZone onDrop={(l) => void uploadInline("brief", l)} disabled={!live}>
-                <Box>
+                <Box sx={editingNote ? undefined : { bgcolor: "#FAFBFC", border: "1px solid #E3E6EA", borderRadius: "12px", px: 1.5, py: 1.25 }}>
                   {editingNote ? (
                     <Box sx={{ position: "relative", zIndex: 3, border: "1px solid #A8C7FA", borderRadius: "12px", bgcolor: "#fff", transition: "border-color 150ms, box-shadow 150ms", "&:focus-within": { borderColor: "#0B57D0", boxShadow: "0 0 0 1px #0B57D0" }, animation: "oc-rise 200ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
                       <Box sx={{ px: 1.5, pt: 0.5 }}>
@@ -1179,6 +1217,12 @@ export function TaskDialog({
 }
 
 /** One property line: icon + label on the left, the value (a pill) on the right. */
+const KINDS = [
+  { value: "task", label: "Tugas", hint: "Punya tanggal mulai dan deadline", icon: <AssignmentRounded sx={{ fontSize: 16, color: "#5A86C2" }} /> },
+  { value: "milestone", label: "Milestone", hint: "Satu hari penting, mis. rapat/keputusan", icon: <StarRounded sx={{ fontSize: 17, color: "#F2A600" }} /> },
+  { value: "optional", label: "Kalau perlu", hint: "Opsional, tampil bergaris di timeline", icon: <Box component="span" sx={{ width: 16, height: 10, borderRadius: "3px", backgroundImage: "repeating-linear-gradient(135deg, #5A86C255 0 3px, #5A86C222 3px 6px)", display: "inline-block" }} /> },
+] as const;
+
 function PropRow({ icon, label, children }: { icon: React.ReactElement<{ sx?: object }>; label: string; children: React.ReactNode }) {
   return (
     <Box sx={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr)", alignItems: "center", minHeight: 40 }}>
@@ -1223,14 +1267,27 @@ function pillSx(bg: string, color: string, outlined = false, filled = true) {
 const dateLabelSx = { fontSize: "0.75rem", color: "#5F6368", whiteSpace: "nowrap" } as const;
 
 /** Brief in read mode: plain text, clamped to ~6 lines with a "Tampilkan semua" toggle (ClickUp-like). */
+const BRIEF_MAX = 220;
+
 function BriefText({ text, onEdit, render }: { text: string; onEdit: () => void; render: (t: string) => React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [long, setLong] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // re-measure whenever the content grows (files and pictures load after the text)
   useEffect(() => {
     const el = ref.current;
-    if (el) setLong(el.scrollHeight > el.clientHeight + 2 || open);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!el) return;
+    const measure = () => setLong(el.scrollHeight > BRIEF_MAX + 2);
+    measure();
+    const ro = new ResizeObserver(measure);
+    for (const c of Array.from(el.children)) ro.observe(c);
+    ro.observe(el);
+    const imgs = Array.from(el.querySelectorAll("img, video"));
+    imgs.forEach((m) => m.addEventListener("load", measure));
+    return () => {
+      ro.disconnect();
+      imgs.forEach((m) => m.removeEventListener("load", measure));
+    };
   }, [text]);
   return (
     <Box>
@@ -1244,7 +1301,7 @@ function BriefText({ text, onEdit, render }: { text: string; onEdit: () => void;
           whiteSpace: "pre-wrap",
           overflowWrap: "anywhere",
           py: 0.25,
-          ...(open ? {} : { maxHeight: 200, overflow: "hidden", maskImage: long ? "linear-gradient(180deg, #000 75%, transparent)" : "none" }),
+          ...(open ? {} : { maxHeight: BRIEF_MAX, overflow: "hidden", maskImage: long ? "linear-gradient(180deg, #000 75%, transparent)" : "none" }),
         }}
       >
         {render(text)}

@@ -179,7 +179,11 @@ export function DropZone({ onDrop, children, disabled }: { onDrop: (files: File[
         e.preventDefault();
         setOver(true);
       }}
-      onDragLeave={() => setOver(false)}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
+      }}
+      // a drop handled inside (e.g. straight into the text box) never reaches onDrop: still clear the highlight
+      onDropCapture={() => setOver(false)}
       onDrop={(e) => {
         if (disabled) return;
         e.preventDefault();
