@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -13,14 +13,21 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import type { Project, Task } from "../types";
 import { addDays, diffDays, fmtRange, fmtShort, startOfWeek, todayISO } from "../dates";
 import type { TasksCtx } from "./TasksApp";
-import { AvatarStack, ProjectMark, textOn } from "./bits";
-
-// Timeline: weeks across, top-level tasks grouped by project down, like the "Timeline IoT" plan.
-// Bar = start → deadline. Diamond = milestone. Striped = "kalau perlu".
+import { AvatarStack, ProjectMark } from "./bits";
 
 const WEEKS = 6;
-const LABEL_W = 240;
+const LABEL_W = 168;
 
+/** Readable text colour on a light tint of `c`: the colour itself, or near-black when it is too light. */
+function inkOf(c: string) {
+  const h = c.replace("#", "");
+  if (h.length < 6) return "#1F1F1F";
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+  return 0.299 * r + 0.587 * g + 0.114 * b > 170 ? "#1F1F1F" : c;
+}
+
+// Timeline (option "per project"): weeks across; one block per project with each task as a labelled ribbon
+// (start → deadline). Milestones are a golden star that gently pulses. Fits the screen width.
 export function TimelineView({ ctx }: { ctx: TasksCtx }) {
   const today = todayISO();
   const [from, setFrom] = useState(() => addDays(startOfWeek(today), -7));
@@ -44,7 +51,7 @@ export function TimelineView({ ctx }: { ctx: TasksCtx }) {
   const grid = (
     <Box sx={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: `repeat(${WEEKS}, 1fr)`, pointerEvents: "none" }}>
       {weeks.map((w) => (
-        <Box key={w} sx={{ borderLeft: "1px solid #EEF1F4", bgcolor: w === thisWeek ? "rgba(11,87,208,0.03)" : "transparent" }} />
+        <Box key={w} sx={{ borderLeft: "1px solid #EEF1F4", bgcolor: w === thisWeek ? "#F5F8FE" : "transparent" }} />
       ))}
     </Box>
   );
@@ -66,25 +73,24 @@ export function TimelineView({ ctx }: { ctx: TasksCtx }) {
         <Legend />
       </Box>
 
-      <Box sx={{ overflowX: "auto", border: "1px solid #E0E3E7", borderRadius: "14px" }}>
-        <Box sx={{ minWidth: 960 }}>
+      <Box sx={{ overflowX: { xs: "auto", md: "visible" } }}>
+        <Box sx={{ minWidth: { xs: 720, md: 0 }, position: "relative" }}>
           {/* Week header */}
-          <Box sx={{ display: "flex", borderBottom: "1px solid #E0E3E7", bgcolor: "#F8FAFD" }}>
-            <Box sx={{ width: LABEL_W, flexShrink: 0, px: 2, py: 1.25, fontSize: "0.75rem", color: "#5F6368", fontWeight: 600 }}>TUGAS</Box>
+          <Box sx={{ display: "flex", borderBottom: "1px solid #E0E3E7" }}>
+            <Box sx={{ width: LABEL_W, flexShrink: 0 }} />
             <Box sx={{ flex: 1, display: "grid", gridTemplateColumns: `repeat(${WEEKS}, 1fr)` }}>
               {weeks.map((w) => {
                 const on = w === thisWeek;
                 return (
-                  <Box key={w} sx={{ px: 1.25, py: 1, borderLeft: "1px solid #E0E3E7" }}>
-                    <Typography sx={{ fontSize: "0.8125rem", fontWeight: 600, color: on ? "#0B57D0" : "#1F1F1F" }}>{on ? "Minggu ini" : `Minggu ${fmtShort(w)}`}</Typography>
-                    <Typography sx={{ fontSize: "0.6875rem", color: "#5F6368" }}>{fmtRange(w, addDays(w, 6))}</Typography>
+                  <Box key={w} sx={{ px: 1, pb: 1, borderLeft: "1px solid #E0E3E7", minWidth: 0 }}>
+                    <Typography noWrap sx={{ fontSize: "0.8125rem", fontWeight: 600, color: on ? "#0B57D0" : "#1F1F1F" }}>{on ? "Minggu ini" : `Minggu ${fmtShort(w)}`}</Typography>
+                    <Typography noWrap sx={{ fontSize: "0.6875rem", color: on ? "#0B57D0" : "#5F6368", fontWeight: on ? 600 : 400 }}>{fmtRange(w, addDays(w, 6))}</Typography>
                   </Box>
                 );
               })}
             </Box>
           </Box>
 
-          {/* Rows */}
           <Box sx={{ position: "relative" }}>
             {groups.length === 0 && (
               <Box sx={{ display: "flex" }}>
@@ -95,43 +101,56 @@ export function TimelineView({ ctx }: { ctx: TasksCtx }) {
                 </Box>
               </Box>
             )}
-            {groups.map((g) => (
-              <Box key={g.project?.id ?? "none"}>
-                <Box sx={{ display: "flex", alignItems: "stretch" }}>
-                  <Box sx={{ width: LABEL_W, flexShrink: 0, px: 2, pt: 1.75, pb: 0.5, display: "flex", alignItems: "center", gap: 1 }}>
-                    {g.project?.label && (
-                      <Box component="span" sx={{ px: 0.75, py: "1px", borderRadius: "6px", bgcolor: `${g.project.color}1F`, color: g.project.color, fontSize: "0.625rem", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>
-                        {g.project.label}
+            {groups.map((g) => {
+              const color = g.project?.color ?? "#5F6368";
+              const dated = g.tasks.filter((t) => t.start_date || t.due_date);
+              const undated = g.tasks.filter((t) => !t.start_date && !t.due_date);
+              return (
+                <Box key={g.project?.id ?? "none"} sx={{ display: "flex", borderBottom: "1px solid #E6E9EE", "&:last-of-type": { borderBottom: "none" } }}>
+                  {/* Project */}
+                  <Box sx={{ width: LABEL_W, flexShrink: 0, pr: 1.5, py: 1.5, minWidth: 0 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.875, minWidth: 0 }}>
+                      {g.project && (g.project.emoji || g.project.logo_file_id) ? <ProjectMark project={g.project} size={16} /> : <Box sx={{ width: 10, height: 10, borderRadius: "3px", bgcolor: color, flexShrink: 0 }} />}
+                      <Typography noWrap sx={{ fontSize: "0.9375rem", fontWeight: 600, color: "#1F1F1F" }}>{g.project?.name ?? "Tanpa project"}</Typography>
+                    </Box>
+                    <Typography sx={{ fontSize: "0.6875rem", color: "#80868B", mt: 0.25 }}>
+                      {g.project?.label ? `${g.project.label} · ` : ""}
+                      {g.tasks.length} tugas
+                    </Typography>
+                    <Box
+                      component="button"
+                      type="button"
+                      onClick={() => ctx.create({ project_id: g.project?.id ?? null, start_date: today, due_date: addDays(today, 6) })}
+                      sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, mt: 0.75, ml: -0.5, px: 0.5, py: 0.25, border: "none", bgcolor: "transparent", borderRadius: "6px", color: "#5F6368", fontFamily: "inherit", fontSize: "0.75rem", cursor: "pointer", "&:hover": { bgcolor: "#F1F3F4", color: "#1F1F1F" } }}
+                    >
+                      <AddRounded sx={{ fontSize: 16 }} /> Tambah
+                    </Box>
+                  </Box>
+                  {/* Ribbons */}
+                  <Box sx={{ flex: 1, position: "relative", py: 1.25, display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0 }}>
+                    {grid}
+                    {dated.map((t) => (
+                      <Ribbon key={t.id} task={t} ctx={ctx} from={from} days={days} color={color} />
+                    ))}
+                    {undated.length > 0 && (
+                      <Box sx={{ position: "relative", display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center", px: 0.5 }}>
+                        <Typography sx={{ fontSize: "0.6875rem", color: "#80868B", mr: 0.5 }}>Belum ada tanggal:</Typography>
+                        {undated.map((t) => (
+                          <Box key={t.id} component="button" type="button" onClick={() => ctx.open(t)} sx={{ border: "1px dashed #C4C7C5", bgcolor: "#fff", borderRadius: "9999px", px: 1, py: 0.25, fontFamily: "inherit", fontSize: "0.6875rem", color: "#444746", cursor: "pointer", "&:hover": { borderColor: color, color: inkOf(color) } }}>
+                            {t.title}
+                          </Box>
+                        ))}
                       </Box>
                     )}
-                    {(g.project?.emoji || g.project?.logo_file_id) && <ProjectMark project={g.project ?? undefined} size={18} />}
-                    <Typography sx={{ fontSize: "1rem", fontWeight: 600, color: "#1F1F1F" }}>{g.project?.name ?? "Tanpa project"}</Typography>
                   </Box>
-                  <Box sx={{ flex: 1, position: "relative" }}>{grid}</Box>
                 </Box>
-                {g.tasks.map((t) => (
-                  <Row key={t.id} task={t} ctx={ctx} from={from} days={days} grid={grid} color={g.project?.color ?? "#5F6368"} />
-                ))}
-                <Box sx={{ display: "flex" }}>
-                  <Box sx={{ width: LABEL_W, flexShrink: 0, px: 1.25, pb: 0.75 }}>
-                    <Button
-                      size="small"
-                      startIcon={<AddRounded sx={{ fontSize: 16 }} />}
-                      onClick={() => ctx.create({ project_id: g.project?.id ?? null, start_date: today, due_date: addDays(today, 6) })}
-                      sx={{ color: "#5F6368", fontSize: "0.75rem", borderRadius: "8px" }}
-                    >
-                      Tambah
-                    </Button>
-                  </Box>
-                  <Box sx={{ flex: 1, position: "relative" }}>{grid}</Box>
-                </Box>
-              </Box>
-            ))}
+              );
+            })}
 
             {/* Today line */}
-            {showToday && (
-              <Box sx={{ position: "absolute", top: 0, bottom: 0, left: `calc(${LABEL_W}px + (100% - ${LABEL_W}px) * ${todayPct / 100})`, borderLeft: "1.5px dashed #1F1F1F", opacity: 0.55, pointerEvents: "none" }}>
-                <Box sx={{ position: "absolute", top: 4, left: -24, width: 48, textAlign: "center", fontSize: "0.625rem", fontWeight: 600, bgcolor: "#1F1F1F", color: "#fff", borderRadius: "6px", py: "1px" }}>
+            {showToday && groups.length > 0 && (
+              <Box sx={{ position: "absolute", top: 0, bottom: 0, left: `calc(${LABEL_W}px + (100% - ${LABEL_W}px) * ${todayPct / 100})`, borderLeft: "2px solid #0B57D0", pointerEvents: "none", zIndex: 2 }}>
+                <Box sx={{ position: "absolute", top: -9, left: 0, zIndex: 4, transform: "translateX(-50%)", fontSize: "0.625rem", fontWeight: 600, bgcolor: "#0B57D0", color: "#fff", borderRadius: "6px", px: 0.75, py: "1px", whiteSpace: "nowrap" }}>
                   Hari ini
                 </Box>
               </Box>
@@ -143,94 +162,139 @@ export function TimelineView({ ctx }: { ctx: TasksCtx }) {
   );
 }
 
-function Row({ task: t, ctx, from, days, grid, color }: { task: Task; ctx: TasksCtx; from: string; days: number; grid: React.ReactNode; color: string }) {
-  const start = t.start_date ?? t.due_date;
-  const end = t.due_date ?? t.start_date;
+const RIBBON_H = 30;
+
+function Ribbon({ task: t, ctx, from, days, color }: { task: Task; ctx: TasksCtx; from: string; days: number; color: string }) {
+  const start = (t.start_date ?? t.due_date)!;
+  const end = (t.due_date ?? t.start_date)!;
   const done = t.status === "done";
   const subs = ctx.childrenOf.get(t.id) ?? [];
   const subsDone = subs.filter((x) => x.status === "done").length;
+  const a = diffDays(from, start);
+  const b = diffDays(from, end);
+  // outside the visible weeks: keep the row (so rows don't jump) but show a small arrow hint
+  if (b < 0 || a > days - 1) {
+    const before = b < 0;
+    return (
+      <Box sx={{ position: "relative", height: RIBBON_H, display: "flex", alignItems: "center", justifyContent: before ? "flex-start" : "flex-end", px: 0.5 }}>
+        <Box component="button" type="button" onClick={() => ctx.open(t)} sx={{ border: "none", bgcolor: "transparent", fontFamily: "inherit", fontSize: "0.6875rem", color: "#80868B", cursor: "pointer", "&:hover": { color: "#1F1F1F" } }}>
+          {before ? `‹ ${t.title}` : `${t.title} ›`}
+        </Box>
+      </Box>
+    );
+  }
+  const ca = Math.max(0, a);
+  const cb = Math.min(days - 1, b);
+  const left = (ca / days) * 100;
+  const width = ((cb - ca + 1) / days) * 100;
+  const ink = inkOf(color);
 
-  let bar: React.ReactNode = null;
-  if (start && end) {
-    const a = Math.max(0, diffDays(from, start));
-    const b = Math.min(days - 1, diffDays(from, end));
-    const overdue = !done && end < todayISO();
-    if (b >= 0 && a <= days - 1) {
-      const left = (a / days) * 100;
-      const width = ((b - a + 1) / days) * 100;
-      const names = [t.assignee_id, ...t.helper_ids].map((id) => (id ? ctx.memberById.get(id)?.name : null)).filter(Boolean) as string[];
-      const label = names.length ? `${names[0]}${names.length > 1 ? ` · dibantu ${names.slice(1).join(", ")}` : ""}` : "Belum ada PIC";
-      if (t.is_milestone) {
-        bar = (
-          <Box component="button" type="button" onClick={() => ctx.open(t)} sx={{ position: "absolute", top: "50%", left: `${left + width / 2}%`, transform: "translate(-9px,-50%)", display: "flex", alignItems: "center", gap: 1, border: "none", bgcolor: "transparent", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", p: 0 }}>
-            <Box sx={{ width: 14, height: 14, transform: "rotate(45deg)", bgcolor: done ? "#9AA0A6" : "#1F1F1F", borderRadius: "2px", m: "2px" }} />
-            <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#1F1F1F" }}>{t.description ? t.description.split("\n")[0] : label}</Typography>
-          </Box>
-        );
-      } else {
-        const fg = t.is_optional ? "#1F1F1F" : textOn(color);
-        bar = (
-          <Tooltip title={`${t.title} · ${fmtRange(start, end)}${overdue ? " · terlambat" : ""}`}>
-            <Box
-              component="button"
-              type="button"
-              onClick={() => ctx.open(t)}
-              sx={{
-                position: "absolute",
-                top: 6,
-                bottom: 6,
-                left: `calc(${left}% + 3px)`,
-                width: `calc(${width}% - 6px)`,
-                display: "flex",
-                alignItems: "center",
-                gap: 0.75,
-                px: 0.5,
-                border: overdue ? "2px solid #B3261E" : "none",
-                borderRadius: "9999px",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                overflow: "hidden",
-                color: fg,
-                opacity: done ? 0.45 : 1,
-                transformOrigin: "left center",
-                animation: "oc-grow-x 520ms cubic-bezier(0.22, 1, 0.36, 1) both",
-                bgcolor: t.is_optional ? "transparent" : color,
-                backgroundImage: t.is_optional ? `repeating-linear-gradient(135deg, ${color}2E 0 6px, ${color}12 6px 12px)` : "none",
-                "&:hover": { filter: "brightness(1.06)", boxShadow: "0 1px 4px rgba(0,0,0,.2)" },
-              }}
-            >
-              <AvatarStack ids={[t.assignee_id, ...t.helper_ids]} members={ctx.memberById} size={22} ring={t.is_optional ? "#fff" : color} />
-              <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "inherit" }}>{label}</Typography>
-              {done && <CheckRounded sx={{ fontSize: 16, ml: "auto", mr: 0.5 }} />}
+  if (t.is_milestone) {
+    return (
+      <Box sx={{ position: "relative", height: RIBBON_H }}>
+        <Tooltip title={`Milestone · ${fmtRange(start, end)}`}>
+          <Box
+            component="button"
+            type="button"
+            onClick={() => ctx.open(t)}
+            sx={{ position: "absolute", top: 0, height: RIBBON_H, left: `${((a + 0.5) / days) * 100}%`, transform: "translateX(-15px)", display: "flex", alignItems: "center", gap: 0.75, border: "none", bgcolor: "transparent", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", p: 0, maxWidth: "none", zIndex: 3 }}
+          >
+            <MilestoneStar done={done} />
+            <Box component="span" sx={{ fontSize: "0.75rem", fontWeight: 600, color: done ? "#80868B" : "#1F1F1F", bgcolor: "#FFF7DB", border: "1px solid #F6D77A", borderRadius: "9999px", px: 1, py: "3px", textDecoration: done ? "line-through" : "none" }}>
+              {t.title}
             </Box>
-          </Tooltip>
-        );
-      }
-    }
+          </Box>
+        </Tooltip>
+      </Box>
+    );
   }
 
+  const overdue = !done && end < todayISO();
   return (
-    <Box sx={{ display: "flex", alignItems: "stretch", minHeight: 44, "&:hover .tl-label": { color: "#0B57D0" } }}>
-      <Box
-        component="button"
-        type="button"
-        onClick={() => ctx.open(t)}
-        sx={{ width: LABEL_W, flexShrink: 0, px: 2, border: "none", bgcolor: "transparent", textAlign: "left", fontFamily: "inherit", cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 0 }}
-      >
-        <Typography className="tl-label" sx={{ fontSize: "0.8125rem", color: done ? "#5F6368" : "#1F1F1F", textDecoration: done ? "line-through" : "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {t.title}
-        </Typography>
-        {(subs.length > 0 || !start) && (
-          <Typography sx={{ fontSize: "0.6875rem", color: "#5F6368" }}>
-            {subs.length > 0 ? `${subsDone}/${subs.length} checklist` : ""}
-            {subs.length > 0 && !start ? " · " : ""}
-            {!start ? "belum ada tanggal" : ""}
-          </Typography>
+    <Box sx={{ position: "relative", height: RIBBON_H }}>
+      <Tooltip title={`${t.title} · ${fmtRange(start, end)}${overdue ? " · terlambat" : ""}${t.is_optional ? " · kalau perlu" : ""}`}>
+        <Box
+          component="button"
+          type="button"
+          onClick={() => ctx.open(t)}
+          sx={{
+            position: "absolute",
+            top: 0,
+            height: RIBBON_H,
+            left: `calc(${left}% + 2px)`,
+            width: `calc(${width}% - 4px)`,
+            display: "flex",
+            alignItems: "center",
+            gap: 0.75,
+            pl: 0.5,
+            pr: 1,
+            border: "none",
+            borderRadius: "8px",
+            boxShadow: overdue ? "inset 0 0 0 2px #C5221F" : "none",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            overflow: "hidden",
+            color: ink,
+            opacity: done ? 0.5 : 1,
+            transformOrigin: "left center",
+            animation: "oc-grow-x 520ms cubic-bezier(0.22, 1, 0.36, 1) both",
+            bgcolor: t.is_optional ? "#fff" : `color-mix(in srgb, ${color} 13%, #fff)`,
+            zIndex: 3,
+            backgroundImage: t.is_optional ? `repeating-linear-gradient(135deg, ${color}33 0 6px, ${color}12 6px 12px)` : "none",
+            transition: "filter 150ms, box-shadow 150ms",
+            "&:hover": { filter: "brightness(0.97)", boxShadow: overdue ? "inset 0 0 0 2px #C5221F, 0 1px 3px rgba(60,64,67,.2)" : "0 1px 3px rgba(60,64,67,.2)" },
+          }}
+        >
+          <AvatarStack ids={[t.assignee_id, ...t.helper_ids]} members={ctx.memberById} size={22} ring="#fff" />
+          <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "inherit", textDecoration: done ? "line-through" : "none", minWidth: 0 }}>{t.title}</Typography>
+          <Box sx={{ flex: 1 }} />
+          {done ? <CheckRounded sx={{ fontSize: 16 }} /> : subs.length > 0 && <Typography sx={{ fontSize: "0.6875rem", fontWeight: 600, color: "inherit", opacity: 0.75, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{subsDone}/{subs.length}</Typography>}
+        </Box>
+      </Tooltip>
+    </Box>
+  );
+}
+
+/** Golden star with a soft looping pulse, glow ring and a little shine, so milestones get noticed. */
+function MilestoneStar({ done, size = 22 }: { done?: boolean; size?: number }) {
+  const id = useId().replace(/[^a-zA-Z0-9]/g, "");
+  return (
+    <Box
+      component="span"
+      aria-hidden
+      sx={{
+        position: "relative",
+        width: size + 8,
+        height: size + 8,
+        display: "grid",
+        placeItems: "center",
+        flexShrink: 0,
+        "@keyframes oc-star-pulse": { "0%,100%": { transform: "scale(1) rotate(0deg)" }, "45%": { transform: "scale(1.14) rotate(-8deg)" }, "60%": { transform: "scale(1.08) rotate(6deg)" } },
+        "@keyframes oc-star-ring": { "0%": { transform: "scale(.6)", opacity: 0.55 }, "70%,100%": { transform: "scale(1.5)", opacity: 0 } },
+        "@keyframes oc-star-shine": { "0%,55%": { transform: "translateX(-140%) rotate(20deg)" }, "85%,100%": { transform: "translateX(140%) rotate(20deg)" } },
+        "&::before": done
+          ? {}
+          : { content: '""', position: "absolute", inset: 0, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,200,40,.55) 0%, rgba(255,200,40,0) 70%)", animation: "oc-star-ring 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite" },
+        "@media (prefers-reduced-motion: reduce)": { "&::before, & svg, & .shine": { animation: "none !important" } },
+      }}
+    >
+      <Box component="svg" viewBox="0 0 24 24" width={size} height={size} sx={{ position: "relative", filter: done ? "grayscale(1) opacity(.5)" : "drop-shadow(0 1px 2px rgba(214,140,0,.45))", animation: done ? "none" : "oc-star-pulse 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite", overflow: "visible" }}>
+        <defs>
+          <linearGradient id={`${id}g`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#FFF1A6" />
+            <stop offset="45%" stopColor="#FFC928" />
+            <stop offset="100%" stopColor="#F29900" />
+          </linearGradient>
+          <clipPath id={`${id}c`}>
+            <path d="M12 2.2l2.83 5.97 6.52.8-4.8 4.5 1.24 6.47L12 16.77l-5.79 3.17 1.24-6.47-4.8-4.5 6.52-.8z" />
+          </clipPath>
+        </defs>
+        <path d="M12 2.2l2.83 5.97 6.52.8-4.8 4.5 1.24 6.47L12 16.77l-5.79 3.17 1.24-6.47-4.8-4.5 6.52-.8z" fill={`url(#${id}g)`} stroke="#E8A100" strokeWidth="0.8" strokeLinejoin="round" />
+        {!done && (
+          <g clipPath={`url(#${id}c)`}>
+            <Box component="rect" className="shine" x="6" y="-4" width="5" height="32" fill="rgba(255,255,255,.75)" sx={{ transformBox: "fill-box", transformOrigin: "center", animation: "oc-star-shine 2.4s ease-in-out infinite" }} />
+          </g>
         )}
-      </Box>
-      <Box sx={{ flex: 1, position: "relative" }}>
-        {grid}
-        {bar}
       </Box>
     </Box>
   );
@@ -244,10 +308,11 @@ function Legend() {
     </Box>
   );
   return (
-    <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-      {item(<Box sx={{ width: 22, height: 10, borderRadius: 5, bgcolor: "#0B57D0" }} />, "Jadwal")}
-      {item(<Box sx={{ width: 9, height: 9, transform: "rotate(45deg)", bgcolor: "#1F1F1F" }} />, "Milestone")}
-      {item(<Box sx={{ width: 22, height: 10, borderRadius: 5, border: "2px solid #B3261E" }} />, "Terlambat")}
+    <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
+      {item(<Box sx={{ width: 22, height: 10, borderRadius: "4px", bgcolor: "#D3E3FD" }} />, "Jadwal")}
+      {item(<MilestoneStar size={14} />, "Milestone")}
+      {item(<Box sx={{ width: 22, height: 10, borderRadius: "4px", backgroundImage: "repeating-linear-gradient(135deg, #0B57D033 0 4px, #0B57D012 4px 8px)" }} />, "Kalau perlu")}
+      {item(<Box sx={{ width: 22, height: 10, borderRadius: "4px", boxShadow: "inset 0 0 0 2px #C5221F" }} />, "Terlambat")}
     </Box>
   );
 }
