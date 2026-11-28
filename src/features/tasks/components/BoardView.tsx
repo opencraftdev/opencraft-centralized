@@ -233,7 +233,7 @@ function AddTaskButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       sx={{ display: "flex", alignItems: "center", gap: 0.75, border: "none", bgcolor: "transparent", color: "#5F6368", fontFamily: "inherit", fontSize: "0.8125rem", px: 1, py: 0.75, borderRadius: "8px", cursor: "pointer", "&:hover": { bgcolor: "#EEF1F4", color: "#1F1F1F" } }}
     >
-      <AddRounded sx={{ fontSize: 18 }} /> Tambah tugas
+      <AddRounded sx={{ fontSize: 18 }} /> Tambah task
     </Box>
   );
 }

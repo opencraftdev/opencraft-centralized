@@ -491,7 +491,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   };
 
   const open = query !== null && options.length > 0;
-  const groupTitle: Record<Kind, string> = { member: "Orang", task: "Tugas", project: "Project" };
+  const groupTitle: Record<Kind, string> = { member: "Orang", task: "Task", project: "Project" };
   const empty = !stripFormat(value).trim() && !hasBlocks;
   const lineH = 1.5;
 

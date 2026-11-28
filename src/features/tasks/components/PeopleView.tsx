@@ -74,7 +74,7 @@ function PersonCard({ member, tasks, all, ctx, index = 0 }: { member: Member | n
       </Box>
 
       <Box sx={{ px: 0.75, pb: 1, flex: 1, minHeight: 0, overflowY: { lg: "auto" }, scrollbarWidth: "thin" }}>
-        {ordered.length === 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368", px: 1, py: 2 }}>Tidak ada tugas.</Typography>}
+        {ordered.length === 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368", px: 1, py: 2 }}>Tidak ada task.</Typography>}
         {ordered.map((g) => (
           <Box key={g.key} sx={{ mt: 0.75 }}>
             <Typography sx={{ fontSize: "0.625rem", fontWeight: 600, letterSpacing: ".06em", color: "#5F6368", textTransform: "uppercase", px: 0.75, mb: 0.125 }}>{g.label}</Typography>
@@ -113,7 +113,7 @@ function PersonCard({ member, tasks, all, ctx, index = 0 }: { member: Member | n
           onClick={() => ctx.create({ assignee_id: member?.id ?? null })}
           sx={{ mt: 0.5, ml: 0.5, color: "#5F6368", fontSize: "0.75rem", borderRadius: "8px" }}
         >
-          Tambah tugas
+          Tambah task
         </Button>
       </Box>
 

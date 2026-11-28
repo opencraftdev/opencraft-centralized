@@ -241,7 +241,7 @@ export function TaskDialog({
   };
 
   const save = async () => {
-    if (!form.title.trim()) return toastError("Judul tugas wajib diisi.");
+    if (!form.title.trim()) return toastError("Judul task wajib diisi.");
     if (dateError) return toastError(dateError);
     setSaving(true);
     try {
@@ -250,13 +250,13 @@ export function TaskDialog({
       if (form.is_milestone && payload.due_date) payload.start_date = payload.due_date;
       if (live) {
         await updateTask(live.id, payload);
-        toastSuccess("Tugas disimpan.");
+        toastSuccess("Task disimpan.");
         onChanged();
         onClose();
       } else {
         // a new task stays open, now as itself, so the brief, files, checklist and comments can follow right away
         const created = await createTask({ ...payload, sort: Date.now() / 1000 });
-        toastSuccess("Tugas dibuat.");
+        toastSuccess("Task dibuat.");
         onChanged();
         onOpenTask(created);
       }
@@ -298,7 +298,7 @@ export function TaskDialog({
     if (!live) return;
     try {
       await deleteTask(live.id);
-      toastSuccess("Tugas dihapus.");
+      toastSuccess("Task dihapus.");
       onChanged();
       if (parent) onOpenTask(parent);
       else onClose();
@@ -433,7 +433,7 @@ export function TaskDialog({
       title: "Hapus lampiran?",
       body: (
         <>
-          <b>{f.name}</b> akan dihapus dari tugas ini. Tindakan ini tidak bisa dibatalkan.
+          <b>{f.name}</b> akan dihapus dari task ini. Tindakan ini tidak bisa dibatalkan.
         </>
       ),
       label: "Hapus lampiran",
@@ -512,7 +512,7 @@ export function TaskDialog({
             <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Bagian dari: {parent.title}</Box>
           </Button>
         ) : (
-          <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368", pl: 1 }}>{live ? "Detail tugas" : "Tugas baru"}</Typography>
+          <Typography sx={{ fontSize: "0.8125rem", color: "#5F6368", pl: 1 }}>{live ? "Detail task" : "Task baru"}</Typography>
         )}
         <Box sx={{ flex: 1 }} />
         {live && <DueChip due={live.due_date} done={live.status === "done"} />}
@@ -532,9 +532,9 @@ export function TaskDialog({
                 multiline
                 value={form.title}
                 onChange={(e) => set("title", e.target.value.replace(/\n/g, " "))}
-                placeholder="Judul tugas"
+                placeholder="Judul task"
                 sx={{ fontSize: "1.375rem", fontWeight: 500, color: "#1F1F1F", mb: 1 }}
-                inputProps={{ "aria-label": "Judul tugas" }}
+                inputProps={{ "aria-label": "Judul task" }}
               />
 
               {/* Properties: label on the left, the value as a clickable pill */}
@@ -738,7 +738,7 @@ export function TaskDialog({
                       );
                     }}
                     sx={pillSx(form.is_milestone ? "#FFF4D1" : "#F1F3F4", form.is_milestone ? "#8A5A00" : "#444746")}
-                    inputProps={{ "aria-label": "Jenis tugas" }}
+                    inputProps={{ "aria-label": "Jenis task" }}
                   >
                     {KINDS.map((k) => (
                       <MenuItem key={k.value} value={k.value}>
@@ -792,7 +792,7 @@ export function TaskDialog({
                           ctx={ctx}
                           currentTaskId={live?.id}
                           ariaLabel="Brief"
-                          placeholder="Tulis brief: tujuan, detail, link, atau hasil yang diharapkan… ketik @ untuk tag orang, tugas, atau project"
+                          placeholder="Tulis brief: tujuan, detail, link, atau hasil yang diharapkan… ketik @ untuk tag orang, task, atau project"
                           inputSx={{ lineHeight: 1.6 }}
                         />
                       </Box>
@@ -815,7 +815,7 @@ export function TaskDialog({
                         ) : (
                           <>
                             <FormatBar target={brief} />
-                            <Typography sx={{ fontSize: "0.75rem", color: "#80868B", px: 1, py: 0.75 }}>Buat tugasnya dulu, lalu file bisa dilampirkan.</Typography>
+                            <Typography sx={{ fontSize: "0.75rem", color: "#80868B", px: 1, py: 0.75 }}>Buat task-nya dulu, lalu file bisa dilampirkan.</Typography>
                           </>
                         )}
                         <Box sx={{ flex: 1 }} />
@@ -962,10 +962,10 @@ export function TaskDialog({
           <Box ref={feed} sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 2.25, py: 2, display: "flex", flexDirection: "column", gap: 1.25 }}>
             {live && (
               <Box sx={{ alignSelf: "center", fontSize: "0.75rem", color: "#80868B" }}>
-                Tugas dibuat · {formatRelative(live.created_at)}
+                Task dibuat · {formatRelative(live.created_at)}
               </Box>
             )}
-            {!live && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", mt: 4 }}>Komentar bisa ditulis setelah tugas dibuat.</Typography>}
+            {!live && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", mt: 4 }}>Komentar bisa ditulis setelah task dibuat.</Typography>}
             {live && comments.length === 0 && <Typography sx={{ fontSize: "0.8125rem", color: "#80868B", textAlign: "center", mt: 2 }}>Belum ada komentar. Mulai diskusi di bawah.</Typography>}
             {comments.map((c) => {
               const mine = !!myEmail && c.author_email === myEmail;
@@ -1130,7 +1130,7 @@ export function TaskDialog({
                       onSubmit={() => void sendComment()}
                       ctx={ctx}
                       currentTaskId={live.id}
-                      placeholder="Tulis komentar… ketik @ untuk tag orang, tugas, atau project"
+                      placeholder="Tulis komentar… ketik @ untuk tag orang, task, atau project"
                     />
                   </Box>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, px: 0.75, pb: 0.75 }}>
@@ -1179,14 +1179,14 @@ export function TaskDialog({
               Batal
             </Button>
             <Button variant="contained" disableElevation disabled={saving || !dirty || !form.title.trim()} onClick={() => void save()} sx={{ borderRadius: "9999px" }}>
-              Buat tugas
+              Buat task
             </Button>
           </>
         )}
       </Box>
       <ConfirmDialog
         open={confirmDelete}
-        title={parent ? "Hapus item checklist?" : "Hapus tugas?"}
+        title={parent ? "Hapus item checklist?" : "Hapus task?"}
         body={
           <>
             <b>{live?.title}</b>
@@ -1219,7 +1219,7 @@ export function TaskDialog({
 
 /** One property line: icon + label on the left, the value (a pill) on the right. */
 const KINDS = [
-  { value: "task", label: "Tugas", hint: "Punya tanggal mulai dan deadline", icon: <AssignmentRounded sx={{ fontSize: 16, color: "#5A86C2" }} /> },
+  { value: "task", label: "Task", hint: "Punya tanggal mulai dan deadline", icon: <AssignmentRounded sx={{ fontSize: 16, color: "#5A86C2" }} /> },
   { value: "milestone", label: "Milestone", hint: "Satu hari penting, mis. rapat/keputusan", icon: <StarRounded sx={{ fontSize: 17, color: "#F2A600" }} /> },
   { value: "optional", label: "Kalau perlu", hint: "Opsional, tampil bergaris di timeline", icon: <Box component="span" sx={{ width: 16, height: 10, borderRadius: "3px", backgroundImage: "repeating-linear-gradient(135deg, #5A86C255 0 3px, #5A86C222 3px 6px)", display: "inline-block" }} /> },
 ] as const;

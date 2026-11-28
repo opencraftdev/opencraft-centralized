@@ -333,7 +333,7 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, height: 36, px: 1.5, bgcolor: "#F0F4F9", borderRadius: "9999px", width: { xs: "100%", sm: 220 }, order: { xs: 5, sm: 0 } }}>
             <SearchRounded sx={{ fontSize: 18, color: "#5F6368" }} />
-            <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari tugas…" sx={{ flex: 1, fontSize: "0.875rem" }} inputProps={{ "aria-label": "Cari tugas" }} />
+            <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari task…" sx={{ flex: 1, fontSize: "0.875rem" }} inputProps={{ "aria-label": "Cari task" }} />
           </Box>
           <Select size="small" value={memberFilter} onChange={(e) => changeMember(e.target.value)} sx={selectSx} aria-label="Filter orang">
             <MenuItem value="all" sx={optSx}>

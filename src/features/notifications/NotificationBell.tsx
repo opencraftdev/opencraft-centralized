@@ -72,9 +72,9 @@ function describe(n: AppNotification): { verb: string; obj: string; sub: string 
   switch (n.kind) {
     case "task_created":
       if ((m = /^Checklist baru di "(.*)": (.*)$/.exec(t))) return { verb: "menambah checklist", obj: m[2], sub: `di ${m[1]}` };
-      return { verb: "membuat tugas", obj: after("Tugas baru: ") ?? t, sub: body };
+      return { verb: "membuat task", obj: after("Tugas baru: ") ?? t, sub: body };
     case "task_deleted":
-      return { verb: "menghapus tugas", obj: after("Tugas dihapus: ") ?? t, sub: body };
+      return { verb: "menghapus task", obj: after("Tugas dihapus: ") ?? t, sub: body };
     case "task_status":
       if ((m = /^"(.*)" (.*)$/.exec(t))) {
         if (m[2] === "selesai") return { verb: "menyelesaikan", obj: m[1], sub: body };
@@ -85,7 +85,7 @@ function describe(n: AppNotification): { verb: string; obj: string; sub: string 
       if ((m = /^(.*) jadi PIC "(.*)"$/.exec(t))) return { verb: `menunjuk ${m[1]} sebagai PIC`, obj: m[2], sub: body };
       break;
     case "task_updated":
-      return { verb: "memperbarui tugas", obj: after("Tugas diperbarui: ") ?? t, sub: body };
+      return { verb: "memperbarui task", obj: after("Tugas diperbarui: ") ?? t, sub: body };
     case "task_comment":
       return { verb: "berkomentar di", obj: quoted(t), sub: body ? `“${body}”` : "" };
     case "task_attachment":
@@ -375,7 +375,7 @@ export function NotificationBell() {
         if ((m = /^(.*) jadi PIC "(.*)"$/.exec(n.title))) return <><B>{m[1]}</B> jadi PIC <B>{m[2]}</B></>;
         break;
       case "task_created":
-        return <>Tugas baru <B>{n.title.replace(/^Tugas baru: /, "")}</B>{body && <span style={{ color: "#5F6368" }}> · {body}</span>}</>;
+        return <>Task baru <B>{n.title.replace(/^Tugas baru: /, "")}</B>{body && <span style={{ color: "#5F6368" }}> · {body}</span>}</>;
       case "lead_new":
         return <><B>{n.count > 1 ? `${n.count} lead baru` : "1 lead baru"}</B> dari Scrapers</>;
       case "income_new":

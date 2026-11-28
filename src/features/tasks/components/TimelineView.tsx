@@ -116,7 +116,7 @@ export function TimelineView({ ctx }: { ctx: TasksCtx }) {
                 <Box sx={{ width: LABEL_W, flexShrink: 0 }} />
                 <Box sx={{ flex: 1, position: "relative", py: 6, textAlign: "center", color: "#5F6368", fontSize: "0.875rem" }}>
                   {grid}
-                  Tidak ada tugas untuk filter ini.
+                  Tidak ada task untuk filter ini.
                 </Box>
               </Box>
             )}
@@ -143,7 +143,7 @@ export function TimelineView({ ctx }: { ctx: TasksCtx }) {
                     </Box>
                     <Typography sx={{ fontSize: "0.6875rem", color: "#80868B", mt: 0.25, pl: 3.25 }}>
                       {g.project?.label ? `${g.project.label} · ` : ""}
-                      {g.tasks.length} tugas
+                      {g.tasks.length} task
                     </Typography>
                     {isOpen && (
                     <Box

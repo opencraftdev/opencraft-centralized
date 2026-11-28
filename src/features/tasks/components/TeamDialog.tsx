@@ -396,7 +396,7 @@ export function MemberForm({ initial, onDone, lockEmail }: { initial: Member | n
         value={f.email}
         disabled={Boolean(lockEmail)}
         onChange={(e) => setF({ ...f, email: e.target.value })}
-        helperText={lockEmail ? "Profil ini terhubung ke akun yang sedang masuk." : "Hubungkan ke akun login: chat, komentar & filter tugas memakai profil ini."}
+        helperText={lockEmail ? "Profil ini terhubung ke akun yang sedang masuk." : "Hubungkan ke akun login: chat, komentar & filter task memakai profil ini."}
         sx={fieldSx}
       />
       <TextField size="small" label="Peran" placeholder="mis. Desain · Branding" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} sx={fieldSx} />
