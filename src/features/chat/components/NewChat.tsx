@@ -76,44 +76,44 @@ export function NewChat({
       {/* Bottom: skill shortcuts + the composer, where it stays once the chat starts */}
       <Box sx={{ px: { xs: 1, sm: 3 }, pb: 1, pt: 0.5, flexShrink: 0 }}>
         <Box sx={{ maxWidth: COLUMN, mx: "auto" }}>
-          {skills.length > 0 && (
-            <Box component="ul" aria-label="Saran skill" sx={{ listStyle: "none", m: 0, mb: 1, p: 0, display: "flex", flexWrap: "wrap", gap: 1 }}>
-              {skills.map((s) => (
-                <li key={s.name}>
-                  <Box
-                    component="button"
-                    type="button"
-                    title={s.description}
-                    onClick={() => composer.current?.setValue(`/${s.name} `)}
-                    sx={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 0.75,
-                      maxWidth: "100%",
-                      height: 34,
-                      px: 1.5,
-                      border: "1px solid #E3E3E3",
-                      borderRadius: "9999px",
-                      bgcolor: "#fff",
-                      color: "#1F1F1F",
-                      fontFamily: "inherit",
-                      fontSize: "0.875rem",
-                      cursor: "pointer",
-                      "&:hover": { bgcolor: "#F0F4F9" },
-                      "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
-                    }}
-                  >
-                    <AutoAwesomeRounded sx={{ fontSize: 16, color: "#444746", flexShrink: 0 }} />
-                    <Box component="span" sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {s.title}
-                    </Box>
-                  </Box>
-                </li>
-              ))}
-            </Box>
-          )}
           <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1 }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
+              {skills.length > 0 && (
+                <Box component="ul" aria-label="Saran skill" sx={{ listStyle: "none", m: 0, mb: 0.75, p: 0, display: "grid", gridTemplateColumns: "repeat(5, minmax(0, max-content))", gap: 0.5 }}>
+                  {skills.map((s) => (
+                    <Box component="li" key={s.name} sx={{ minWidth: 0, display: "flex" }}>
+                      <Box
+                        component="button"
+                        type="button"
+                        title={s.description}
+                        onClick={() => composer.current?.setValue(`/${s.name} `)}
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                          maxWidth: "100%",
+                          height: 22,
+                          px: 1,
+                          border: "1px solid #E3E3E3",
+                          borderRadius: "9999px",
+                          bgcolor: "#fff",
+                          color: "#1F1F1F",
+                          fontFamily: "inherit",
+                          fontSize: "0.6875rem",
+                          cursor: "pointer",
+                          "&:hover": { bgcolor: "#F0F4F9" },
+                          "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: -2 },
+                        }}
+                      >
+                        <AutoAwesomeRounded sx={{ fontSize: 11, color: "#444746", flexShrink: 0 }} />
+                        <Box component="span" sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {s.title}
+                        </Box>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              )}
               <Composer ref={composer} draftId={NEW_DRAFT} skills={skills} placeholder="Ketik / untuk skill dan lainnya" autoFocus onSend={onSend} />
             </Box>
             <ChatTimButton inline />
