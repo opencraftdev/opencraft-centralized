@@ -44,7 +44,7 @@ function StepRow({ step, live }: { step: ChatStep; live: boolean }) {
       <Box sx={{ width: 20, display: "flex", justifyContent: "center", flexShrink: 0 }}>
         {live ? <Sparkle /> : <CheckRounded sx={{ fontSize: 16, color: "#5E5E5E" }} />}
       </Box>
-      <Typography sx={{ fontSize: "0.875rem", color: live ? "#1F1F1F" : "#444746", minWidth: 0, overflowWrap: "anywhere" }}>
+      <Typography sx={{ fontSize: "0.75rem", color: live ? "#1F1F1F" : "#444746", minWidth: 0, overflowWrap: "anywhere" }}>
         {step.label}
       </Typography>
     </Box>

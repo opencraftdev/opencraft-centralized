@@ -356,7 +356,7 @@ export function Thread({
             )}
           </Box>
         ) : (
-          <Box sx={{ maxWidth: COLUMN, mx: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+          <Box sx={{ maxWidth: COLUMN, mx: "auto", display: "flex", flexDirection: "column", gap: 2.5 }}>
             {shown.map((m) =>
               m.role === "user" ? (
                 <UserBubble key={m.id} m={m} skills={skills} author={author(m)} />

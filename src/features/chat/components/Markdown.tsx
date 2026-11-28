@@ -23,7 +23,80 @@ const components: Components = {
 
 const remarkPlugins = [remarkGfm];
 
-export const ChatMarkdown = memo(function ChatMarkdown({ text }: { text: string }) {
+// Chat answers (option B): text sits in bubbles; wide content (tables, code blocks, image-only paragraphs) sits
+// outside, full column width, between them. A remark plugin groups the top-level nodes into wrapper divs.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function isWide(n: any): boolean {
+  if (n.type === "table" || n.type === "code") return true;
+  if (n.type !== "paragraph") return false;
+  const kids = (n.children ?? []).filter((c: any) => !(c.type === "text" && !c.value.trim()) && c.type !== "break");
+  return kids.length > 0 && kids.every((c: any) => c.type === "image" || (c.type === "link" && c.children?.every((x: any) => x.type === "image")));
+}
+function bubbleGroups() {
+  return (tree: any) => {
+    const out: any[] = [];
+    let group: any = null;
+    for (const n of tree.children) {
+      if (n.type === "definition") {
+        out.push(n);
+      } else if (isWide(n)) {
+        group = null;
+        out.push({ type: "mdWide", data: { hName: "div", hProperties: { className: ["md-wide"] } }, children: [n] });
+      } else {
+        if (!group) {
+          group = { type: "mdBubble", data: { hName: "div", hProperties: { className: ["md-bubble"] } }, children: [] };
+          out.push(group);
+        }
+        group.children.push(n);
+      }
+    }
+    tree.children = out;
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+const bubblePlugins = [remarkGfm, bubbleGroups];
+
+/** Compact sizing (~0.8x) and bubble layout for chat answers. */
+const bubbleSx = {
+  fontSize: "0.8125rem",
+  lineHeight: 1.6,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-start",
+  gap: 1,
+  "& p": { my: 1 },
+  "& h1, & h2, & h3, & h4, & h5, & h6": { mt: 2, mb: 0.75 },
+  "& h1": { fontSize: "1.125rem" },
+  "& h2": { fontSize: "1rem" },
+  "& h3": { fontSize: "0.9375rem" },
+  "& h4, & h5, & h6": { fontSize: "0.8125rem" },
+  "& ul, & ol": { my: 1, pl: 2.5 },
+  "& li": { my: 0.4, pl: 0.25 },
+  "& hr": { my: 2 },
+  "& blockquote": { my: 1, pl: 1.5, borderLeftWidth: "3px" },
+  "& .md-bubble": {
+    maxWidth: "100%",
+    minWidth: 0,
+    bgcolor: "#fff",
+    border: "1px solid #E3E3E3",
+    borderRadius: "4px 18px 18px 18px",
+    px: 1.5,
+    py: 1,
+  },
+  "& .md-bubble > :first-child": { mt: 0 },
+  "& .md-bubble > :last-child": { mb: 0 },
+  "& .md-wide": { width: "100%", minWidth: 0 },
+  "& .md-wide > *": { my: "0 !important" },
+  "& .md-wide img": { maxWidth: "100%", borderRadius: "12px" },
+  "& .md-table": { my: 0 },
+  "& .md-table table": { fontSize: "0.75rem" },
+  "& .md-table th, & .md-table td": { px: 1.5, py: 0.9 },
+  "& .md-table td": { minWidth: 88, overflowWrap: "normal !important", wordBreak: "normal !important" },
+  "& pre": { my: 0, p: 1.5, borderRadius: "10px" },
+  "& pre code": { fontSize: "0.75rem" },
+} as const;
+
+export const ChatMarkdown = memo(function ChatMarkdown({ text, bubbles = false }: { text: string; bubbles?: boolean }) {
   return (
     <Box
       sx={{
@@ -83,9 +156,10 @@ export const ChatMarkdown = memo(function ChatMarkdown({ text }: { text: string 
         "& .md-table th": { bgcolor: "#F8FAFD", fontWeight: 600, color: "#1F1F1F" },
         "& .md-table tr:last-child td": { borderBottom: 0 },
         "& input[type=checkbox]": { mr: 0.75, verticalAlign: "middle" },
+        ...(bubbles ? bubbleSx : {}),
       }}
     >
-      <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
+      <ReactMarkdown remarkPlugins={bubbles ? bubblePlugins : remarkPlugins} components={components}>
         {text}
       </ReactMarkdown>
     </Box>
