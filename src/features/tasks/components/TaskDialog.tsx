@@ -1136,7 +1136,7 @@ export function TaskDialog({
                     )}
                     {editing?.id !== c.id && (
                       // beside the bubble on hover (takes no room); under it on touch screens
-                      <Box sx={{ display: "flex", gap: 0.25, alignSelf: "flex-end", mt: { xs: 0.25, sm: 0 }, position: { xs: "static", sm: "absolute" }, top: { sm: "50%" }, transform: { sm: "translateY(-50%)" }, ...(mine ? { right: "100%", mr: { sm: 0.5 }, flexDirection: "row-reverse" } : { left: "100%", ml: { sm: 0.5 } }) }}>
+                      <Box sx={{ display: "flex", gap: 0.25, alignSelf: "flex-end", mt: { xs: 0.25, sm: 0 }, position: { xs: "static", sm: "absolute" }, top: { sm: "calc(50% + 9px)" }, transform: { sm: "translateY(-50%)" }, ...(mine ? { right: "100%", mr: { sm: 0.5 }, flexDirection: "row-reverse" } : { left: "100%", ml: { sm: 0.5 } }) }}>
                         <CommentAction label="Balas" onClick={() => { setReplyTo(c); requestAnimationFrame(() => mention.current?.focus()); }}>
                           <ReplyRounded sx={{ fontSize: 15 }} />
                         </CommentAction>

@@ -610,7 +610,7 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
                     </Box>
                   )}
                   {mine && !isEditing && !m.id.startsWith("tmp-") && !MENTION_RE.test(m.body) && (
-                    <Box className="tm-act" sx={{ position: "absolute", top: "50%", transform: "translateY(-50%)", right: "100%", mr: 0.25, display: "flex", flexDirection: "row-reverse", opacity: { xs: 1, sm: 0 }, transition: "opacity 150ms" }}>
+                    <Box className="tm-act" sx={{ position: "absolute", top: "calc(50% + 8px)", transform: "translateY(-50%)", right: "100%", mr: 0.25, display: "flex", flexDirection: "row-reverse", opacity: { xs: 1, sm: 0 }, transition: "opacity 150ms" }}>
                       <Tooltip title="Edit">
                         <IconButton size="small" aria-label="Edit pesan" onClick={() => startEdit(m)} sx={{ p: 0.3, color: "#80868B", "&:hover": { color: "#0B57D0" } }}>
                           <EditRounded sx={{ fontSize: 13 }} />
