@@ -8,6 +8,7 @@ import { Linkify } from "@/components/ui/Linkify";
 import type { Task } from "../types";
 import type { TasksCtx } from "./TasksApp";
 import { MemberAvatar, ProjectMark } from "./bits";
+import { useTeamChat } from "@/features/team-chat/TeamChat";
 import { FileRow, buildBlock, editorFileSx, fileIdsIn, uploadHtml } from "./InlineFiles";
 import type { DriveFile } from "@/lib/drive/types";
 
@@ -260,9 +261,21 @@ function Chip({ kind, id, label, ctx, onOpenTask }: { kind: Kind; id: string; la
       </Box>
     );
   }
+  return <PersonChip id={id} label={label} ctx={ctx} base={base} />;
+}
+
+/** "@Name" chip: click opens the person's profile card (with "Chat") when they have a login. */
+function PersonChip({ id, label, ctx, base }: { id: string; label: string; ctx: TasksCtx; base: object }) {
+  const teamChat = useTeamChat();
   const m = ctx.memberById.get(id);
+  const email = m?.email ?? null;
   return (
-    <Box component="span" sx={{ ...base, pl: 0.25, bgcolor: "#EEF4FE", color: "#0B57D0" }}>
+    <Box
+      component={email ? "button" : "span"}
+      type={email ? "button" : undefined}
+      onClick={email ? (e: React.MouseEvent<HTMLElement>) => teamChat.openProfile(email, e.currentTarget) : undefined}
+      sx={{ ...base, pl: 0.25, bgcolor: "#EEF4FE", color: "#0B57D0", cursor: email ? "pointer" : "default", "&:hover": email ? { bgcolor: "#D3E3FD" } : {} }}
+    >
       <MemberAvatar member={m} size={14} />@{m?.name ?? label}
     </Box>
   );
