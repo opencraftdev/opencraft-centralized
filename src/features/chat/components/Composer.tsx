@@ -14,10 +14,12 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import PictureAsPdfRounded from "@mui/icons-material/PictureAsPdfRounded";
+import MovieRounded from "@mui/icons-material/MovieRounded";
+import AudiotrackRounded from "@mui/icons-material/AudiotrackRounded";
 import ImageRounded from "@mui/icons-material/ImageRounded";
 import { toastError } from "@/components/ui/Toast";
 import { driveContentUrl } from "@/lib/drive/links";
-import { uploadChatImage, withImages, type ChatImage } from "../images";
+import { attachKind, uploadChatImage, withImages, type ChatImage } from "../images";
 import SendRounded from "@mui/icons-material/SendRounded";
 import StopRounded from "@mui/icons-material/StopRounded";
 import type { SkillSummary } from "@/features/skills/api";
@@ -248,7 +250,7 @@ export const Composer = forwardRef<
   const [closedFor, setClosedFor] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   // Pictures attached to the next message (uploaded right away; `id` null while uploading).
-  const [images, setImages] = useState<{ key: string; name: string; image: ChatImage | null; pdf?: boolean }[]>([]);
+  const [images, setImages] = useState<{ key: string; name: string; image: ChatImage | null; kind?: "image" | "pdf" | "video" | "audio" }[]>([]);
   // Files dragged anywhere on the page land here (instead of the browser opening them in a new tab)
   const [dragging, setDragging] = useState(false);
   const addRef = useRef<(f: File[]) => void>(() => {});
@@ -289,15 +291,15 @@ export const Composer = forwardRef<
   }, []);
   const fileInput = useRef<HTMLInputElement>(null);
   const addImages = (files: File[]) => {
-    const ok = files.filter((f) => f.type.startsWith("image/") || f.type === "application/pdf");
-    if (ok.length < files.length) toastError("Hanya gambar dan PDF yang bisa dilampirkan di chat.");
+    const ok = files.filter((f) => /^(image|video|audio)\//.test(f.type) || f.type === "application/pdf");
+    if (ok.length < files.length) toastError("Yang bisa dilampirkan di chat: gambar, PDF, video, dan audio.");
     for (const file of ok) {
       const key = `${Date.now()}-${Math.random()}`;
-      setImages((l) => [...l, { key, name: file.name, image: null, pdf: file.type === "application/pdf" }]);
+      setImages((l) => [...l, { key, name: file.name, image: null, kind: attachKind({ type: file.type.startsWith("image/") ? undefined : file.type, name: file.name }) }]);
       uploadChatImage(file).then(
         (image) => setImages((l) => l.map((x) => (x.key === key ? { ...x, image } : x))),
         (e: Error) => {
-          toastError(`Gagal mengunggah gambar: ${e.message}`);
+          toastError(`Gagal mengunggah file: ${e.message}`);
           setImages((l) => l.filter((x) => x.key !== key));
         },
       );
@@ -447,7 +449,7 @@ export const Composer = forwardRef<
       >
         {dragging && (
           <Box sx={{ position: "absolute", inset: -4, zIndex: 5, borderRadius: "34px", border: "2px dashed #0B57D0", bgcolor: "rgba(232,240,254,.92)", display: "grid", placeItems: "center", color: "#0B57D0", fontSize: "0.875rem", fontWeight: 500, pointerEvents: "none" }}>
-            Lepas untuk melampirkan gambar atau PDF
+            Lepas untuk melampirkan file
           </Box>
         )}
                 {menuOpen && hits && <SkillMenu hits={hits} active={active} below={menuBelow} onPick={pick} onHover={setActive} />}
@@ -473,9 +475,9 @@ export const Composer = forwardRef<
             </IconButton>
           </span>
         </Tooltip>
-        <Tooltip title="Lampirkan gambar atau PDF">
+        <Tooltip title="Lampirkan gambar, PDF, video, atau audio">
           <IconButton
-            aria-label="Lampirkan gambar atau PDF"
+            aria-label="Lampirkan gambar, PDF, video, atau audio"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => fileInput.current?.click()}
             sx={{ ...roundBtn, ml: -0.5, color: "#444746", "&:hover": { bgcolor: "rgba(68,71,70,0.08)" } }}
@@ -486,7 +488,7 @@ export const Composer = forwardRef<
         <input
           ref={fileInput}
           type="file"
-          accept="image/*,application/pdf"
+          accept="image/*,application/pdf,video/*,audio/*"
           multiple
           hidden
           onChange={(e) => {
@@ -499,10 +501,10 @@ export const Composer = forwardRef<
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.5, pb: 0.5 }}>
               {images.map((x) => (
                 <Box key={x.key} sx={{ position: "relative", width: 56, height: 56, borderRadius: "12px", overflow: "hidden", bgcolor: "#E3E3E3", flexShrink: 0 }} title={x.name}>
-                  {x.pdf && x.image ? (
-                    <Box sx={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", bgcolor: "#FCE8E6", color: "#D93025", fontSize: "0.5625rem", fontWeight: 700, gap: 0.25 }}>
-                      <PictureAsPdfRounded sx={{ fontSize: 22 }} />
-                      PDF
+                  {x.kind && x.kind !== "image" && x.image ? (
+                    <Box sx={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: "0.5625rem", fontWeight: 700, gap: 0.25, ...(x.kind === "pdf" ? { bgcolor: "#FCE8E6", color: "#D93025" } : x.kind === "video" ? { bgcolor: "#E8F0FE", color: "#0B57D0" } : { bgcolor: "#F3E8FD", color: "#7B1FA2" }) }}>
+                      {x.kind === "pdf" ? <PictureAsPdfRounded sx={{ fontSize: 22 }} /> : x.kind === "video" ? <MovieRounded sx={{ fontSize: 22 }} /> : <AudiotrackRounded sx={{ fontSize: 22 }} />}
+                      {x.kind === "pdf" ? "PDF" : x.kind === "video" ? "VIDEO" : "AUDIO"}
                     </Box>
                   ) : x.image ? (
                     <BlurUpMedia src={driveContentUrl(x.image.file_id)} alt={x.name} lazy={false} />

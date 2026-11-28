@@ -7,6 +7,7 @@
 import { BlurUpMedia } from "@/components/ui/BlurUpMedia";
 import Box from "@mui/material/Box";
 import PictureAsPdfRounded from "@mui/icons-material/PictureAsPdfRounded";
+import AudiotrackRounded from "@mui/icons-material/AudiotrackRounded";
 import { createClient } from "@/lib/supabase/client";
 import { createFolder, uploadFile } from "@/features/drive/api";
 import { driveContentUrl } from "@/lib/drive/links";
@@ -14,9 +15,13 @@ import { driveContentUrl } from "@/lib/drive/links";
 export interface ChatImage {
   file_id: string;
   name: string;
-  type?: string; // "application/pdf" for a PDF; absent = picture
+  type?: string; // mime type for a PDF / video / audio; absent = picture
 }
 export const isPdf = (i: { type?: string; name?: string }) => i.type === "application/pdf" || /\.pdf$/i.test(i.name ?? "");
+export const isVideo = (i: { type?: string }) => !!i.type?.startsWith("video/");
+export const isAudio = (i: { type?: string }) => !!i.type?.startsWith("audio/");
+/** What a chat attachment is, from its mime type. */
+export const attachKind = (i: { type?: string; name?: string }): "image" | "pdf" | "video" | "audio" => (isPdf(i) ? "pdf" : isVideo(i) ? "video" : isAudio(i) ? "audio" : "image");
 
 const LINE = /^IMG: (\{.*\})\s*$/;
 
@@ -45,7 +50,7 @@ export function splitImages(content: string): { text: string; images: ChatImage[
 /** Message text + IMG: lines. */
 export function withImages(text: string, images: ChatImage[]): string {
   if (!images.length) return text;
-  const body = text.trim() || (images.some(isPdf) ? "File terlampir." : "Gambar terlampir.");
+  const body = text.trim() || (images.some((i) => attachKind(i) !== "image") ? "File terlampir." : "Gambar terlampir.");
   return `${body}\n\n${images.map((i) => `IMG: ${JSON.stringify({ file_id: i.file_id, name: i.name, ...(i.type ? { type: i.type } : {}) })}`).join("\n")}`;
 }
 
@@ -72,37 +77,57 @@ export async function uploadChatImage(file: File): Promise<ChatImage> {
   const folderId = await chatFolder();
   const { data } = await createClient().auth.getUser();
   const id = await uploadFile(file, folderId, data.user?.id ?? "", { kind: "chat_image" });
-  return { file_id: id, name: file.name || "gambar.png", ...(file.type === "application/pdf" ? { type: "application/pdf" } : {}) };
+  return { file_id: id, name: file.name || "gambar.png", ...(file.type && !file.type.startsWith("image/") ? { type: file.type } : {}) };
 }
 
 /** Thumbnails in a sent message (click opens the picture). */
 export function ImageThumbs({ images }: { images: ChatImage[] }) {
   return (
     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, justifyContent: "flex-end" }}>
-      {images.map((img) => (
-        <Box
-          key={img.file_id}
-          component="a"
-          href={driveContentUrl(img.file_id)}
-          target="_blank"
-          rel="noreferrer"
-          title={img.name}
-          sx={isPdf(img)
-            ? { display: "flex", alignItems: "center", gap: 1, width: 220, height: 56, px: 1.25, borderRadius: "14px", bgcolor: "#fff", border: "1px solid #E0E3E7", textDecoration: "none", color: "#1F1F1F", "&:hover": { borderColor: "#A8C7FA" } }
-            : { width: 120, height: 120, borderRadius: "16px", overflow: "hidden", bgcolor: "#E9EEF6", display: "block" }}
-        >
-          {isPdf(img) ? (
-            <>
-              <Box sx={{ width: 34, height: 34, borderRadius: "8px", bgcolor: "#FCE8E6", display: "grid", placeItems: "center", flexShrink: 0 }}>
-                <PictureAsPdfRounded sx={{ fontSize: 20, color: "#D93025" }} />
+      {images.map((img) => {
+        const k = attachKind(img);
+        const url = driveContentUrl(img.file_id);
+        if (k === "audio")
+          return (
+            <Box key={img.file_id} sx={{ width: 280, maxWidth: "100%", borderRadius: "14px", bgcolor: "#fff", border: "1px solid #E0E3E7", p: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 0.5, pb: 0.5, fontSize: "0.75rem", color: "#444746" }}>
+                <AudiotrackRounded sx={{ fontSize: 16, color: "#7B1FA2" }} />
+                <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{img.name}</Box>
               </Box>
-              <Box component="span" sx={{ fontSize: "0.8125rem", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{img.name}</Box>
-            </>
-          ) : (
-            <BlurUpMedia src={driveContentUrl(img.file_id)} alt={img.name} />
-          )}
-        </Box>
-      ))}
+              <audio src={url} controls preload="metadata" style={{ width: "100%", height: 36 }} />
+            </Box>
+          );
+        if (k === "video")
+          return (
+            <Box key={img.file_id} sx={{ width: 240, maxWidth: "100%", borderRadius: "16px", overflow: "hidden", bgcolor: "#000" }}>
+              <video src={`${url}#t=0.1`} controls preload="metadata" playsInline style={{ width: "100%", maxHeight: 200, display: "block" }} />
+            </Box>
+          );
+        return (
+          <Box
+            key={img.file_id}
+            component="a"
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            title={img.name}
+            sx={k === "pdf"
+              ? { display: "flex", alignItems: "center", gap: 1, width: 220, height: 56, px: 1.25, borderRadius: "14px", bgcolor: "#fff", border: "1px solid #E0E3E7", textDecoration: "none", color: "#1F1F1F", "&:hover": { borderColor: "#A8C7FA" } }
+              : { width: 120, height: 120, borderRadius: "16px", overflow: "hidden", bgcolor: "#E9EEF6", display: "block" }}
+          >
+            {k === "pdf" ? (
+              <>
+                <Box sx={{ width: 34, height: 34, borderRadius: "8px", bgcolor: "#FCE8E6", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <PictureAsPdfRounded sx={{ fontSize: 20, color: "#D93025" }} />
+                </Box>
+                <Box component="span" sx={{ fontSize: "0.8125rem", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{img.name}</Box>
+              </>
+            ) : (
+              <BlurUpMedia src={url} alt={img.name} />
+            )}
+          </Box>
+        );
+      })}
     </Box>
   );
 }
