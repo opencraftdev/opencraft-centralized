@@ -41,7 +41,7 @@ import { useAccount } from "@/features/accounts/account";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import { formatRelative } from "@/features/drive/format";
 import { addComment, createTask, deleteComment, updateComment, deleteTask, listComments, saveMember, saveProject, updateTask } from "../api";
-import type { Task, TaskComment, TaskInput } from "../types";
+import { picsOf, type Task, type TaskComment, type TaskInput } from "../types";
 import { PRIORITIES, STATUSES } from "../types";
 import type { TasksCtx } from "./TasksApp";
 import { CommentCount, DueChip, MemberAvatar } from "./bits";
@@ -72,6 +72,7 @@ const EMPTY: Form = {
   priority: "medium",
   assignee_id: null,
   helper_ids: [],
+  pic_ids: [],
   start_date: null,
   due_date: null,
   is_milestone: false,
@@ -80,7 +81,15 @@ const EMPTY: Form = {
 
 function toForm(t: Task): Form {
   const { project_id, parent_id, title, description, status, priority, assignee_id, helper_ids, start_date, due_date, is_milestone, is_optional } = t;
-  return { project_id, parent_id, title, description, status, priority, assignee_id, helper_ids, start_date, due_date, is_milestone, is_optional };
+  return { project_id, parent_id, title, description, status, priority, assignee_id, helper_ids, pic_ids: picsOf(t), start_date, due_date, is_milestone, is_optional };
+}
+
+/** PICs go out as pic_ids (all) + assignee_id (the first); without migration 033 only assignee_id is sent. */
+function withPics<T extends Record<string, unknown>>(payload: T, supports: boolean): T {
+  const pics = (payload.pic_ids as string[] | undefined) ?? [];
+  const out: Record<string, unknown> = { ...payload, assignee_id: pics[0] ?? null };
+  if (!supports) delete out.pic_ids;
+  return out as T;
 }
 
 export function TaskDialog({
@@ -144,7 +153,11 @@ export function TaskDialog({
   useEffect(() => {
     if (!open) return;
     formFor.current = task?.id ?? null;
-    setForm(task ? toForm(task) : { ...EMPTY, ...defaults });
+    setForm(() => {
+      if (task) return toForm(task);
+      const f = { ...EMPTY, ...defaults };
+      return { ...f, pic_ids: f.pic_ids?.length ? f.pic_ids : f.assignee_id ? [f.assignee_id] : [] };
+    });
     setConfirmDelete(false);
     setComment("");
     setReplyTo(null);
@@ -210,6 +223,8 @@ export function TaskDialog({
   const dirty = live ? JSON.stringify(toForm(live)) !== JSON.stringify(form) : form.title.trim() !== "";
   const parent = form.parent_id ? ctx.all.find((x) => x.id === form.parent_id) : undefined;
   const subs = taskId ? ctx.childrenOf.get(taskId) ?? [] : [];
+  const supportsPics = ctx.all.some((t) => "pic_ids" in t); // migration 033 has run
+  const pics = form.pic_ids ?? [];
   const dateError = form.start_date && form.due_date && form.start_date > form.due_date ? "Mulai harus sebelum deadline" : "";
 
   const addPerson = async () => {
@@ -217,7 +232,7 @@ export function TaskDialog({
     if (!name) return;
     try {
       const id = await saveMember({ name, initials: initialsOf(name), sort: ctx.members.length + 1 });
-      set("assignee_id", id);
+      setForm((f) => ({ ...f, pic_ids: [...(f.pic_ids ?? []), id], helper_ids: f.helper_ids.filter((x) => x !== id) }));
       setNewPerson(null);
       toastSuccess(`${name} ditambahkan ke tim.`);
       onChanged();
@@ -246,7 +261,7 @@ export function TaskDialog({
     setSaving(true);
     try {
       const description = editingNote && brief.current ? brief.current.serialize() : form.description;
-      const payload = { ...form, description, title: form.title.trim(), due_date: form.is_milestone ? form.start_date ?? form.due_date : form.due_date };
+      const payload = withPics({ ...form, description, title: form.title.trim(), due_date: form.is_milestone ? form.start_date ?? form.due_date : form.due_date }, supportsPics);
       if (form.is_milestone && payload.due_date) payload.start_date = payload.due_date;
       if (live) {
         await updateTask(live.id, payload);
@@ -270,7 +285,7 @@ export function TaskDialog({
   // An existing task saves itself: changes are written shortly after you stop typing (and when the dialog closes).
   const autoPayload = (): Partial<TaskInput> | null => {
     if (!live || formFor.current !== live.id || !form.title.trim() || dateError) return null;
-    const payload: Record<string, unknown> = { ...form, title: form.title.trim(), due_date: form.is_milestone ? form.start_date ?? form.due_date : form.due_date };
+    const payload: Record<string, unknown> = withPics({ ...form, title: form.title.trim(), due_date: form.is_milestone ? form.start_date ?? form.due_date : form.due_date }, supportsPics);
     if (form.is_milestone && payload.due_date) payload.start_date = payload.due_date;
     if (editingNote) delete payload.description; // the brief saves on "Selesai"
     const diff: Record<string, unknown> = {};
@@ -317,6 +332,7 @@ export function TaskDialog({
         parent_id: live.id,
         project_id: live.project_id,
         assignee_id: live.assignee_id,
+        ...(supportsPics ? { pic_ids: picsOf(live) } : {}),
         start_date: live.start_date,
         due_date: live.due_date,
         sort: subs.length ? Math.max(...subs.map((s) => s.sort)) + 1 : 1,
@@ -569,32 +585,35 @@ export function TaskDialog({
                     inlineNew(newPerson, setNewPerson, () => void addPerson(), "Nama orang baru")
                   ) : (
                     <Select
+                      multiple
                       displayEmpty
-                      value={form.assignee_id ?? ""}
-                      onChange={(e) => (e.target.value === "__new" ? setNewPerson("") : set("assignee_id", e.target.value || null))}
+                      value={pics}
+                      onChange={(e) => {
+                        const v = typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value;
+                        if (v.includes("__new")) return setNewPerson("");
+                        setForm((f) => ({ ...f, pic_ids: v, helper_ids: f.helper_ids.filter((x) => !v.includes(x)) }));
+                      }}
                       variant="standard" input={<InputBase />}
-                      renderValue={(id) =>
-                        id ? (
-                          <>
-                            <MemberAvatar member={ctx.memberById.get(id)} size={20} />
-                            {ctx.memberById.get(id)?.name}
-                          </>
+                      renderValue={(ids) =>
+                        ids.length ? (
+                          ids.map((id) => (
+                            <Box key={id} component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                              <MemberAvatar member={ctx.memberById.get(id)} size={20} />
+                              {ctx.memberById.get(id)?.name}
+                            </Box>
+                          ))
                         ) : (
                           <Box component="span" sx={{ color: "#80868B" }}>Pilih orang</Box>
                         )
                       }
-                      sx={pillSx("#fff", "#1F1F1F", true, Boolean(form.assignee_id))}
+                      sx={pillSx("#fff", "#1F1F1F", true, pics.length > 0)}
                       inputProps={{ "aria-label": "PIC" }}
                     >
-                      <MenuItem value="">
-                        <em>Belum ada</em>
-                      </MenuItem>
-                      {ctx.members.filter((m) => m.active || m.id === form.assignee_id).map((m) => (
+                      {ctx.members.filter((m) => m.active || pics.includes(m.id)).map((m) => (
                         <MenuItem key={m.id} value={m.id}>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                            <MemberAvatar member={m} size={20} />
-                            {m.name}
-                          </Box>
+                          <Checkbox size="small" checked={pics.includes(m.id)} sx={{ p: 0.5, mr: 1 }} />
+                          <MemberAvatar member={m} size={20} />
+                          <Box component="span" sx={{ ml: 1 }}>{m.name}</Box>
                         </MenuItem>
                       ))}
                       <MenuItem value="__new" sx={{ color: "#0B57D0", borderTop: "1px solid #EEF1F4" }}>
@@ -604,12 +623,15 @@ export function TaskDialog({
                   )}
                 </PropRow>
 
+                {!supportsPics && pics.length > 1 && (
+                  <Typography sx={{ fontSize: "0.75rem", color: "#B06000", pl: "120px", mt: -0.5 }}>Jalankan SQL 033 dulu supaya PIC ke-2 dan seterusnya ikut tersimpan.</Typography>
+                )}
                 <PropRow icon={<GroupRounded />} label="Dibantu oleh">
                   <Select
                     multiple
                     displayEmpty
                     value={form.helper_ids}
-                    onChange={(e) => set("helper_ids", (typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value).filter((id) => id !== form.assignee_id))}
+                    onChange={(e) => set("helper_ids", (typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value).filter((id) => !pics.includes(id)))}
                     variant="standard" input={<InputBase />}
                     renderValue={(ids) =>
                       ids.length === 0 ? (
@@ -626,7 +648,7 @@ export function TaskDialog({
                     sx={pillSx("#fff", "#1F1F1F", true, form.helper_ids.length > 0)}
                     inputProps={{ "aria-label": "Dibantu oleh" }}
                   >
-                    {ctx.members.filter((m) => m.active && m.id !== form.assignee_id).map((m) => (
+                    {ctx.members.filter((m) => m.active && !pics.includes(m.id)).map((m) => (
                       <MenuItem key={m.id} value={m.id}>
                         <Checkbox size="small" checked={form.helper_ids.includes(m.id)} sx={{ p: 0.5, mr: 1 }} />
                         <MemberAvatar member={m} size={20} />

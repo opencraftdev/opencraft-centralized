@@ -38,6 +38,7 @@ export interface Task {
   priority: TaskPriority;
   assignee_id: string | null;
   helper_ids: string[];
+  pic_ids?: string[]; // all PICs, first = main (migration 033; absent before it runs)
   start_date: string | null; // YYYY-MM-DD
   due_date: string | null; // YYYY-MM-DD
   is_milestone: boolean;
@@ -85,9 +86,16 @@ export type TaskInput = Pick<
   | "priority"
   | "assignee_id"
   | "helper_ids"
+  | "pic_ids"
   | "start_date"
   | "due_date"
   | "is_milestone"
   | "is_optional"
   | "sort"
 >;
+
+/** Everyone who is PIC of a task (pic_ids, or the single assignee before migration 033). */
+export function picsOf(t: Pick<Task, "assignee_id" | "pic_ids">): string[] {
+  if (t.pic_ids && t.pic_ids.length) return t.pic_ids;
+  return t.assignee_id ? [t.assignee_id] : [];
+}

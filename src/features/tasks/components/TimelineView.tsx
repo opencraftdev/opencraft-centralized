@@ -12,6 +12,7 @@ import CheckRounded from "@mui/icons-material/CheckRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
 import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
 import type { Project, Task } from "../types";
+import { picsOf } from "../types";
 import { addDays, diffDays, fmtRange, fmtShort, startOfWeek, todayISO } from "../dates";
 import type { TasksCtx } from "./TasksApp";
 import { AvatarStack, ProjectMark } from "./bits";
@@ -300,7 +301,7 @@ function Ribbon({ task: t, ctx, from, days, color }: { task: Task; ctx: TasksCtx
             "&:hover": { filter: "brightness(0.97)", boxShadow: overdue ? "inset 0 0 0 2px #C5221F, 0 1px 3px rgba(60,64,67,.2)" : "0 1px 3px rgba(60,64,67,.2)" },
           }}
         >
-          <AvatarStack ids={[t.assignee_id, ...t.helper_ids]} members={ctx.memberById} size={22} ring="#fff" />
+          <AvatarStack ids={[...picsOf(t), ...t.helper_ids]} members={ctx.memberById} size={22} ring="#fff" />
           <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "inherit", textDecoration: done ? "line-through" : "none", minWidth: 0 }}>{t.title}</Typography>
           <Box sx={{ flex: 1 }} />
           {done ? <CheckRounded sx={{ fontSize: 16 }} /> : subs.length > 0 && <Typography sx={{ fontSize: "0.6875rem", fontWeight: 600, color: "inherit", opacity: 0.75, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{subsDone}/{subs.length}</Typography>}
