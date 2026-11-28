@@ -9,7 +9,6 @@ import InputBase from "@mui/material/InputBase";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Typography from "@mui/material/Typography";
-import AddRounded from "@mui/icons-material/AddRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import GroupsRounded from "@mui/icons-material/GroupsRounded";
 import FolderRounded from "@mui/icons-material/FolderRounded";
@@ -274,11 +273,8 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
             </Typography>
           </Box>
           <Box sx={{ display: "flex", gap: 1, flexShrink: 0 }}>
-            <Button variant="outlined" startIcon={<GroupsRounded />} onClick={() => setTeamOpen("members")} sx={{ borderRadius: "9999px", borderColor: "#C4C7C5", color: "#444746" }}>
+            <Button variant="contained" disableElevation startIcon={<GroupsRounded />} onClick={() => setTeamOpen("members")} sx={{ borderRadius: "9999px" }}>
               Tim & project
-            </Button>
-            <Button variant="contained" disableElevation startIcon={<AddRounded />} onClick={() => ctx.create({})} sx={{ borderRadius: "9999px" }}>
-              Tugas baru
             </Button>
           </Box>
         </Box>
