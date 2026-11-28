@@ -170,7 +170,7 @@ export function TeamChatProvider({ children }: { children: React.ReactNode }) {
             "@keyframes oc-dock-ring": { "0%": { boxShadow: "0 0 0 0 rgba(11,87,208,.5)" }, "70%": { boxShadow: "0 0 0 9px rgba(11,87,208,0)" }, "100%": { boxShadow: "0 0 0 0 rgba(11,87,208,0)" } },
           }}
         >
-          <ForumRounded sx={{ fontSize: 18, color: "#0B57D0" }} />
+          <ForumRounded sx={{ fontSize: 20, color: "#0B57D0" }} />
           Chat Tim
           {/* the team's faces; the person who just wrote comes to the front with a blue ring */}
           <Box component="span" sx={{ display: "inline-flex", ml: 0.5 }}>
@@ -182,18 +182,18 @@ export function TeamChatProvider({ children }: { children: React.ReactNode }) {
                   component="span"
                   sx={{
                     display: "inline-flex",
-                    ml: i ? "-7px" : 0,
+                    ml: i ? "-5px" : 0,
                     position: "relative",
                     zIndex: dockPeople.length - i,
                     borderRadius: "50%",
                     boxShadow: "0 0 0 2px #fff",
                     transition: "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-                    transform: lead ? "translateY(-5px) scale(1.12)" : "none",
+                    transform: lead ? "translateY(-3px) scale(1.12)" : "none",
                     animation: lead ? "oc-dock-ring 1.6s ease-out infinite" : "none",
                     "@media (prefers-reduced-motion: reduce)": { animation: "none" },
                   }}
                 >
-                  <MemberAvatar member={p} size={26} />
+                  <MemberAvatar member={p} size={20} />
                 </Box>
               );
             })}
