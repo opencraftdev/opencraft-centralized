@@ -1204,7 +1204,7 @@ export function TaskDialog({
                       ctx={ctx}
                       currentTaskId={live.id}
                       placeholder="Tulis di diskusi… ketik @ untuk tag orang, task, atau project"
-                      inputSx={{ fontSize: "0.75rem", pt: 1.5 }}
+                      inputSx={{ fontSize: "0.75rem", minHeight: "2.8em" }}
                     />
                   </Box>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0, px: 0.75, pb: 0.5, "& .MuiIconButton-root": { p: "5px" }, "& .MuiIconButton-root .MuiSvgIcon-root": { fontSize: "15px !important" } }}>
