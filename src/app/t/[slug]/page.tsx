@@ -34,14 +34,17 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const t = await findTask(slug);
-  if (!t) return { title: "Task · OpenCraft" };
+  const base = { metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://internal.ocraft.id") };
+  const image = { url: "/og-task.png", width: 600, height: 600, alt: "OpenCraft" };
+  if (!t) return { ...base, title: "Task · OpenCraft", openGraph: { title: "Task · OpenCraft", images: [image] } };
   const due = t.due_date ? `Deadline ${Number(t.due_date.slice(8, 10))} ${MONTHS[Number(t.due_date.slice(5, 7)) - 1]}` : null;
   const description = [t.project, due, t.status === "done" ? "Selesai" : null].filter(Boolean).join(" · ") || "Task di OpenCraft";
   return {
+    ...base,
     title: `${t.title} · OpenCraft`,
     description,
-    openGraph: { title: t.title, description, siteName: "OpenCraft", type: "website" },
-    twitter: { card: "summary", title: t.title, description },
+    openGraph: { title: t.title, description, siteName: "OpenCraft", type: "website", images: [image] },
+    twitter: { card: "summary", title: t.title, description, images: [image.url] },
   };
 }
 
