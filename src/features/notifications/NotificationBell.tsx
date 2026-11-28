@@ -34,6 +34,8 @@ import type { Member } from "@/features/tasks/types";
 import {
   AREA_LABEL,
   addReadId,
+  addHiddenId,
+  getHiddenIds,
   getClearedAt,
   getLastRead,
   getReadIds,
@@ -195,6 +197,8 @@ export function NotificationBell() {
   const [lastRead, setLastReadState] = useState<string>(() => new Date().toISOString());
   const [clearedAt, setClearedState] = useState<string>(() => new Date(0).toISOString());
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
+  const [askHide, setAskHide] = useState<AppNotification | null>(null);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [openMine, setOpenMine] = useState(true);
   const [openOther, setOpenOther] = useState(true);
@@ -212,6 +216,7 @@ export function NotificationBell() {
     setLastReadState(getLastRead());
     setClearedState(getClearedAt());
     setReadIds(getReadIds());
+    setHiddenIds(getHiddenIds());
     void refresh();
     let t: ReturnType<typeof setTimeout> | null = null;
     const unsub = subscribeNotifications(() => {
@@ -278,7 +283,7 @@ export function NotificationBell() {
   const visible = useMemo(
     () =>
       (items ?? []).filter((n) => {
-        if (n.updated_at <= clearedAt) return false;
+        if (n.updated_at <= clearedAt || hiddenIds.has(n.id)) return false;
         if (n.actor && myEmail && n.actor === myEmail) return false; // never my own actions
         if (mentionsMe(n) || madeMePic(n)) return true;
         const k = kindOf(n);
@@ -286,7 +291,7 @@ export function NotificationBell() {
         if (k === "related") return tasks !== null && involved(n);
         return true;
       }),
-    [items, clearedAt, myEmail, mentionsMe, madeMePic, involved, tasks],
+    [items, clearedAt, hiddenIds, myEmail, mentionsMe, madeMePic, involved, tasks],
   );
   const mine = visible.filter((n) => mentionsMe(n) || madeMePic(n));
   const other = visible.filter((n) => !mentionsMe(n) && !madeMePic(n));
@@ -334,6 +339,29 @@ export function NotificationBell() {
         {formatRelative(n.updated_at)}
       </Typography>
       <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: fresh ? "#0B57D0" : "transparent" }} />
+      {/* the row is a button, so this is a span with button behaviour (no button inside a button) */}
+      <Tooltip title="Hapus notifikasi" disableInteractive>
+        <Box
+          component="span"
+          role="button"
+          tabIndex={0}
+          aria-label="Hapus notifikasi ini"
+          onClick={(e) => {
+            e.stopPropagation();
+            setAskHide(n);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              setAskHide(n);
+            }
+          }}
+          sx={{ display: "grid", placeItems: "center", width: 24, height: 24, mr: -0.5, borderRadius: "50%", color: "#9AA0A6", cursor: "pointer", transition: "color 150ms, background-color 150ms", "&:hover": { color: "#B3261E", bgcolor: "#FCE8E6" }, "&:focus-visible": { outline: "2px solid #0B57D0" } }}
+        >
+          <DeleteRounded sx={{ fontSize: 16 }} />
+        </Box>
+      </Tooltip>
     </Box>
   );
   const avatar = (n: AppNotification, size: number, badge?: { Icon: typeof AddRounded; bg: string }) => {
@@ -554,6 +582,17 @@ export function NotificationBell() {
         </Box>
       </Popover>
 
+      <ConfirmDialog
+        open={!!askHide}
+        title="Hapus notifikasi ini?"
+        body="Notifikasi ini akan dihapus dari daftarmu. Yang lain tidak berubah."
+        confirmLabel="Hapus"
+        onClose={() => setAskHide(null)}
+        onConfirm={async () => {
+          if (askHide) setHiddenIds(addHiddenId(askHide.id));
+          setAskHide(null);
+        }}
+      />
       <ConfirmDialog
         open={confirmClear}
         title="Hapus semua notifikasi?"

@@ -129,3 +129,23 @@ export function setClearedAt(iso = new Date().toISOString()) {
     /* ignore */
   }
 }
+
+/** Notifications hidden one by one with the trash icon (per browser, like "Hapus semua"). */
+const LS_HIDDEN = "notif.hiddenIds";
+export function getHiddenIds(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(LS_HIDDEN) ?? "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+export function addHiddenId(id: string): Set<string> {
+  const ids = getHiddenIds();
+  ids.add(id);
+  try {
+    localStorage.setItem(LS_HIDDEN, JSON.stringify([...ids].slice(-500)));
+  } catch {
+    /* ignore */
+  }
+  return ids;
+}
