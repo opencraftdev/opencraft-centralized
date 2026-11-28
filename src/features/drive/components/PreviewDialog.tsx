@@ -1,5 +1,6 @@
 "use client";
 
+import { BlurUpMedia } from "@/components/ui/BlurUpMedia";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Box from "@mui/material/Box";
@@ -151,7 +152,7 @@ export function PreviewDialog({
   } else if (gid && canPreview(file.mime_type, file.name)) {
     body = (
       <Box sx={{ position: "relative", width: "100%", height: "100%" }}>
-        {frameLoading && (
+        {frameLoading && !/^(image|video)\//.test(file.mime_type ?? "") && (
           <Box sx={{ position: "absolute", inset: 0 }}>
             <Center>
               <CircularProgress size={32} sx={{ color: "#0B57D0" }} />
@@ -161,26 +162,13 @@ export function PreviewDialog({
         )}
         {/^image\/(png|jpeg|gif|webp|avif|bmp)/.test(file.mime_type ?? "") ? (
           // Images: fit the whole picture inside the preview area.
-          <Box
-            component="img"
-            key={gid}
-            src={driveContentUrl(file.id)}
-            alt={file.name}
-            onLoad={() => setFrameLoading(false)}
-            onError={() => setFrameLoading(false)}
-            sx={{ position: "relative", width: "100%", height: "100%", objectFit: "contain", display: "block", p: 2, boxSizing: "border-box" }}
-          />
+          <Box key={gid} sx={{ position: "relative", width: "100%", height: "100%", p: 2, boxSizing: "border-box" }}>
+            <BlurUpMedia src={driveContentUrl(file.id)} alt={file.name} fit="contain" lazy={false} />
+          </Box>
         ) : (file.mime_type ?? "").startsWith("video/") ? (
-          <Box
-            component="video"
-            key={gid}
-            src={driveContentUrl(file.id)}
-            controls
-            playsInline
-            onLoadedData={() => setFrameLoading(false)}
-            onError={() => setFrameLoading(false)}
-            sx={{ position: "relative", width: "100%", height: "100%", objectFit: "contain", display: "block", bgcolor: "#000" }}
-          />
+          <Box key={gid} sx={{ position: "relative", width: "100%", height: "100%", bgcolor: "#000" }}>
+            <BlurUpMedia kind="video" src={driveContentUrl(file.id)} alt={file.name} fit="contain" lazy={false} videoProps={{ controls: true, playsInline: true }} />
+          </Box>
         ) : (
           <Box
             component="iframe"

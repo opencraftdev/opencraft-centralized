@@ -4,6 +4,7 @@
 // Drive (dashboard folder "Chat") as drive_files rows, and referenced at the end of the message text, one line each:
 //   IMG: {"file_id":"<drive_files id>","name":"struk.jpg"}
 // The agent reads those lines (e.g. the finance skill uses file_id as proof); the UI shows them as thumbnails.
+import { BlurUpMedia } from "@/components/ui/BlurUpMedia";
 import Box from "@mui/material/Box";
 import { createClient } from "@/lib/supabase/client";
 import { createFolder, uploadFile } from "@/features/drive/api";
@@ -85,7 +86,7 @@ export function ImageThumbs({ images }: { images: ChatImage[] }) {
           title={img.name}
           sx={{ width: 120, height: 120, borderRadius: "16px", overflow: "hidden", bgcolor: "#E9EEF6", display: "block" }}
         >
-          <Box component="img" src={driveContentUrl(img.file_id)} alt={img.name} sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          <BlurUpMedia src={driveContentUrl(img.file_id)} alt={img.name} />
         </Box>
       ))}
     </Box>

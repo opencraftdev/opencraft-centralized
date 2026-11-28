@@ -1,5 +1,6 @@
 "use client";
 
+import { BlurUpMedia } from "@/components/ui/BlurUpMedia";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import Box from "@mui/material/Box";
@@ -452,7 +453,7 @@ export const Composer = forwardRef<
               {images.map((x) => (
                 <Box key={x.key} sx={{ position: "relative", width: 56, height: 56, borderRadius: "12px", overflow: "hidden", bgcolor: "#E3E3E3", flexShrink: 0 }} title={x.name}>
                   {x.image ? (
-                    <Box component="img" src={driveContentUrl(x.image.file_id)} alt={x.name} sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <BlurUpMedia src={driveContentUrl(x.image.file_id)} alt={x.name} lazy={false} />
                   ) : (
                     <Box sx={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <CircularProgress size={18} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { BlurUpMedia } from "@/components/ui/BlurUpMedia";
 import { useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -61,11 +62,10 @@ export function AttachmentGrid({
               }}
             >
               {isImage(f.mime_type) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={driveContentUrl(f.id)} alt={f.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <BlurUpMedia src={driveContentUrl(f.id)} alt={f.name} />
               ) : isVideo(f.mime_type) ? (
                 <>
-                  <video src={`${driveContentUrl(f.id)}#t=0.1`} muted preload="metadata" playsInline style={{ width: "100%", height: "100%", objectFit: "cover", background: "#1F1F1F" }} />
+                  <BlurUpMedia kind="video" src={`${driveContentUrl(f.id)}#t=0.1`} alt={f.name} videoProps={{ muted: true, preload: "metadata", playsInline: true }} />
                   <Box sx={{ position: "absolute", width: 30, height: 30, borderRadius: "50%", bgcolor: "rgba(0,0,0,.55)", display: "grid", placeItems: "center" }}>
                     <PlayArrowRounded sx={{ color: "#fff", fontSize: 22 }} />
                   </Box>

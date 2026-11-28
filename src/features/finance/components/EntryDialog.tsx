@@ -1,5 +1,6 @@
 "use client";
 
+import { BlurUpMedia } from "@/components/ui/BlurUpMedia";
 import { useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -217,7 +218,7 @@ export function EntryDialog({
                 rel="noreferrer"
                 sx={{ width: 72, height: 72, borderRadius: "12px", border: "1px solid #E0E3E7", overflow: "hidden", flexShrink: 0, bgcolor: "#F0F4F9" }}
               >
-                <Box component="img" src={driveContentUrl(proof)} alt="Bukti" sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                <BlurUpMedia src={driveContentUrl(proof)} alt="Bukti" lazy={false} />
               </Box>
               <Button size="small" disabled={uploading} onClick={() => fileInput.current?.click()} sx={{ borderRadius: "9999px" }}>
                 {uploading ? <CircularProgress size={14} /> : "Ganti"}
