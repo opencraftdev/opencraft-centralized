@@ -699,8 +699,10 @@ function MentionCard({ body, mine, who, other, ctx, onOpen }: { body: string; mi
   return (
     <Box sx={{ maxWidth: 250, bgcolor: "#F1F4F9", border: "1px solid #E3E8F2", borderRadius: "12px", px: 1, py: 0.75, fontSize: "0.6875rem", lineHeight: 1.45, color: "#1F1F1F" }}>
       <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 0.5 }}>
-        <AlternateEmailRounded sx={{ fontSize: 13, color: "#7B1FA2" }} />
-        <b>{mine ? `Kamu menandai ${other}` : `${who} menandai kamu`}</b> di
+        <AlternateEmailRounded sx={{ fontSize: 13, color: "#D93025" }} />
+        <b>{mine ? `Kamu menandai ${other}` : `${who} menandai kamu`}</b> di task
+      </Box>
+      <Box sx={{ mt: 0.5 }}>
         <Box component="button" type="button" onClick={() => onOpen({ id: taskId })} sx={{ display: "inline-flex", alignItems: "center", gap: 0.4, height: 18, px: 0.75, border: "none", borderRadius: "9999px", bgcolor: "#EEF4FE", color: "#0B57D0", fontFamily: "inherit", fontSize: "0.625rem", fontWeight: 600, cursor: "pointer", maxWidth: "100%", "&:hover": { bgcolor: "#D3E3FD" } }}>
           <AssignmentRounded sx={{ fontSize: 11 }} />
           <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t?.title ?? "task"}</Box>

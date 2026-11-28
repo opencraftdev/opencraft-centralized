@@ -148,7 +148,7 @@ function highlightMe(text: string, name: string): React.ReactNode {
   const parts = text.split(new RegExp(`(@${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "i"));
   return parts.map((p, i) =>
     i % 2 ? (
-      <Box key={i} component="span" sx={{ px: 0.5, borderRadius: "4px", bgcolor: "#EBD5F5", color: "#6A1B9A", fontWeight: 600 }}>
+      <Box key={i} component="span" sx={{ px: 0.5, borderRadius: "4px", bgcolor: "#FCE8E6", color: "#C5221F", fontWeight: 600 }}>
         {p}
       </Box>
     ) : (
@@ -501,19 +501,18 @@ export function NotificationBell() {
                       const task = /"(.*)"/.exec(n.title)?.[1] ?? "";
                       return (
                         <Box key={n.id} component="button" type="button" onClick={() => go(n)} sx={rowSx(fresh, i)}>
-                          {avatar(n, 32, tagged ? { Icon: AlternateEmailRounded, bg: "#7B1FA2" } : { Icon: PersonRounded, bg: "#0B57D0" })}
+                          {avatar(n, 32, tagged ? { Icon: AlternateEmailRounded, bg: "#D93025" } : { Icon: PersonRounded, bg: "#0B57D0" })}
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography sx={{ fontSize: "0.8125rem", lineHeight: 1.45, color: "#1F1F1F", overflowWrap: "anywhere" }}>
                               {tagged ? (
                                 <>
-                                  <B>{actorOf(n, people).name}</B> menandai kamu di <B>{task}</B>
+                                  <B>{actorOf(n, people).name}</B> menandai kamu di task
                                 </>
                               ) : (
-                                <>
-                                  Kamu jadi PIC <B>{task}</B>
-                                </>
+                                <>Kamu jadi PIC di task</>
                               )}
                             </Typography>
+                            <Typography sx={{ fontSize: "0.8125rem", fontWeight: 600, lineHeight: 1.4, color: "#1F1F1F", overflowWrap: "anywhere" }}>{task}</Typography>
                             {tagged && cleanBody(n.body) && (
                               <Box sx={{ mt: 0.5, px: 1.25, py: 0.625, borderRadius: "4px 12px 12px 12px", bgcolor: "#F1F4F9", fontSize: "0.8125rem", color: "#1F1F1F", lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>
                                 {highlightMe(cleanBody(n.body), me?.name ?? "")}
