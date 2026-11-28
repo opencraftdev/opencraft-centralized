@@ -135,8 +135,10 @@ export function TaskDialog({
     prevTask.current = open ? task : null;
   }, [open, task]);
 
+  const formFor = useRef<string | null>(null); // which task the form holds (guards autosave while switching)
   useEffect(() => {
     if (!open) return;
+    formFor.current = task?.id ?? null;
     setForm(task ? toForm(task) : { ...EMPTY, ...defaults });
     setConfirmDelete(false);
     setComment("");
@@ -232,6 +234,33 @@ export function TaskDialog({
     } finally {
       setSaving(false);
     }
+  };
+
+  // An existing task saves itself: changes are written shortly after you stop typing (and when the dialog closes).
+  const autoPayload = (): Partial<TaskInput> | null => {
+    if (!live || formFor.current !== live.id || !form.title.trim() || dateError) return null;
+    const payload: Record<string, unknown> = { ...form, title: form.title.trim(), due_date: form.is_milestone ? form.start_date ?? form.due_date : form.due_date };
+    if (form.is_milestone && payload.due_date) payload.start_date = payload.due_date;
+    if (editingNote) delete payload.description; // the brief saves on "Selesai"
+    const diff: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(payload)) if (JSON.stringify(v ?? null) !== JSON.stringify((live as unknown as Record<string, unknown>)[k] ?? null)) diff[k] = v;
+    return Object.keys(diff).length ? (diff as Partial<TaskInput>) : null;
+  };
+  const flushRef = useRef<() => void>(() => {});
+  flushRef.current = () => {
+    const d = autoPayload();
+    if (d && live) ctx.patch(live, d);
+  };
+  useEffect(() => {
+    if (!live || !dirty) return;
+    const t = setTimeout(() => flushRef.current(), 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, dirty]);
+  const close = () => {
+    if (editingNote && live) finishBrief();
+    flushRef.current();
+    onClose();
   };
 
   const remove = async () => {
@@ -394,7 +423,7 @@ export function TaskDialog({
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={close}
       fullScreen={mobile}
       maxWidth="lg"
       fullWidth
@@ -411,7 +440,7 @@ export function TaskDialog({
         )}
         <Box sx={{ flex: 1 }} />
         {live && <DueChip due={live.due_date} done={live.status === "done"} />}
-        <IconButton onClick={onClose} aria-label="Tutup">
+        <IconButton onClick={close} aria-label="Tutup">
           <CloseRounded />
         </IconButton>
       </Box>
@@ -1012,20 +1041,29 @@ export function TaskDialog({
         </Box>
       </Box>
 
-      {/* Footer */}
+      {/* Footer: an existing task saves itself, so only Hapus is left (on the right); a new one still needs "Buat tugas". */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 3, py: 1.25, borderTop: "1px solid #E0E3E7", bgcolor: "#fff", flexShrink: 0 }}>
-        {live && (
-          <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => setConfirmDelete(true)} sx={{ borderRadius: "9999px" }}>
-            Hapus
-          </Button>
+        {live ? (
+          <>
+            <Typography sx={{ fontSize: "0.75rem", color: "#80868B", display: "flex", alignItems: "center", gap: 0.5 }}>
+              <CheckRounded sx={{ fontSize: 14 }} /> {dirty ? "Menyimpan…" : "Perubahan tersimpan otomatis"}
+            </Typography>
+            <Box sx={{ flex: 1 }} />
+            <Button size="small" color="error" startIcon={<DeleteRounded />} onClick={() => setConfirmDelete(true)} sx={{ borderRadius: "9999px" }}>
+              Hapus
+            </Button>
+          </>
+        ) : (
+          <>
+            <Box sx={{ flex: 1 }} />
+            <Button onClick={onClose} sx={{ borderRadius: "9999px", color: "#444746" }}>
+              Batal
+            </Button>
+            <Button variant="contained" disableElevation disabled={saving || !dirty || !form.title.trim()} onClick={() => void save()} sx={{ borderRadius: "9999px" }}>
+              Buat tugas
+            </Button>
+          </>
         )}
-        <Box sx={{ flex: 1 }} />
-        <Button onClick={onClose} sx={{ borderRadius: "9999px", color: "#444746" }}>
-          {live && !dirty ? "Tutup" : "Batal"}
-        </Button>
-        <Button variant="contained" disableElevation disabled={saving || !dirty || !form.title.trim()} onClick={() => void save()} sx={{ borderRadius: "9999px" }}>
-          {live ? "Simpan" : "Buat tugas"}
-        </Button>
       </Box>
       <ConfirmDialog
         open={confirmDelete}

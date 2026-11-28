@@ -1,8 +1,7 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
-import InputBase from "@mui/material/InputBase";
 import Typography from "@mui/material/Typography";
 import AssignmentRounded from "@mui/icons-material/AssignmentRounded";
 import { Linkify } from "@/components/ui/Linkify";
@@ -57,14 +56,15 @@ export function stripFormat(s: string) {
   return s.replace(/(?<!@)\[(?:\/?(?:b|i|u|c)|c=#[0-9a-fA-F]{6})\]/g, "");
 }
 
-function renderRich(text: string, plain: (t: string, key: string) => React.ReactNode[], key: string): React.ReactNode[] {
-  const out: React.ReactNode[] = [];
+type RichNode = string | { tag: "b" | "i" | "u" | "c"; color?: string; kids: RichNode[] };
+
+function parseRich(text: string): RichNode[] {
+  const out: RichNode[] = [];
   let pos = 0;
-  OPEN_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   const re = new RegExp(OPEN_RE.source, "g");
   while ((m = re.exec(text))) {
-    const tag = m[1].startsWith("c=") ? "c" : m[1];
+    const tag = (m[1].startsWith("c=") ? "c" : m[1]) as "b" | "i" | "u" | "c";
     // find the matching close, counting nested tags of the same kind
     const openRe = tag === "c" ? /\[c=#[0-9a-fA-F]{6}\]/g : new RegExp(`\\[${tag}\\]`, "g");
     const close = `[/${tag}]`;
@@ -89,21 +89,101 @@ function renderRich(text: string, plain: (t: string, key: string) => React.React
       i = c + close.length;
     }
     if (end < 0) continue; // unmatched: leave it as text
-    if (m.index > pos) out.push(...plain(text.slice(pos, m.index), `${key}p${pos}`));
-    const inner = renderRich(text.slice(m.index + m[0].length, end), plain, `${key}-${m.index}`);
-    const style: React.CSSProperties =
-      tag === "b" ? { fontWeight: 700 } : tag === "i" ? { fontStyle: "italic" } : tag === "u" ? { textDecoration: "underline", textUnderlineOffset: 2 } : { color: m[1].slice(2) };
-    out.push(
-      <span key={`${key}f${m.index}`} style={style}>
-        {inner}
-      </span>,
-    );
+    if (m.index > pos) out.push(text.slice(pos, m.index));
+    out.push({ tag, color: tag === "c" ? m[1].slice(2) : undefined, kids: parseRich(text.slice(m.index + m[0].length, end)) });
     pos = end + close.length;
     re.lastIndex = pos;
   }
-  if (pos < text.length) out.push(...plain(text.slice(pos), `${key}p${pos}`));
+  if (pos < text.length) out.push(text.slice(pos));
   return out;
 }
+
+const FMT_STYLE = (n: Exclude<RichNode, string>): React.CSSProperties =>
+  n.tag === "b" ? { fontWeight: 700 } : n.tag === "i" ? { fontStyle: "italic" } : n.tag === "u" ? { textDecoration: "underline", textUnderlineOffset: 2 } : { color: n.color };
+
+function renderRich(text: string, plain: (t: string, key: string) => React.ReactNode[], key: string): React.ReactNode[] {
+  const walk = (nodes: RichNode[], k: string): React.ReactNode[] =>
+    nodes.flatMap<React.ReactNode>((n, i) =>
+      typeof n === "string"
+        ? plain(n, `${k}p${i}`)
+        : [
+            <span key={`${k}f${i}`} style={FMT_STYLE(n)}>
+              {walk(n.kids, `${k}-${i}`)}
+            </span>,
+          ],
+    );
+  return walk(parseRich(text), key);
+}
+
+// ---- Editor <-> stored text -------------------------------------------------------------------
+
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+
+/** Stored text → HTML for the live editor. */
+function toHtml(text: string): string {
+  const walk = (nodes: RichNode[]): string =>
+    nodes
+      .map((n) => {
+        if (typeof n === "string") return esc(n);
+        const inner = walk(n.kids);
+        if (n.tag === "c") return `<font color="${n.color}">${inner}</font>`;
+        return `<${n.tag}>${inner}</${n.tag}>`;
+      })
+      .join("");
+  return walk(parseRich(text));
+}
+
+function toHex(c: string): string | null {
+  if (/^#[0-9a-f]{6}$/i.test(c)) return c.toUpperCase();
+  if (/^#[0-9a-f]{3}$/i.test(c)) return ("#" + c.slice(1).split("").map((x) => x + x).join("")).toUpperCase();
+  const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (!m) return null;
+  return "#" + [m[1], m[2], m[3]].map((x) => Number(x).toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+
+/** Live editor DOM → stored text with [b]/[i]/[u]/[c=] tags. */
+function fromDom(node: Node): string {
+  let out = "";
+  node.childNodes.forEach((n) => {
+    if (n.nodeType === Node.TEXT_NODE) {
+      out += (n.nodeValue ?? "").replace(/ /g, " ").replace(/​/g, "");
+      return;
+    }
+    if (n.nodeType !== Node.ELEMENT_NODE) return;
+    const el = n as HTMLElement;
+    const tag = el.tagName;
+    if (tag === "BR") {
+      out += "\n";
+      return;
+    }
+    let inner = fromDom(el);
+    const st = el.style;
+    const color = el.getAttribute("color") || st.color;
+    const hex = color ? toHex(color) : null;
+    if (hex && hex !== "#1F1F1F") inner = `[c=${hex}]${inner}[/c]`;
+    if (tag === "U" || (st.textDecorationLine || st.textDecoration || "").includes("underline")) inner = `[u]${inner}[/u]`;
+    if (tag === "I" || tag === "EM" || st.fontStyle === "italic") inner = `[i]${inner}[/i]`;
+    if (tag === "B" || tag === "STRONG" || st.fontWeight === "bold" || Number(st.fontWeight) >= 600) inner = `[b]${inner}[/b]`;
+    if (tag === "DIV" || tag === "P") {
+      if (out && !out.endsWith("\n")) out += "\n";
+      out += inner === "\n" ? "" : inner;
+      if (!out.endsWith("\n")) out += "\n";
+      return;
+    }
+    out += inner;
+  });
+  return out;
+}
+
+/** Drops empty pairs like [b][/b] left behind by toggling. */
+const tidy = (s: string) => {
+  let prev;
+  do {
+    prev = s;
+    s = s.replace(/\[(b|i|u)\]\[\/\1\]|\[c=#[0-9A-Fa-f]{6}\]\[\/c\]/g, "");
+  } while (s !== prev);
+  return s.replace(/\n$/, "");
+};
 
 function Chip({ kind, id, label, ctx, onOpenTask }: { kind: Kind; id: string; label: string; ctx: TasksCtx; onOpenTask: (t: Task) => void }) {
   const base = { display: "inline-flex", alignItems: "center", gap: 0.5, verticalAlign: "bottom", px: 0.75, mx: "1px", height: 22, borderRadius: "9999px", fontSize: "0.8125rem", fontWeight: 600, border: "none", fontFamily: "inherit", maxWidth: "100%" } as const;
@@ -140,10 +220,12 @@ export interface MentionInputHandle {
   focus: () => void;
   /** Starts editing a stored text: tokens become plain "@Label" again (and are remembered for serialize). */
   load: (stored: string) => void;
-  /** Wraps the selected text in formatting tags (or inserts an empty pair at the caret). */
-  format: (open: string, close: string) => void;
+  /** Applies formatting to the selection: bold / italic / underline / a text colour. */
+  exec: (cmd: "bold" | "italic" | "underline" | "color", color?: string) => void;
 }
 
+// The box is a rich editor (formatting shows live). Its value is the stored text format: [b]…[/b] etc. and
+// plain "@Label" for picked mentions.
 export const MentionInput = forwardRef<MentionInputHandle, {
   value: string;
   onChange: (v: string) => void;
@@ -157,27 +239,81 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   inputSx?: object;
   ariaLabel?: string;
 }>(function MentionInput({ value, onChange, onSubmit, ctx, currentTaskId, placeholder, minRows, newlineOnEnter, popupBelow, inputSx, ariaLabel }, ref) {
-  const input = useRef<HTMLTextAreaElement | null>(null);
+  const root = useRef<HTMLDivElement | null>(null);
+  const emitted = useRef<string | null>(null); // last value this editor produced
+  const saved = useRef<Range | null>(null); // selection kept while toolbar popovers have focus
   const [picked, setPicked] = useState<Option[]>([]);
-  const [query, setQuery] = useState<{ text: string; start: number } | null>(null);
+  const [query, setQuery] = useState<{ text: string } | null>(null);
   const [active, setActive] = useState(0);
 
-  const format = (open: string, close: string) => {
-    const el = input.current;
-    const a = el?.selectionStart ?? value.length;
-    const b = el?.selectionEnd ?? value.length;
-    const next = value.slice(0, a) + open + value.slice(a, b) + close + value.slice(b);
-    onChange(next);
-    requestAnimationFrame(() => {
-      el?.focus();
-      if (a === b) el?.setSelectionRange(a + open.length, a + open.length);
-      else el?.setSelectionRange(a + open.length, b + open.length);
-    });
+  // Outside changes (load, clear after send) rewrite the editor; our own typing doesn't.
+  useEffect(() => {
+    const el = root.current;
+    if (!el || value === emitted.current) return;
+    el.innerHTML = toHtml(value);
+    emitted.current = value;
+    if (document.activeElement === el) caretToEnd(el);
+  }, [value]);
+
+  // remember the selection inside the editor
+  useEffect(() => {
+    const onSel = () => {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount && root.current?.contains(sel.anchorNode)) saved.current = sel.getRangeAt(0).cloneRange();
+    };
+    document.addEventListener("selectionchange", onSel);
+    return () => document.removeEventListener("selectionchange", onSel);
+  }, []);
+
+  const emit = () => {
+    const el = root.current;
+    if (!el) return;
+    const v = tidy(fromDom(el));
+    emitted.current = v;
+    onChange(v);
+    detect();
+  };
+
+  const restore = () => {
+    const el = root.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (saved.current && sel) {
+      sel.removeAllRanges();
+      sel.addRange(saved.current);
+    }
+  };
+
+  // Look for "@word" right before the caret.
+  const detect = () => {
+    const el = root.current;
+    const sel = window.getSelection();
+    if (!el || !sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return setQuery(null);
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    r.setEnd(sel.anchorNode!, sel.anchorOffset);
+    const before = stripFormat(fromDom(r.cloneContents()));
+    const m = before.match(/(^|\s)@([^\s@][^@\n]{0,40})?$/);
+    if (!m) return setQuery(null);
+    setQuery({ text: m[2] ?? "" });
+    setActive(0);
   };
 
   useImperativeHandle(ref, () => ({
-    format,
-    focus: () => input.current?.focus(),
+    focus: () => {
+      const el = root.current;
+      if (!el) return;
+      el.focus();
+      caretToEnd(el);
+    },
+    exec: (cmd, color) => {
+      restore();
+      document.execCommand("styleWithCSS", false, "false");
+      if (cmd === "color") document.execCommand("foreColor", false, color);
+      else document.execCommand(cmd);
+      emit();
+    },
     load: (stored: string) => {
       const opts: Option[] = [];
       const plain = stored.replace(TOKEN_RE, (_m, label: string, kind: Kind, id: string) => {
@@ -216,48 +352,58 @@ export const MentionInput = forwardRef<MentionInputHandle, {
     return [...people, ...tasks, ...projects];
   }, [query, ctx, currentTaskId]);
 
-  // Look for "@word" right before the caret.
-  const detect = (text: string, caret: number) => {
-    const before = text.slice(0, caret);
-    const m = before.match(/(^|\s)@([^\s@][^@\n]{0,40})?$/);
-    if (!m) return setQuery(null);
-    const q = m[2] ?? "";
-    setQuery({ text: q, start: caret - q.length - 1 });
-    setActive(0);
-  };
-
   const choose = (o: Option) => {
     if (!query) return;
-    const caret = input.current?.selectionStart ?? value.length;
-    const insert = `@${o.label} `;
-    const next = value.slice(0, query.start) + insert + value.slice(caret);
-    onChange(next);
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const r = sel.getRangeAt(0);
+    const len = query.text.length + 1;
+    if (r.startContainer.nodeType === Node.TEXT_NODE && r.startOffset >= len) {
+      const rr = document.createRange();
+      rr.setStart(r.startContainer, r.startOffset - len);
+      rr.setEnd(r.startContainer, r.startOffset);
+      sel.removeAllRanges();
+      sel.addRange(rr);
+    }
+    document.execCommand("insertText", false, `@${o.label} `);
     setPicked((p) => [...p.filter((x) => !(x.kind === o.kind && x.id === o.id)), o]);
+    emit();
     setQuery(null);
-    const pos = query.start + insert.length;
-    requestAnimationFrame(() => {
-      input.current?.focus();
-      input.current?.setSelectionRange(pos, pos);
-    });
   };
 
   const open = query !== null && options.length > 0;
   const groupTitle: Record<Kind, string> = { member: "Orang", task: "Tugas", project: "Project" };
+  const empty = !stripFormat(value).trim();
+  const lineH = 1.5;
 
   return (
     <Box sx={{ position: "relative", flex: 1, minWidth: 0 }}>
-      <InputBase
-        inputRef={input}
-        fullWidth
-        multiline
-        maxRows={newlineOnEnter ? 24 : 6}
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          detect(e.target.value, e.target.selectionStart ?? e.target.value.length);
+      {empty && placeholder && (
+        <Box aria-hidden sx={{ position: "absolute", inset: 0, py: 0.75, fontSize: "0.875rem", lineHeight: lineH, color: "#80868B", pointerEvents: "none", overflow: "hidden", ...inputSx }}>
+          {placeholder}
+        </Box>
+      )}
+      <Box
+        ref={root}
+        contentEditable
+        suppressContentEditableWarning
+        role="textbox"
+        aria-multiline
+        aria-label={ariaLabel ?? "Tulis komentar"}
+        aria-autocomplete="list"
+        aria-expanded={open}
+        onInput={emit}
+        onClick={detect}
+        onKeyUp={(e) => {
+          if (!["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(e.key)) detect();
         }}
-        onClick={(e) => detect(value, (e.target as HTMLTextAreaElement).selectionStart ?? value.length)}
         onBlur={() => setTimeout(() => setQuery(null), 150)}
+        onPaste={(e) => {
+          e.preventDefault();
+          const t = e.clipboardData.getData("text/plain");
+          document.execCommand("insertHTML", false, esc(t));
+          emit();
+        }}
         onKeyDown={(e) => {
           if (open) {
             if (e.key === "ArrowDown") return (e.preventDefault(), setActive((a) => (a + 1) % options.length));
@@ -268,17 +414,35 @@ export const MentionInput = forwardRef<MentionInputHandle, {
           if ((e.ctrlKey || e.metaKey) && !e.altKey && ["b", "i", "u"].includes(e.key.toLowerCase())) {
             e.preventDefault();
             const k = e.key.toLowerCase();
-            return format(`[${k}]`, `[/${k}]`);
+            document.execCommand(k === "b" ? "bold" : k === "i" ? "italic" : "underline");
+            return emit();
           }
-          if (!newlineOnEnter && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+            if (!newlineOnEnter && !e.shiftKey) {
+              e.preventDefault();
+              return onSubmit();
+            }
             e.preventDefault();
-            onSubmit();
+            document.execCommand("insertLineBreak");
+            emit();
           }
         }}
-        placeholder={placeholder}
-        minRows={minRows}
-        sx={{ fontSize: "0.875rem", py: 0.75, ...inputSx }}
-        inputProps={{ "aria-label": ariaLabel ?? "Tulis komentar", "aria-autocomplete": "list", "aria-expanded": open }}
+        sx={{
+          fontSize: "0.875rem",
+          lineHeight: lineH,
+          py: 0.75,
+          outline: "none",
+          whiteSpace: "pre-wrap",
+          overflowWrap: "anywhere",
+          color: "#1F1F1F",
+          minHeight: `${(minRows ?? 1) * lineH}em`,
+          maxHeight: `${(newlineOnEnter ? 24 : 6) * lineH}em`,
+          overflowY: "auto",
+          boxSizing: "content-box",
+          cursor: "text",
+          "& font, & b, & i, & u": { fontFamily: "inherit" },
+          ...inputSx,
+        }}
       />
       {open && (
         <Box
@@ -321,3 +485,12 @@ export const MentionInput = forwardRef<MentionInputHandle, {
     </Box>
   );
 });
+
+function caretToEnd(el: HTMLElement) {
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  r.collapse(false);
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(r);
+}
