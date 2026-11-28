@@ -983,14 +983,14 @@ export function TaskDialog({
               return (
                 <Box key={c.id} id={`cmt-${c.id}`} sx={{ display: "flex", gap: 1, flexDirection: mine ? "row-reverse" : "row", borderRadius: "12px", animation: "oc-rise 280ms cubic-bezier(0.22, 1, 0.36, 1) both", transition: "background-color 400ms", "&.flash": { bgcolor: "#E8F0FE" }, "&:hover .c-del": { opacity: 1 } }}>
                   <MemberAvatar member={memberOf(c.author_email, ctx)} size={28} />
-                  <Box sx={{ position: "relative", maxWidth: "80%", minWidth: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
+                  <Box sx={{ position: "relative", maxWidth: editing?.id === c.id ? "calc(100% - 36px)" : "80%", minWidth: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexDirection: mine ? "row-reverse" : "row", mx: 0.5, mb: 0.25 }}>
                       <Typography sx={{ fontSize: "0.6875rem", color: "#80868B" }}>
                         {mine ? "Kamu" : authorName(c.author_email, ctx)} · {formatRelative(c.created_at)}
                       </Typography>
                     </Box>
                     {editing?.id === c.id ? (
-                      <Box sx={{ width: { xs: 260, sm: 340 }, maxWidth: "100%", border: "1px solid #0B57D0", boxShadow: "0 0 0 1px #0B57D0", borderRadius: "14px", bgcolor: "#fff", px: 1.25, pt: 0.25, pb: 0.75 }}>
+                      <Box sx={{ width: { xs: 300, sm: 460 }, maxWidth: "100%", border: "1px solid #0B57D0", boxShadow: "0 0 0 1px #0B57D0", borderRadius: "14px", bgcolor: "#fff", px: 1.25, pt: 0.25, pb: 0.75 }}>
                         <MentionInput
                           ref={editRef}
                           files={fileMap}
@@ -1004,6 +1004,7 @@ export function TaskDialog({
                           currentTaskId={live?.id}
                           ariaLabel="Edit komentar"
                           popupBelow
+                          maxRows={22}
                           placeholder="Edit komentar…"
                         />
                         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5, mt: 0.25 }}>

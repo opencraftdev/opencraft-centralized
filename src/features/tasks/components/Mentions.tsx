@@ -268,11 +268,12 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   popupBelow?: boolean; // the @ list opens under the box
   inputSx?: object;
   ariaLabel?: string;
+  maxRows?: number; // how tall the box grows before it scrolls
   files?: Map<string, DriveFile>; // for showing [[file:id]] blocks
   onFiles?: (files: File[]) => void; // pasted / dropped files
   onRemoveFile?: (id: string) => void; // the × on a block
   onOpenFile?: (id: string) => void;
-}>(function MentionInput({ value, onChange, onSubmit, ctx, currentTaskId, placeholder, minRows, newlineOnEnter, popupBelow, inputSx, ariaLabel, files, onFiles, onRemoveFile, onOpenFile }, ref) {
+}>(function MentionInput({ value, onChange, onSubmit, ctx, currentTaskId, placeholder, minRows, newlineOnEnter, popupBelow, inputSx, ariaLabel, maxRows, files, onFiles, onRemoveFile, onOpenFile }, ref) {
   const root = useRef<HTMLDivElement | null>(null);
   const emitted = useRef<string | null>(null); // last value this editor produced
   const saved = useRef<Range | null>(null); // selection kept while toolbar popovers have focus
@@ -462,11 +463,24 @@ export const MentionInput = forwardRef<MentionInputHandle, {
       onChange(plain);
     },
     serialize: () => {
+      // every "@Label" of a picked person/task/project becomes a token (the same person can be tagged twice);
+      // longer labels first so "@Raka Putra" wins over "@Raka"
       let s = value;
-      for (const o of picked) {
+      for (const o of [...picked].sort((a, b) => b.label.length - a.label.length)) {
         const plain = `@${o.label}`;
-        const i = s.indexOf(plain);
-        if (i >= 0) s = s.slice(0, i) + `@[${o.label.replace(/[\]\n]/g, " ")}](${o.kind}:${o.id})` + s.slice(i + plain.length);
+        const token = `@[${o.label.replace(/[\]\n]/g, " ")}](${o.kind}:${o.id})`;
+        let from = 0;
+        for (;;) {
+          const i = s.indexOf(plain, from);
+          if (i < 0) break;
+          const next = s[i + plain.length] ?? "";
+          if (/[\p{L}\p{N}]/u.test(next) || s[i - 1] === "[") {
+            from = i + plain.length;
+            continue;
+          }
+          s = s.slice(0, i) + token + s.slice(i + plain.length);
+          from = i + token.length;
+        }
       }
       return s;
     },
@@ -617,7 +631,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
           overflowWrap: "anywhere",
           color: "#1F1F1F",
           minHeight: `${(minRows ?? 1) * lineH}em`,
-          maxHeight: `${(newlineOnEnter ? 24 : 6) * lineH}em`,
+          maxHeight: `${(maxRows ?? (newlineOnEnter ? 24 : 6)) * lineH}em`,
           overflowY: "auto",
           boxSizing: "content-box",
           cursor: "text",
