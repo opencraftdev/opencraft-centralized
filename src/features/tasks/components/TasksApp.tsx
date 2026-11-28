@@ -284,8 +284,8 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
         <FocusPanel data={stats} ctx={ctx} />
 
         {/* Toolbar */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: { xs: 2, sm: 3 }, py: 1.25, borderTop: "1px solid #E0E3E7", borderBottom: "1px solid #E0E3E7", flexWrap: "wrap" }}>
-          <Box role="tablist" sx={{ display: "inline-flex", p: 0.5, bgcolor: "#F0F4F9", borderRadius: "9999px", gap: 0.5 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: { xs: 2, sm: 3 }, py: 1.25, borderBottom: "1px solid #E0E3E7", flexWrap: "wrap" }}>
+          <Box role="tablist" sx={{ display: "inline-flex", gap: 0.25, ml: -0.75 }}>
             {VIEWS.map((v) => {
               const on = v.value === view;
               return (
@@ -311,14 +311,16 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
                     bgcolor: "transparent",
                     color: on ? "#0B57D0" : "#444746",
                     position: "relative",
-                    transition: "color 200ms",
+                    transition: "color 200ms, background-color 150ms",
+                    "&:hover": { bgcolor: on ? "transparent" : "#F1F3F4", color: on ? "#0B57D0" : "#1F1F1F" },
+                    "&:focus-visible": { outline: "2px solid #0B57D0", outlineOffset: 1 },
                   }}
                 >
                   {on && (
                     <motion.span
                       layoutId="tasks-view-pill"
                       transition={SPRING}
-                      style={{ position: "absolute", inset: 0, borderRadius: 9999, background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,.12)" }}
+                      style={{ position: "absolute", inset: 0, borderRadius: 9999, background: "#E8F0FE" }}
                     />
                   )}
                   <Box component="span" sx={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 0.75 }}>
@@ -332,22 +334,6 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
 
           <Box sx={{ flex: 1 }} />
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, height: 36, px: 1.5, bgcolor: "#F0F4F9", borderRadius: "9999px", width: { xs: "100%", sm: 220 }, order: { xs: 5, sm: 0 } }}>
-            <SearchRounded sx={{ fontSize: 18, color: "#5F6368" }} />
-            <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari task…" sx={{ flex: 1, fontSize: "0.875rem" }} inputProps={{ "aria-label": "Cari task" }} />
-          </Box>
-          <Select size="small" value={memberFilter} onChange={(e) => changeMember(e.target.value)} sx={selectSx} aria-label="Filter orang">
-            <MenuItem value="all" sx={optSx}>
-              <GroupsRounded sx={{ fontSize: 20, color: "#5F6368" }} />
-              Semua orang
-            </MenuItem>
-            {data.members.filter((m) => m.active).map((m) => (
-              <MenuItem key={m.id} value={m.id} sx={optSx}>
-                <MemberAvatar member={m} size={20} />
-                {m.name}
-              </MenuItem>
-            ))}
-          </Select>
           <Select size="small" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} sx={selectSx} aria-label="Filter project">
             <MenuItem value="all" sx={optSx}>
               <FolderRounded sx={{ fontSize: 18, color: "#5F6368" }} />
@@ -362,6 +348,22 @@ export function TasksApp({ initial, userEmail }: { initial: TaskData; userEmail:
               </MenuItem>
             ))}
           </Select>
+          <Select size="small" value={memberFilter} onChange={(e) => changeMember(e.target.value)} sx={selectSx} aria-label="Filter orang">
+            <MenuItem value="all" sx={optSx}>
+              <GroupsRounded sx={{ fontSize: 20, color: "#5F6368" }} />
+              Semua orang
+            </MenuItem>
+            {data.members.filter((m) => m.active).map((m) => (
+              <MenuItem key={m.id} value={m.id} sx={optSx}>
+                <MemberAvatar member={m} size={20} />
+                {m.name}
+              </MenuItem>
+            ))}
+          </Select>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, height: 36, px: 1.5, bgcolor: "#F0F4F9", borderRadius: "9999px", width: { xs: "100%", sm: 220 }, order: { xs: 5, sm: 0 } }}>
+            <SearchRounded sx={{ fontSize: 18, color: "#5F6368" }} />
+            <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari task…" sx={{ flex: 1, fontSize: "0.875rem" }} inputProps={{ "aria-label": "Cari task" }} />
+          </Box>
         </Box>
 
         {/* View */}
