@@ -21,7 +21,11 @@ import { ConfirmDialog } from "@/features/drive/components/DriveDialogs";
 import { formatRelative } from "@/features/drive/format";
 import { personFor, useAccount, usePeople } from "@/features/accounts/account";
 import { MemberAvatar } from "@/features/tasks/components/bits";
-import type { Member } from "@/features/tasks/types";
+import type { Member, Project, Task } from "@/features/tasks/types";
+import { useRouter } from "next/navigation";
+import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
+import AssignmentRounded from "@mui/icons-material/AssignmentRounded";
+import OpenInNewRounded from "@mui/icons-material/OpenInNewRounded";
 import type { TasksCtx } from "@/features/tasks/components/TasksApp";
 import { CommentBody, MentionInput, stripFormat, type MentionInputHandle } from "@/features/tasks/components/Mentions";
 import { FormatBar } from "@/features/tasks/components/FormatBar";
@@ -97,7 +101,27 @@ export function TeamChatProvider({ children }: { children: React.ReactNode }) {
     };
   }, [me, refresh]);
 
-  const unread = recent.filter((m) => m.author_email !== me && !m.read_at).length;
+  const unreadList = recent.filter((m) => m.author_email !== me && !m.read_at);
+  const unread = unreadList.length;
+  const unreadFrom = unreadList[0]?.author_email ?? null; // newest unread sender
+  // up to 3 faces: whoever wrote last first, then the most recent conversations, then the rest of the team
+  const dockPeople = useMemo(() => {
+    const order: string[] = [];
+    for (const m of recent) {
+      const other = otherOf(m.thread, me);
+      if (other !== me && !order.includes(other)) order.push(other);
+    }
+    if (unreadFrom) {
+      const i = order.indexOf(unreadFrom);
+      if (i > 0) order.splice(i, 1);
+      if (i !== 0) order.unshift(unreadFrom);
+    }
+    const team = people.filter((p) => p.email && p.email !== me && p.active);
+    const byEmail = new Map(team.map((p) => [p.email as string, p]));
+    const picked = order.map((e) => byEmail.get(e)).filter((p): p is Member => !!p);
+    for (const p of team) if (!picked.includes(p)) picked.push(p);
+    return picked.slice(0, 3);
+  }, [recent, people, me, unreadFrom]);
   const api = useMemo<TeamChatApi>(
     () => ({
       openChat: (email) => {
@@ -118,6 +142,7 @@ export function TeamChatProvider({ children }: { children: React.ReactNode }) {
         <Box
           component="button"
           type="button"
+          aria-label={unread ? `Chat Tim, ${unread} pesan belum dibaca` : "Chat Tim"}
           onClick={() => api.openChat()}
           sx={{
             position: "fixed",
@@ -127,26 +152,54 @@ export function TeamChatProvider({ children }: { children: React.ReactNode }) {
             display: "inline-flex",
             alignItems: "center",
             gap: 1,
-            height: 40,
-            px: 1.75,
-            border: "none",
+            height: 44,
+            pl: 1.5,
+            pr: 0.75,
+            border: "1px solid #E3E8F2",
             borderRadius: "9999px",
-            bgcolor: "#0B57D0",
-            color: "#fff",
+            bgcolor: "#fff",
+            color: "#1F1F1F",
             fontFamily: "inherit",
             fontSize: "0.8125rem",
-            fontWeight: 500,
+            fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 6px 18px rgba(11,87,208,.35)",
+            boxShadow: "0 4px 16px rgba(60,64,67,.18)",
             transition: "transform 150ms, box-shadow 150ms",
-            "&:hover": { transform: "translateY(-1px)", boxShadow: "0 8px 22px rgba(11,87,208,.42)" },
+            "&:hover": { transform: "translateY(-1px)", boxShadow: "0 8px 22px rgba(60,64,67,.24)" },
             animation: "oc-pop-in 260ms cubic-bezier(0.22, 1, 0.36, 1)",
+            "@keyframes oc-dock-ring": { "0%": { boxShadow: "0 0 0 0 rgba(11,87,208,.5)" }, "70%": { boxShadow: "0 0 0 9px rgba(11,87,208,0)" }, "100%": { boxShadow: "0 0 0 0 rgba(11,87,208,0)" } },
           }}
         >
-          <ForumRounded sx={{ fontSize: 17 }} />
+          <ForumRounded sx={{ fontSize: 18, color: "#0B57D0" }} />
           Chat Tim
+          {/* the team's faces; the person who just wrote comes to the front with a blue ring */}
+          <Box component="span" sx={{ display: "inline-flex", ml: 0.5 }}>
+            {dockPeople.map((p, i) => {
+              const lead = i === 0 && !!unreadFrom;
+              return (
+                <Box
+                  key={p.id}
+                  component="span"
+                  sx={{
+                    display: "inline-flex",
+                    ml: i ? "-7px" : 0,
+                    position: "relative",
+                    zIndex: dockPeople.length - i,
+                    borderRadius: "50%",
+                    boxShadow: "0 0 0 2px #fff",
+                    transition: "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+                    transform: lead ? "translateY(-5px) scale(1.12)" : "none",
+                    animation: lead ? "oc-dock-ring 1.6s ease-out infinite" : "none",
+                    "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+                  }}
+                >
+                  <MemberAvatar member={p} size={26} />
+                </Box>
+              );
+            })}
+          </Box>
           {unread > 0 && (
-            <Box component="span" sx={{ minWidth: 20, height: 20, px: 0.5, borderRadius: "10px", bgcolor: "#D93025", color: "#fff", fontSize: "0.6875rem", fontWeight: 700, display: "grid", placeItems: "center" }}>
+            <Box component="span" sx={{ minWidth: 20, height: 20, px: 0.5, borderRadius: "10px", bgcolor: "#D93025", color: "#fff", fontSize: "0.6875rem", fontWeight: 700, display: "grid", placeItems: "center", animation: "oc-pop-in 300ms cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
               {unread > 9 ? "9+" : unread}
             </Box>
           )}
@@ -285,7 +338,9 @@ function Header({ title, sub, avatar, onBack, onClose }: { title: string; sub?: 
 }
 
 /** One-line preview of a stored message (no tags / tokens). */
-const preview = (b: string) => stripFormat(b.replace(/@\[([^\]]+)\]\((?:member|task|project):[0-9a-f-]+\)/g, "@$1")).replace(/\s+/g, " ").trim() || "📎 Lampiran";
+const preview = (b: string, mine = false) =>
+  MENTION_RE.test(b) ? (mine ? "Kamu menandai di sebuah task" : "Menandai kamu di sebuah task") : plainPreview(b);
+const plainPreview = (b: string) => stripFormat(b.replace(/@\[([^\]]+)\]\((?:member|task|project):[0-9a-f-]+\)/g, "@$1")).replace(/\s+/g, " ").trim() || "📎 Lampiran";
 
 function People({ me, people, recent, onPick, onClose }: { me: string; people: Member[]; recent: TeamMessage[]; onPick: (email: string) => void; onClose: () => void }) {
   const [q, setQ] = useState("");
@@ -331,7 +386,7 @@ function People({ me, people, recent, onPick, onClose }: { me: string; people: M
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: "0.6875rem", color: unread ? "#1F1F1F" : "#5F6368", fontWeight: unread ? 500 : 400 }}>
-                  {last ? `${last.author_email === me ? "Kamu: " : ""}${preview(last.body)}` : p.role || "Mulai chat"}
+                  {last ? `${last.author_email === me ? "Kamu: " : ""}${preview(last.body, last.author_email === me)}` : p.role || "Mulai chat"}
                 </Typography>
                 {unread > 0 && (
                   <Box component="span" sx={{ minWidth: 18, height: 18, px: 0.5, borderRadius: "9px", bgcolor: "#0B57D0", color: "#fff", fontSize: "0.625rem", fontWeight: 700, display: "grid", placeItems: "center", flexShrink: 0 }}>
@@ -348,15 +403,32 @@ function People({ me, people, recent, onPick, onClose }: { me: string; people: M
 }
 
 /** The bits of the task-management context the Diskusi editor/renderer need, built from the people list. */
-function chatCtx(people: Member[]): TasksCtx {
-  return { members: people, memberById: new Map(people.map((p) => [p.id, p])), all: [], projects: [], projectById: new Map() } as unknown as TasksCtx;
+function chatCtx(people: Member[], tasks: Task[], projects: Project[]): TasksCtx {
+  return { members: people, memberById: new Map(people.map((p) => [p.id, p])), all: tasks, projects, projectById: new Map(projects.map((p) => [p.id, p])) } as unknown as TasksCtx;
 }
-const noTask = () => {};
+
+/** Tasks and projects, for "@task" in Chat Tim and for task chips/cards in messages. */
+function useTaskLite() {
+  const [data, setData] = useState<{ tasks: Task[]; projects: Project[] }>({ tasks: [], projects: [] });
+  useEffect(() => {
+    const sb = createClient();
+    Promise.all([sb.from("tasks").select("*").order("updated_at", { ascending: false }).limit(400), sb.from("task_projects").select("*")]).then(
+      ([t, p]) => setData({ tasks: (t.data ?? []) as Task[], projects: (p.data ?? []) as Project[] }),
+      () => {},
+    );
+  }, []);
+  return data;
+}
+
+const MENTION_RE = /^\[\[mention:([0-9a-f-]{36})\]\]\n?/;
 
 function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string; other: string; people: Member[]; onBack: () => void; onClose: () => void; onChanged: () => void }) {
   const thread = threadOf(me, other);
   const person = personFor(other, people);
-  const ctx = useMemo(() => chatCtx(people), [people]);
+  const lite = useTaskLite();
+  const ctx = useMemo(() => chatCtx(people, lite.tasks, lite.projects), [people, lite]);
+  const router = useRouter();
+  const openTask = (t: { id: string }) => router.push(`/tasks?task=${t.id}`);
   const [msgs, setMsgs] = useState<TeamMessage[] | null>(null);
   const [files, setFiles] = useState<Map<string, DriveFile>>(new Map());
   const [text, setText] = useState("");
@@ -490,7 +562,9 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
                     <b style={{ fontWeight: 600, color: "#444746" }}>{who.name}</b> · {formatRelative(m.created_at)}
                     {m.updated_at !== m.created_at ? " · diedit" : ""}
                   </Typography>
-                  {isEditing ? (
+                  {MENTION_RE.test(m.body) ? (
+                    <MentionCard body={m.body} mine={mine} who={who.name} other={person.name} ctx={ctx} onOpen={openTask} />
+                  ) : isEditing ? (
                     <Box sx={{ width: 240, maxWidth: "100%", border: "1px solid #0B57D0", boxShadow: "0 0 0 1px #0B57D0", borderRadius: "12px", bgcolor: "#fff", px: 1, pt: 0.25, pb: 0.5 }}>
                       <MentionInput
                         ref={editRef}
@@ -502,6 +576,7 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
                         onFiles={(l) => void upload(editRef, l)}
                         onRemoveFile={removeBlock(editRef)}
                         maxRows={10}
+                        kinds={["task"]}
                         ariaLabel="Edit pesan"
                         inputSx={{ fontSize: "0.6875rem", lineHeight: 1.45 }}
                       />
@@ -531,10 +606,10 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
                         "& a": { color: "#0B57D0 !important" },
                       }}
                     >
-                      <CommentBody text={m.body} ctx={ctx} onOpenTask={noTask} files={files} onOpenFile={openFile} />
+                      <CommentBody text={m.body} ctx={ctx} onOpenTask={openTask} files={files} onOpenFile={openFile} />
                     </Box>
                   )}
-                  {mine && !isEditing && !m.id.startsWith("tmp-") && (
+                  {mine && !isEditing && !m.id.startsWith("tmp-") && !MENTION_RE.test(m.body) && (
                     <Box className="tm-act" sx={{ position: "absolute", top: "50%", transform: "translateY(-50%)", right: "100%", mr: 0.25, display: "flex", flexDirection: "row-reverse", opacity: { xs: 1, sm: 0 }, transition: "opacity 150ms" }}>
                       <Tooltip title="Edit">
                         <IconButton size="small" aria-label="Edit pesan" onClick={() => startEdit(m)} sx={{ p: 0.3, color: "#80868B", "&:hover": { color: "#0B57D0" } }}>
@@ -570,7 +645,8 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
                 onRemoveFile={removeBlock(composer)}
                 maxRows={6}
                 ariaLabel={`Pesan ke ${person.name}`}
-                placeholder={`Tulis pesan ke ${person.name}… ketik @ untuk tag`}
+                placeholder={`Tulis pesan ke ${person.name}… ketik @ untuk tag task`}
+                kinds={["task"]}
                 inputSx={{ fontSize: "0.75rem", lineHeight: 1.45 }}
               />
             </Box>
@@ -611,5 +687,29 @@ function Thread({ me, other, people, onBack, onClose, onChanged }: { me: string;
         }}
       />
     </>
+  );
+}
+
+/** "Bagas menandai kamu di [task]": a tag from a task's Diskusi, shown in Chat Tim (migration 035). */
+function MentionCard({ body, mine, who, other, ctx, onOpen }: { body: string; mine: boolean; who: string; other: string; ctx: TasksCtx; onOpen: (t: { id: string }) => void }) {
+  const m = MENTION_RE.exec(body);
+  const taskId = m?.[1] ?? "";
+  const quote = body.slice(m?.[0].length ?? 0).trim();
+  const t = (ctx.all as Task[]).find((x) => x.id === taskId);
+  return (
+    <Box sx={{ maxWidth: 250, bgcolor: "#F1F4F9", border: "1px solid #E3E8F2", borderRadius: "12px", px: 1, py: 0.75, fontSize: "0.6875rem", lineHeight: 1.45, color: "#1F1F1F" }}>
+      <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 0.5 }}>
+        <AlternateEmailRounded sx={{ fontSize: 13, color: "#7B1FA2" }} />
+        <b>{mine ? `Kamu menandai ${other}` : `${who} menandai kamu`}</b> di
+        <Box component="button" type="button" onClick={() => onOpen({ id: taskId })} sx={{ display: "inline-flex", alignItems: "center", gap: 0.4, height: 18, px: 0.75, border: "none", borderRadius: "9999px", bgcolor: "#EEF4FE", color: "#0B57D0", fontFamily: "inherit", fontSize: "0.625rem", fontWeight: 600, cursor: "pointer", maxWidth: "100%", "&:hover": { bgcolor: "#D3E3FD" } }}>
+          <AssignmentRounded sx={{ fontSize: 11 }} />
+          <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t?.title ?? "task"}</Box>
+        </Box>
+      </Box>
+      {quote && <Box sx={{ color: "#5F6368", mt: 0.5, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>“{quote}”</Box>}
+      <Box component="button" type="button" onClick={() => onOpen({ id: taskId })} sx={{ display: "inline-flex", alignItems: "center", gap: 0.4, mt: 0.75, px: 1, py: 0.4, border: "none", borderRadius: "9999px", bgcolor: "#fff", color: "#0B57D0", fontFamily: "inherit", fontSize: "0.625rem", fontWeight: 600, cursor: "pointer", "&:hover": { bgcolor: "#EEF4FE" } }}>
+        <OpenInNewRounded sx={{ fontSize: 12 }} /> Buka task
+      </Box>
+    </Box>
   );
 }

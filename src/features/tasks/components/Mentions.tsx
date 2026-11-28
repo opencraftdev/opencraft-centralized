@@ -310,6 +310,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   minRows?: number;
   newlineOnEnter?: boolean; // Enter adds a line (brief) instead of sending (comment)
   popupBelow?: boolean; // the @ list opens under the box
+  kinds?: Kind[]; // what "@" can tag (default: people, tasks and projects)
   inputSx?: object;
   ariaLabel?: string;
   maxRows?: number; // how tall the box grows before it scrolls
@@ -317,7 +318,7 @@ export const MentionInput = forwardRef<MentionInputHandle, {
   onFiles?: (files: File[]) => void; // pasted / dropped files
   onRemoveFile?: (id: string) => void; // the × on a block
   onOpenFile?: (id: string) => void;
-}>(function MentionInput({ value, onChange, onSubmit, ctx, currentTaskId, placeholder, minRows, newlineOnEnter, popupBelow, inputSx, ariaLabel, maxRows, files, onFiles, onRemoveFile, onOpenFile }, ref) {
+}>(function MentionInput({ value, onChange, onSubmit, ctx, currentTaskId, placeholder, minRows, newlineOnEnter, popupBelow, kinds, inputSx, ariaLabel, maxRows, files, onFiles, onRemoveFile, onOpenFile }, ref) {
   const root = useRef<HTMLDivElement | null>(null);
   const emitted = useRef<string | null>(null); // last value this editor produced
   const saved = useRef<Range | null>(null); // selection kept while toolbar popovers have focus
@@ -544,8 +545,9 @@ export const MentionInput = forwardRef<MentionInputHandle, {
       .slice(0, 5)
       .map((t) => ({ kind: "task" as const, id: t.id, label: t.title, sub: t.parent_id ? ctx.all.find((x) => x.id === t.parent_id)?.title : ctx.projectById.get(t.project_id ?? "")?.name }));
     const projects = ctx.projects.filter((p) => p.status !== "parked" && hit(p.name)).slice(0, 3).map((p) => ({ kind: "project" as const, id: p.id, label: p.name }));
-    return [...people, ...tasks, ...projects];
-  }, [query, ctx, currentTaskId]);
+    const all = [...people, ...tasks, ...projects];
+    return kinds ? all.filter((o) => kinds.includes(o.kind)) : all;
+  }, [query, ctx, currentTaskId, kinds]);
 
   const choose = (o: Option) => {
     if (!query) return;
