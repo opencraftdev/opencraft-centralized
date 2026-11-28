@@ -6,17 +6,16 @@ import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import Box from "@mui/material/Box";
 import LinearProgress from "@mui/material/LinearProgress";
-import InputBase from "@mui/material/InputBase";
 import Avatar from "@mui/material/Avatar";
 import Popover from "@mui/material/Popover";
 import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
 import MenuRounded from "@mui/icons-material/MenuRounded";
-import SearchRounded from "@mui/icons-material/SearchRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import { logout } from "@/features/auth/actions";
 import ManageAccountsRounded from "@mui/icons-material/ManageAccountsRounded";
+import { GlobalSearch } from "./GlobalSearch";
 import { NotificationBell } from "@/features/notifications/NotificationBell";
 import { useAccount } from "@/features/accounts/account";
 import { ProfileDialog } from "@/features/accounts/ProfileDialog";
@@ -102,35 +101,8 @@ export function TopBar({
           </Typography>
         </Box>
 
-        {/* Centered search pill */}
-        <Box
-          sx={{
-            mx: "auto",
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            flex: 1,
-            minWidth: 0,
-            maxWidth: 720,
-            height: 48,
-            bgcolor: "#E2ECFC",
-            borderRadius: "24px",
-            pl: 2,
-            pr: 1,
-          }}
-        >
-          <SearchRounded sx={{ fontSize: 20, color: "#474747", flexShrink: 0 }} />
-          <InputBase
-            placeholder='Search content in "opencraft.id"'
-            sx={{
-              flex: 1,
-              minWidth: 0,
-              fontSize: "1rem",
-              color: "#474747",
-              "& ::placeholder": { color: "#474747", opacity: 0.6 },
-            }}
-          />
-        </Box>
+        {/* Search across the dashboard */}
+        <GlobalSearch />
 
         {/* Notifications */}
         <Box sx={{ ml: 1 }}>
